@@ -1,0 +1,19 @@
+/build
+/graphedit
+
+/data/*.graph.*
+
+# editor garbage
+.*.swp
+*.pro*
+
+# tex output
+doc/**/*.aux
+doc/**/*.log
+doc/**/*.out
+doc/**/*.toc
+doc/**/*.bbl
+doc/**/*.blg
+doc/**/*.pdf
+doc/**/*.nav
+doc/**/*.snm
