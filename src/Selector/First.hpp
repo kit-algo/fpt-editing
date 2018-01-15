@@ -3,17 +3,13 @@
 
 #include <vector>
 
-#include "Finder.hpp"
-#include "Graph.hpp"
+#include "../config.hpp"
+
+#include "Selector.hpp"
+#include "../Graph/Graph.hpp"
 
 namespace Selector
 {
-	class Selector : public Finder::Finder_Consumer
-	{
-	public:
-		virtual std::vector<VertexID> const &result() const = 0;
-	};
-
 	class First : public Selector
 	{
 	public:

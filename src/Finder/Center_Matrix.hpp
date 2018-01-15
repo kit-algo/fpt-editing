@@ -5,10 +5,10 @@
 #include <tuple>
 #include <vector>
 
-#include "config.hpp"
+#include "../config.hpp"
 
 #include "Finder.hpp"
-#include "Graph_Matrix.hpp"
+#include "../Graph/Matrix.hpp"
 
 namespace Finder
 {
@@ -160,4 +160,4 @@ namespace Finder
 	};
 }
 
-#endif // FINDER_CENTER_MATRIX_HPP
+#endif

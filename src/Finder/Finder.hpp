@@ -4,7 +4,7 @@
 #include <functional>
 #include <vector>
 
-#include "Graph.hpp"
+#include "../Graph/Graph.hpp"
 
 namespace Finder
 {
@@ -20,8 +20,6 @@ namespace Finder
 	class Finder
 	{
 	public:
-		//Finder();
-
 		virtual void find(Graph::Graph const &graph, Graph::Graph const &edited, Feeder_Callback &) = 0;
 	};
 

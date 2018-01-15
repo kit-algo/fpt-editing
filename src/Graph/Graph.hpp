@@ -4,24 +4,18 @@
 #include <assert.h>
 #include <malloc.h>
 
-#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <limits>
-#include <unordered_set>
 #include <vector>
 
-#include "config.hpp"
+#include "../config.hpp"
 
 namespace Graph
 {
-	//template<typename vertexid>
 	class Graph
 	{
 	public:
-		//typedef vertexid VertexID;
-
-		virtual char const *_name() const = 0;
 		virtual VertexID size() const = 0;
 		virtual size_t count_edges() const = 0;
 		virtual bool has_edge(VertexID u, VertexID v) const = 0;
@@ -215,4 +209,4 @@ namespace Graph
 	}
 }
 
-#endif // GRAPH_HPP
+#endif

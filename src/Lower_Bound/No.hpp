@@ -1,19 +1,15 @@
-#ifndef LB_NO_HPP
-#define LB_NO_HPP
+#ifndef LOWER_BOUND_NO_HPP
+#define LOWER_BOUND_NO_HPP
 
 #include <vector>
 
-#include "Finder.hpp"
-#include "Graph.hpp"
+#include "../config.hpp"
+
+#include "Lower_Bound.hpp"
+#include "../Graph/Graph.hpp"
 
 namespace Lower_Bound
 {
-	class Lower_Bound : public Finder::Finder_Consumer
-	{
-	public:
-		virtual size_t result() const = 0;
-	};
-
 	class No : public Lower_Bound
 	{
 	public:

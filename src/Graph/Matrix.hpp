@@ -3,12 +3,9 @@
 
 #include <assert.h>
 
-#include <algorithm>
-#include <iostream>
-#include <limits>
 #include <vector>
 
-#include "config.hpp"
+#include "../config.hpp"
 
 #include "Graph.hpp"
 
@@ -32,11 +29,6 @@ namespace Graph
 		{
 			assert(!small || n <= bits);
 			assert(!small || row_length == 1);
-		}
-
-		virtual char const *_name() const
-		{
-			return "Matrix";
 		}
 
 		virtual VertexID size() const
