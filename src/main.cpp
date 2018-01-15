@@ -57,10 +57,10 @@ void test()
 
 
 struct Options {
-	Editor::Options editor;
 	// search space
 	size_t k_min = 0;
 	size_t k_max = 0;
+	bool all_solutions = false;
 	// time constraints
 	size_t time_max = 0;
 	size_t time_max_hard = 0;
@@ -69,19 +69,23 @@ struct Options {
 	bool no_write = false;
 	bool no_stats = false;
 	bool stats_json = false;
-	std::vector<std::string> filenames;
+	//combinations
 	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::string>>>>>>>> combinations_edit;
 	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::string>>>>>>>> combinations_heur;
+	//graphs
+	std::vector<std::string> filenames;
 };
 
 struct Run
 {
 	template<typename E, typename F, typename S, typename B, typename G>
-	static void run_watch(Options const &options, std::string const &filename)
+	static void run_watch(Options const &options, std::string const &filename, Editor::Options &editor_options)
 	{
-		if(!options.time_max_hard) {run<E, F, S, B, G>(options, filename);}
+		if(!options.time_max_hard) {run<E, F, S, B, G>(options, filename, editor_options);}
 		else
 		{
+			// running with hard time limit
+			// run experiment in child, kill it time_max_hard seconds after last output
 			int pipefd[2];
 			if(pipe2(pipefd, O_NONBLOCK))
 			{
@@ -135,7 +139,7 @@ struct Run
 				std::string j = std::to_string(options.threads);
 
 				std::string boolopts = "-_";
-				if(options.editor.all_solutions) {boolopts.push_back('a');}
+				if(options.all_solutions) {boolopts.push_back('a');}
 				if(options.no_write) {boolopts.push_back('W');}
 				if(options.no_stats) {boolopts.push_back('S');}
 				if(options.stats_json) {boolopts.push_back('J');}
@@ -143,9 +147,9 @@ struct Run
 				char const *editheur = std::is_base_of<Editor::is_editor, E>::value? "-e" : "-h";
 				char const *argv[] = {buf,
 					"-k", k.data(), "-K", K.data(), "-t", t.data(), "-j", j.data(), boolopts.data(),
-					"-R", Editor::Options::restriction_names.at(options.editor.restrictions).data(),
-					"-C", Editor::Options::conversion_names.at(options.editor.conversions).data(),
-					"-M", Editor::Options::mode_names.at(options.editor.mode).data(),
+					"-R", Editor::Options::restriction_names.at(editor_options.restrictions).data(),
+					"-C", Editor::Options::conversion_names.at(editor_options.conversions).data(),
+					"-M", Editor::Options::mode_names.at(editor_options.mode).data(),
 					editheur, E::name, "-f", F::name, "-s", S::name, "-b", B::name, "-g", G::name, filename.data(),
 					NULL
 				};
@@ -165,7 +169,7 @@ struct Run
 
 
 	template<typename E, typename F, typename S, typename B, typename G>
-	static void run(Options const &options, std::string const &filename)
+	static void run(Options const &options, std::string const &filename, Editor::Options &editor_options)
 	{
 		auto graph = Graph::readMetis<G>(filename);
 		Graph::writeDot(filename + ".gv", graph);
@@ -174,7 +178,7 @@ struct Run
 		F finder(graph, 4);
 		S selector;
 		B lower_bound;
-		E editor(options.editor, graph, finder, selector, lower_bound);
+		E editor(editor_options, graph, finder, selector, lower_bound);
 
 		Finder::feed(graph, G(graph.size()), finder, {&lower_bound});
 		size_t bound = lower_bound.result();
@@ -187,7 +191,7 @@ struct Run
 			auto writegraph = [&](Graph::Graph const &graph, Graph::Graph const &edited) -> void
 			{
 				std::ostringstream fname;
-				fname << filename << ".e." << E::name << '-' << Editor::Options::restriction_names.at(options.editor.restrictions) << '-' << Editor::Options::conversion_names.at(options.editor.conversions) << '-' << Editor::Options::mode_names.at(options.editor.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ".k" << k << ".w" << writecount;
+				fname << filename << ".e." << E::name << '-' << Editor::Options::restriction_names.at(editor_options.restrictions) << '-' << Editor::Options::conversion_names.at(editor_options.conversions) << '-' << Editor::Options::mode_names.at(editor_options.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ".k" << k << ".w" << writecount;
 				Graph::writeMetis(fname.str(), graph);
 				Graph::writeDot(fname.str() + ".gv", graph);
 				Graph::writeMetis(fname.str() + ".edits", edited);
@@ -196,7 +200,7 @@ struct Run
 				writecount++;
 			};
 
-			((Options &) options).editor.write = options.no_write? std::function<void(Graph::Graph const &, Graph::Graph const &)>() : writegraph;
+			editor_options.write = options.no_write? std::function<void(Graph::Graph const &, Graph::Graph const &)>() : writegraph;
 			t1 = std::chrono::steady_clock::now();
 			bool solved = editor.edit(k);
 			t2 = std::chrono::steady_clock::now();
@@ -207,7 +211,7 @@ struct Run
 				if(options.stats_json)
 				{
 					std::ostringstream json;
-					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << E::name << '-' << Editor::Options::restriction_names.at(options.editor.restrictions) << '-' << Editor::Options::conversion_names.at(options.editor.conversions) << '-' << Editor::Options::mode_names.at(options.editor.mode) << '-' << F::name << '-' << G::name << "\",\"k\":" << k << ",";
+					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << E::name << '-' << Editor::Options::restriction_names.at(editor_options.restrictions) << '-' << Editor::Options::conversion_names.at(editor_options.conversions) << '-' << Editor::Options::mode_names.at(editor_options.mode) << '-' << F::name << '-' << G::name << "\",\"k\":" << k << ",";
 					json << "\"results\":{\"solved\":\""<< (solved? "true" : "false") << "\",\"time\":" << time_passed << ",\"counters\":{";
 					auto const stats = editor.stats();
 					bool first_stat = true;
@@ -228,7 +232,7 @@ struct Run
 				}
 				else
 				{
-					std::cout << std::endl << filename << ": (exact) " << E::name << '-' << Editor::Options::restriction_names.at(options.editor.restrictions) << '-' << Editor::Options::conversion_names.at(options.editor.conversions) << '-' << Editor::Options::mode_names.at(options.editor.mode) << '-' << F::name << '-' << G::name << ", k = " << k << std::endl;
+					std::cout << std::endl << filename << ": (exact) " << E::name << '-' << Editor::Options::restriction_names.at(editor_options.restrictions) << '-' << Editor::Options::conversion_names.at(editor_options.conversions) << '-' << Editor::Options::mode_names.at(editor_options.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ", k = " << k << std::endl;
 # ifdef STATS_LB
 					std::cout << "lb changes:" << std::endl;
 					auto const &lb_diff = editor.lb_stats();
@@ -260,8 +264,8 @@ struct Run
 			}
 			if(!options.stats_json)
 			{
-				std::cout << filename << ": (exact) " << E::name << '-' << Editor::Options::restriction_names.at(options.editor.restrictions) << '-' << Editor::Options::conversion_names.at(options.editor.conversions) << '-' << Editor::Options::mode_names.at(options.editor.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ", k = " << k << ": " << (solved? "yes" : "no") << " [" << time_passed << "s]" << std::endl;
-				if(solved && options.editor.all_solutions) {std::cout << writecount << " solutions" << std::endl;}
+				std::cout << filename << ": (exact) " << E::name << '-' << Editor::Options::restriction_names.at(editor_options.restrictions) << '-' << Editor::Options::conversion_names.at(editor_options.conversions) << '-' << Editor::Options::mode_names.at(editor_options.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ", k = " << k << ": " << (solved? "yes" : "no") << " [" << time_passed << "s]" << std::endl;
+				if(solved && options.all_solutions) {std::cout << writecount << " solutions" << std::endl;}
 			}
 			if(solved || (options.time_max && time_passed >= options.time_max)) {break;}
 		}
@@ -269,28 +273,27 @@ struct Run
 
 };
 
-void run(Options &options)
+void run(Options const &options)
 {
 #define RUN_G(VAR, NS, CLASS, FINDER, SELECTOR, LOWER_BOUND, GRAPH) \
 			else if(VAR == STR(CLASS) && fi == STR(FINDER) && se == STR(SELECTOR) && lb == STR(LOWER_BOUND) && gr == STR(GRAPH)) \
 			{ \
-				options.editor.restrictions = Editor::Options::restriction_values.at(re); \
-				options.editor.conversions = Editor::Options::conversion_values.at(co); \
-				options.editor.mode = Editor::Options::mode_values.at(mo); \
-				size_t gs = Graph::get_size(filename); \
 				if(gs <= 64) \
 				{ \
-					Run::run_watch<NS::CLASS, Finder::FINDER, Selector::SELECTOR, Lower_Bound::LOWER_BOUND, Graph::GRAPH<>>(options, filename); \
+					Run::run_watch<NS::CLASS, Finder::FINDER, Selector::SELECTOR, Lower_Bound::LOWER_BOUND, Graph::GRAPH<>>(options, filename, editor_options); \
 				} \
 				else \
 				{ \
-					Run::run_watch<NS::CLASS, Finder::FINDER, Selector::SELECTOR, Lower_Bound::LOWER_BOUND, Graph::GRAPH<>>(options, filename); \
+					Run::run_watch<NS::CLASS, Finder::FINDER, Selector::SELECTOR, Lower_Bound::LOWER_BOUND, Graph::GRAPH<>>(options, filename, editor_options); \
 				} \
 			}
 
 	for(auto const &filename: options.filenames)
 	{
+		size_t gs = Graph::get_size(filename);
+
 #define RUN(EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH) RUN_G(ed, Editor, EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH)
+
 		for(auto const &x: options.combinations_edit) for(auto const &ox: x.second) for(auto const &oy: ox.second) for(auto const &oz: oy.second) for(auto const &y: oz.second) for(auto const &z: y.second) for(auto const &zz: z.second) for(auto const &gr: zz.second)
 		{{{
 			auto const &ed = x.first;
@@ -300,6 +303,13 @@ void run(Options &options)
 			auto const &fi = y.first;
 			auto const &se = z.first;
 			auto const &lb = zz.first;
+
+			Editor::Options editor_options;
+			editor_options.all_solutions = options.all_solutions;
+			editor_options.restrictions = Editor::Options::restriction_values.at(re);
+			editor_options.conversions = Editor::Options::conversion_values.at(co);
+			editor_options.mode = Editor::Options::mode_values.at(mo);
+
 			if(false) {;}
 //#include "../build/combinations_edit.i"
 			RUN(Editor, Center_Matrix, First, No, Matrix);
@@ -311,20 +321,6 @@ void run(Options &options)
 
 int main(int argc, char *argv[])
 {
-	/* general options:
-	 * -j --jobs #: number of threads
-	 *
-	 * selections
-	 * -e editors
-	 * -f problem finders
-	 * -g graph classes
-	 * run for every combination
-	 * grouping?
-	 * -c e-f-g for defining a single combination
-	 *
-	 *
-	 */
-
 	struct option const longopts[] =
 	{
 		// search
@@ -418,7 +414,7 @@ int main(int argc, char *argv[])
 			options.k_max = std::stoull(optarg);
 			break;
 		case 'a':
-			options.editor.all_solutions = true;
+			options.all_solutions = true;
 			break;
 		case 't':
 			options.time_max = std::stoull(optarg);

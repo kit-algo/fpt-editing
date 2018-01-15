@@ -11,8 +11,16 @@
 
 namespace Graph
 {
-	template<bool _small = true>
-	class Matrix : public Graph
+	class GraphM : public Graph
+	{
+	public:
+		virtual Packed const *get_row(VertexID u) const = 0;
+		virtual size_t get_row_length() const = 0;
+		virtual std::vector<Packed> alloc_rows(size_t i) const = 0;
+	};
+
+	template<bool _small = false>
+	class Matrix : public GraphM
 	{
 	public:
 		static constexpr size_t bits = 8 * sizeof(Packed);
@@ -25,7 +33,7 @@ namespace Graph
 		std::vector<Packed> matrix;
 
 	public:
-		Matrix(VertexID n) : n(n), row_length((n + bits - 1) / bits), matrix(n * row_length, 0)
+		Matrix(VertexID n) : n(n), row_length(small? 1 : (n + bits - 1) / bits), matrix(n * row_length, 0)
 		{
 			assert(!small || n <= bits);
 			assert(!small || row_length == 1);

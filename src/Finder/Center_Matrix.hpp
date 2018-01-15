@@ -23,11 +23,11 @@ namespace Finder
 		std::vector<Packed> forbidden;
 
 	public:
-		Center_Matrix(Graph::Matrix<> const &graph, size_t const length) : length(length), forbidden(graph.alloc_rows(length / 2 - 1)) {;}
+		Center_Matrix(Graph::GraphM const &graph, size_t const length) : length(length), forbidden(graph.alloc_rows(length / 2 - 1)) {;}
 
 		virtual void find(Graph::Graph const &graph, Graph::Graph const &edited, Feeder_Callback &callback)
 		{
-			Graph::Matrix<> const &gm = dynamic_cast<Graph::Matrix<> const &>(graph);
+			Graph::GraphM const &gm = dynamic_cast<Graph::GraphM const &>(graph);
 //			if(gm)
 //			{
 				find(gm, edited, callback);
@@ -38,7 +38,7 @@ namespace Finder
 //			}
 		}
 
-		virtual void find(Graph::Matrix<> const &graph, Graph::Graph const &, Feeder_Callback &callback)
+		virtual void find(Graph::GraphM const &graph, Graph::Graph const &, Feeder_Callback &callback)
 		{
 			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
 			std::vector<VertexID> path(length);
@@ -98,7 +98,7 @@ namespace Finder
 		}
 
 	private:
-		bool find_rec(Graph::Matrix<> const &graph, std::vector<VertexID> &path, size_t lf, size_t lb, Feeder_Callback callback)
+		bool find_rec(Graph::GraphM const &graph, std::vector<VertexID> &path, size_t lf, size_t lb, Feeder_Callback callback)
 		{
 			Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
 			Packed *nf = f - graph.get_row_length();
