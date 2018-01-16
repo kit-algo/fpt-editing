@@ -20,6 +20,8 @@ namespace Lower_Bound
 		bool found = false;
 
 	public:
+		No(Graph const &) {;}
+
 		void prepare()
 		{
 			found = false;

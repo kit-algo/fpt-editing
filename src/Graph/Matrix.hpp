@@ -160,6 +160,11 @@ namespace Graph
 			if(!valid) {abort();}
 			return valid;
 		}
+
+		void clear()
+		{
+			matrix = decltype(matrix)(matrix.size(), 0);
+		}
 	};
 }
 

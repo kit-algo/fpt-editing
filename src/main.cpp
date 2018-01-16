@@ -30,8 +30,10 @@
 #include "Finder/Center_Matrix.hpp"
 
 #include "Selector/First.hpp"
+#include "Selector/Least_Unedited.hpp"
 
 #include "Lower_Bound/No.hpp"
+#include "Lower_Bound/Basic.hpp"
 
 #include "Graph/Matrix.hpp"
 
@@ -159,7 +161,7 @@ struct Run
 
 		F finder(graph, 4);
 		S selector;
-		B lower_bound;
+		B lower_bound(graph);
 		E editor(editor_options, finder, selector, lower_bound, graph);
 
 		Finder::Feeder<F, S, B, G, GE> feeder(finder, selector, lower_bound);
@@ -294,7 +296,10 @@ void run(Options const &options)
 
 			if(false) {;}
 //#include "../build/combinations_edit.i"
-			RUN(Editor, Center_Matrix, First, No, Matrix);
+			RUN(Editor, Center_Matrix, First, No, Matrix)
+			RUN(Editor, Center_Matrix, First, Basic, Matrix)
+			RUN(Editor, Center_Matrix, Least_Unedited, No, Matrix)
+			RUN(Editor, Center_Matrix, Least_Unedited, Basic, Matrix)
 		}}}
 #undef RUN
 #undef RUN_G
@@ -358,8 +363,8 @@ int main(int argc, char *argv[])
 		{"editors", {'e', {"Editor"}}},
 		{"heuristics", {'h', {}}},
 		{"finders", {'f', {"Center_Matrix"}}},
-		{"selectors", {'s', {"First"}}},
-		{"bounds", {'b', {"No"}}},
+		{"selectors", {'s', {"First", "Least_Unedited"}}},
+		{"bounds", {'b', {"No", "Basic"}}},
 		{"graphs", {'g', {"Matrix"}}}
 	};
 

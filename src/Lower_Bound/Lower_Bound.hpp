@@ -11,6 +11,7 @@ namespace Lower_Bound
 	class Lower_Bound : public Finder::Finder_Consumer<Graph, Graph_Edits>
 	{
 	public:
+		Lower_Bound(Graph const &);
 		size_t result() const;
 	};
 }
