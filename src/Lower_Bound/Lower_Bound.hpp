@@ -7,10 +7,11 @@
 
 namespace Lower_Bound
 {
-	class Lower_Bound : public Finder::Finder_Consumer
+	template<typename Graph, typename Graph_Edits>
+	class Lower_Bound : public Finder::Finder_Consumer<Graph, Graph_Edits>
 	{
 	public:
-		virtual size_t result() const = 0;
+		size_t result() const;
 	};
 }
 

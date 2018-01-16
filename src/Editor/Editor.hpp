@@ -15,13 +15,10 @@
 
 namespace Editor
 {
-	struct is_editor {};
-
 	class Options
 	{
 	public:
 		bool all_solutions = false;
-		std::function<void(Graph::Graph const &, Graph::Graph const &)> write;
 
 		enum class Restrictions {NONE, NO_UNDO, NO_REDUNDANT};
 		Restrictions restrictions = Restrictions::NONE;
@@ -72,22 +69,25 @@ namespace Editor
 		{Options::Modes::ONLY_INSERT, "insert"}
 	};
 
-	class Editor : is_editor
+	template<typename Finder, typename Selector, typename Lower_Bound, typename Graph, typename Graph_Edits>
+	class Editor
 	{
 	public:
 		static constexpr char const *name = "Editor";
 
 	private:
 		Options const &options;
-		Graph::Graph &graph;
-		Finder::Finder &finder;
-		Selector::Selector &selector;
-		Lower_Bound::Lower_Bound &lb;
 
-		Graph::Matrix<> edited;
+		Finder &finder;
+		Selector &selector;
+		Lower_Bound &lb;
+		Graph &graph;
+		Graph_Edits edited;
 
+		::Finder::Feeder<Finder, Selector, Lower_Bound, Graph, Graph_Edits> feeder;
 		bool found_soulution;
 
+		std::function<void(Graph const &, Graph_Edits const &)> write;
 #ifdef STATS
 		std::vector<size_t> calls;
 		std::vector<size_t> prunes;
@@ -95,15 +95,16 @@ namespace Editor
 #endif
 
 	public:
-		Editor(Options const &options, Graph::Graph &graph, Finder::Finder &finder, Selector::Selector &selector, Lower_Bound::Lower_Bound &lb) : options(options), graph(graph), finder(finder), selector(selector), lb(lb), edited(graph.size())
+		Editor(Options const &options, Finder &finder, Selector &selector, Lower_Bound &lb, Graph &graph) : options(options), finder(finder), selector(selector), lb(lb), graph(graph), edited(graph.size()), feeder(finder, selector, lb)
 		{
 			;
 		}
 
-		bool edit(size_t k)
+		bool edit(size_t k, decltype(write) const &writegraph)
 		{
 
 			// lock?
+			write = writegraph;
 #ifdef STATS
 			calls = decltype(calls)(k + 1, 0);
 			prunes = decltype(prunes)(k + 1, 0);
@@ -130,13 +131,13 @@ namespace Editor
 			calls[k]++;
 #endif
 			// start finder and feed into selector and lb
-			Finder::feed(graph, edited, finder, {&selector, &lb});
+			feeder.feed(graph, edited);
 
 			// graph solved?
 			auto problem = selector.result();
 			if(problem.empty())
 			{
-				if(options.write) {options.write(graph, edited);}
+				if(write) {write(graph, edited);}
 				found_soulution = true;
 				return !options.all_solutions;
 			}

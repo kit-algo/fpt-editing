@@ -12,7 +12,8 @@
 
 namespace Finder
 {
-	class Center_Matrix : public Finder
+	template<typename Graph, typename Graph_Edits>
+	class Center_Matrix
 	{
 	public:
 		static constexpr char const *name = "Center_Matrix";
@@ -23,22 +24,10 @@ namespace Finder
 		std::vector<Packed> forbidden;
 
 	public:
-		Center_Matrix(Graph::GraphM const &graph, size_t const length) : length(length), forbidden(graph.alloc_rows(length / 2 - 1)) {;}
+		Center_Matrix(Graph const &graph, size_t const length) : length(length), forbidden(graph.alloc_rows(length / 2 - 1)) {;}
 
-		virtual void find(Graph::Graph const &graph, Graph::Graph const &edited, Feeder_Callback &callback)
-		{
-			Graph::GraphM const &gm = dynamic_cast<Graph::GraphM const &>(graph);
-//			if(gm)
-//			{
-				find(gm, edited, callback);
-//			}
-//			else
-//			{
-//				throw "needs a Graph implementing the Matrix interface";
-//			}
-		}
-
-		virtual void find(Graph::GraphM const &graph, Graph::Graph const &, Feeder_Callback &callback)
+		template<typename Feeder>
+		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
 		{
 			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
 			std::vector<VertexID> path(length);
@@ -68,7 +57,7 @@ namespace Finder
 									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
 									if(graph.has_edge(vf, vb)) {continue;}
 									path[length / 2 + 1] = vb;
-									if(find_rec(graph, path, length / 2 - 1, length / 2 + 1, callback)) {return;}
+									if(find_rec(graph, edited, path, length / 2 - 1, length / 2 + 1, feeder)) {return;}
 								}
 							}
 						}
@@ -88,7 +77,7 @@ namespace Finder
 							VertexID v = __builtin_ctzll(cur) + i * Packed_Bits;
 							f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
-							if(find_rec(graph, path, length / 2 - 1, length / 2, callback)) {return;}
+							if(find_rec(graph, edited, path, length / 2 - 1, length / 2, feeder)) {return;}
 							f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 						}
 					}
@@ -98,7 +87,8 @@ namespace Finder
 		}
 
 	private:
-		bool find_rec(Graph::GraphM const &graph, std::vector<VertexID> &path, size_t lf, size_t lb, Feeder_Callback callback)
+		template<typename Feeder>
+		bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, size_t lf, size_t lb, Feeder &feeder)
 		{
 			Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
 			Packed *nf = f - graph.get_row_length();
@@ -121,7 +111,7 @@ namespace Finder
 								VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
 								if(vf == vb) {continue;}
 								path[lb + 1] = vb;
-								if(callback(path.cbegin(), path.cend())) {return true;}
+								if(feeder.callback(graph, edited, path.cbegin(), path.cend())) {return true;}
 							}
 						}
 					}
@@ -146,7 +136,7 @@ namespace Finder
 								VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
 								if(vf == vb || graph.has_edge(vf, vb)) {continue;}
 								path[lb + 1] = vb;
-								if(find_rec(graph, path, lf - 1, lb + 1, callback))
+								if(find_rec(graph, edited, path, lf - 1, lb + 1, feeder))
 								{
 									return true;
 								}

@@ -1,7 +1,7 @@
 CPP := g++
 DEBUGFLAGS := -ggdb -Og
 RELEASEFLAGS := -O3 -DNDEBUG
-PROFILEFLAGS := -pg -ggdb -O3
+PROFILEFLAGS := -ggdb $(RELEASEFLAGS)
 COMMON := -std=c++14 -pedantic -W -Wall -Wextra -march=native -fopenmp
 CPPFLAGS :=
 LDFLAGS := -lpthread

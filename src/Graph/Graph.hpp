@@ -13,18 +13,33 @@
 
 namespace Graph
 {
+	template<bool _small>
 	class Graph
 	{
 	public:
-		virtual VertexID size() const = 0;
-		virtual size_t count_edges() const = 0;
-		virtual bool has_edge(VertexID u, VertexID v) const = 0;
-		virtual void set_edge(VertexID u, VertexID v) = 0;
-		virtual void clear_edge(VertexID u, VertexID v) = 0;
-		virtual void toggle_edge(VertexID u, VertexID v) = 0;
-		virtual std::vector<VertexID> const get_neighbours(VertexID u) const = 0;
-		virtual bool verify() const = 0;
+		static constexpr char const *name = "Graph Interface";
+
+		VertexID size() const;
+		size_t count_edges() const;
+		bool has_edge(VertexID u, VertexID v) const;
+		void set_edge(VertexID u, VertexID v);
+		void clear_edge(VertexID u, VertexID v);
+		void toggle_edge(VertexID u, VertexID v);
+		std::vector<VertexID> const get_neighbours(VertexID u) const;
+		bool verify() const;
 	};
+
+	template<bool _small>
+	class GraphM : public Graph<_small>
+	{
+	public:
+		static constexpr char const *name = "Graph Interface for adjecency matrix";
+
+		Packed const *get_row(VertexID u) const;
+		size_t get_row_length() const;
+		std::vector<Packed> alloc_rows(size_t i) const;
+	};
+
 
 	uint64_t get_size(std::string const &filename)
 	{
@@ -145,6 +160,7 @@ namespace Graph
 		}
 	}
 
+	template<typename Graph>
 	static void writeDot(std::string const &filename, Graph const &g)
 	{
 		g.verify();
@@ -166,7 +182,8 @@ namespace Graph
 		f << "}\n";
 	}
 
-	void writeDotCombined(std::string const &filename, Graph const &g, Graph const &edits, Graph const &g_orig)
+	template<typename Graph, typename Graph_Edits>
+	void writeDotCombined(std::string const &filename, Graph const &g, Graph_Edits const &edits, Graph const &g_orig)
 	{
 		assert(g.size() == edits.size() && g.size() == g_orig.size());
 		g.verify();

@@ -9,10 +9,11 @@
 
 namespace Selector
 {
-	class Selector : public Finder::Finder_Consumer
+	template<typename Graph, typename Graph_Edits>
+	class Selector : public Finder::Finder_Consumer<Graph, Graph_Edits>
 	{
 	public:
-		virtual std::vector<VertexID> const &result() const = 0;
+		std::vector<VertexID> const &result() const;
 	};
 }
 

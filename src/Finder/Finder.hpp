@@ -8,37 +8,61 @@
 
 namespace Finder
 {
+	template<typename Graph, typename Graph_Edits>
 	class Finder_Consumer
 	{
 	public:
-		virtual void prepare() {;}
-		virtual bool next(Graph::Graph const &, Graph::Graph const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator) = 0;
+		void prepare();
+		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator);
 	};
 
 	using Feeder_Callback = std::function<bool(std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)>;
 
+	template<typename Graph, typename Graph_Edits>
 	class Finder
 	{
 	public:
-		virtual void find(Graph::Graph const &graph, Graph::Graph const &edited, Feeder_Callback &) = 0;
+		static constexpr char const *name = "Finder Inderface";
+
+		template<typename Feeder>
+		void find(Graph const &, Graph_Edits const &, Feeder &);
 	};
 
-	void feed(Graph::Graph const &graph, Graph::Graph const &edited, Finder &finder, std::vector<Finder_Consumer *> consumer)
+	template<typename Finder, typename Selector, typename Lower_Bound, typename Graph, typename Graph_Edits>
+	class Feeder
 	{
-		for(auto c: consumer) {c->prepare();}
-		Feeder_Callback callback = [&](std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e) -> bool
-		{
-			auto it = consumer.end();
-			do
-			{
-				it--;
-				if(!(*it)->next(graph, edited, b, e)) {consumer.erase(it);}
-			} while (it != consumer.begin());
-			return consumer.empty();
-		};
+	private:
+		Finder &finder;
+		Selector &selector;
+		Lower_Bound &lower_bound;
 
-		finder.find(graph, edited, callback);
-	}
+		bool selector_done;
+		bool lower_bound_done;
+
+	public:
+		Feeder(Finder &finder, Selector &selector, Lower_Bound &lower_bound) : finder(finder), selector(selector), lower_bound(lower_bound)
+		{
+			;
+		}
+
+		void feed(Graph const &graph, Graph_Edits const &edited)
+		{
+			selector_done = false;
+			lower_bound_done = false;
+
+			selector.prepare();
+			lower_bound.prepare();
+
+			finder.find(graph, edited, *this);
+		}
+
+		bool callback(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		{
+			if(!selector_done && !selector.next(graph, edited, b, e)) {selector_done = true;}
+			if(!lower_bound_done && !lower_bound.next(graph, edited, b, e)) {lower_bound_done = true;}
+			return selector_done && lower_bound_done;
+		}
+	};
 }
 
 #endif

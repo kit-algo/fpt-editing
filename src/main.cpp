@@ -38,24 +38,6 @@
 #define STR2(x) #x
 #define STR(x) STR2(x)
 
-
-void test()
-{
-	Editor::Options eo;
-	Graph::Matrix<> g = Graph::readMetis<Graph::Matrix<>>("data/presentation.graph");
-	Finder::Center_Matrix f(g, 4);
-	Selector::First sel;
-	Lower_Bound::No lb;
-
-	Editor::Editor e(eo, g, f, sel, lb);
-	bool result = e.edit(2);
-	std::cout << (result? "solved" : "not solved") << std::endl;
-	result = e.edit(3);
-	std::cout << (result? "solved" : "not solved") << std::endl;
-}
-
-
-
 struct Options {
 	// search space
 	size_t k_min = 0;
@@ -78,10 +60,10 @@ struct Options {
 
 struct Run
 {
-	template<typename E, typename F, typename S, typename B, typename G>
+	template<typename E, typename F, typename S, typename B, typename G, typename GE>
 	static void run_watch(Options const &options, std::string const &filename, Editor::Options &editor_options)
 	{
-		if(!options.time_max_hard) {run<E, F, S, B, G>(options, filename, editor_options);}
+		if(!options.time_max_hard) {run<E, F, S, B, G, GE>(options, filename, editor_options);}
 		else
 		{
 			// running with hard time limit
@@ -144,7 +126,7 @@ struct Run
 				if(options.no_stats) {boolopts.push_back('S');}
 				if(options.stats_json) {boolopts.push_back('J');}
 
-				char const *editheur = std::is_base_of<Editor::is_editor, E>::value? "-e" : "-h";
+				char const *editheur = "-e"; //std::is_base_of<Editor::is_editor, E>::value? "-e" : "-h";
 				char const *argv[] = {buf,
 					"-k", k.data(), "-K", K.data(), "-t", t.data(), "-j", j.data(), boolopts.data(),
 					"-R", Editor::Options::restriction_names.at(editor_options.restrictions).data(),
@@ -168,7 +150,7 @@ struct Run
 	}
 
 
-	template<typename E, typename F, typename S, typename B, typename G>
+	template<typename E, typename F, typename S, typename B, typename G, typename GE>
 	static void run(Options const &options, std::string const &filename, Editor::Options &editor_options)
 	{
 		auto graph = Graph::readMetis<G>(filename);
@@ -178,9 +160,10 @@ struct Run
 		F finder(graph, 4);
 		S selector;
 		B lower_bound;
-		E editor(editor_options, graph, finder, selector, lower_bound);
+		E editor(editor_options, finder, selector, lower_bound, graph);
 
-		Finder::feed(graph, G(graph.size()), finder, {&lower_bound});
+		Finder::Feeder<F, S, B, G, GE> feeder(finder, selector, lower_bound);
+		feeder.feed(graph, GE(graph.size()));
 		size_t bound = lower_bound.result();
 
 		//finder.recalculate();
@@ -188,7 +171,7 @@ struct Run
 		{
 			std::chrono::steady_clock::time_point t1, t2;
 			size_t writecount = 0;
-			auto writegraph = [&](Graph::Graph const &graph, Graph::Graph const &edited) -> void
+			auto writegraph = options.no_write? std::function<void(G const &, GE const &)>() : [&](G const &graph, GE const &edited) -> void
 			{
 				std::ostringstream fname;
 				fname << filename << ".e." << E::name << '-' << Editor::Options::restriction_names.at(editor_options.restrictions) << '-' << Editor::Options::conversion_names.at(editor_options.conversions) << '-' << Editor::Options::mode_names.at(editor_options.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ".k" << k << ".w" << writecount;
@@ -200,9 +183,8 @@ struct Run
 				writecount++;
 			};
 
-			editor_options.write = options.no_write? std::function<void(Graph::Graph const &, Graph::Graph const &)>() : writegraph;
 			t1 = std::chrono::steady_clock::now();
-			bool solved = editor.edit(k);
+			bool solved = editor.edit(k, writegraph);
 			t2 = std::chrono::steady_clock::now();
 			double time_passed = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count();
 			if(!options.no_stats)
@@ -275,16 +257,16 @@ struct Run
 
 void run(Options const &options)
 {
-#define RUN_G(VAR, NS, CLASS, FINDER, SELECTOR, LOWER_BOUND, GRAPH) \
+#define RUN_G(VAR, NS, CLASS, FINDER, SELECTOR, LOWER_BOUND, GRAPH, GRAPH_EDITS) \
 			else if(VAR == STR(CLASS) && fi == STR(FINDER) && se == STR(SELECTOR) && lb == STR(LOWER_BOUND) && gr == STR(GRAPH)) \
 			{ \
 				if(gs <= 64) \
 				{ \
-					Run::run_watch<NS::CLASS, Finder::FINDER, Selector::SELECTOR, Lower_Bound::LOWER_BOUND, Graph::GRAPH<>>(options, filename, editor_options); \
+					Run::run_watch<NS::CLASS<Finder::FINDER<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Selector::SELECTOR<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Lower_Bound::LOWER_BOUND<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Finder::FINDER<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Selector::SELECTOR<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Lower_Bound::LOWER_BOUND<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>(options, filename, editor_options); \
 				} \
 				else \
 				{ \
-					Run::run_watch<NS::CLASS, Finder::FINDER, Selector::SELECTOR, Lower_Bound::LOWER_BOUND, Graph::GRAPH<>>(options, filename, editor_options); \
+					Run::run_watch<NS::CLASS<Finder::FINDER<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Selector::SELECTOR<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Lower_Bound::LOWER_BOUND<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Finder::FINDER<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Selector::SELECTOR<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Lower_Bound::LOWER_BOUND<Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>, Graph::GRAPH<true>, Graph::GRAPH_EDITS<true>>(options, filename, editor_options); \
 				} \
 			}
 
@@ -292,7 +274,7 @@ void run(Options const &options)
 	{
 		size_t gs = Graph::get_size(filename);
 
-#define RUN(EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH) RUN_G(ed, Editor, EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH)
+#define RUN(EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH) RUN_G(ed, Editor, EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH, Matrix)
 
 		for(auto const &x: options.combinations_edit) for(auto const &ox: x.second) for(auto const &oy: ox.second) for(auto const &oz: oy.second) for(auto const &y: oz.second) for(auto const &z: y.second) for(auto const &zz: z.second) for(auto const &gr: zz.second)
 		{{{
@@ -315,6 +297,7 @@ void run(Options const &options)
 			RUN(Editor, Center_Matrix, First, No, Matrix);
 		}}}
 #undef RUN
+#undef RUN_G
 	}
 	return;
 }

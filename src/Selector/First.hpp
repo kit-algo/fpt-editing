@@ -10,7 +10,8 @@
 
 namespace Selector
 {
-	class First : public Selector
+	template<typename Graph, typename Graph_Edits>
+	class First
 	{
 	public:
 		static constexpr char const *name = "First";
@@ -19,18 +20,18 @@ namespace Selector
 		std::vector<VertexID> problem;
 
 	public:
-		virtual void prepare()
+		void prepare()
 		{
 			problem.clear();
 		}
 
-		virtual bool next(Graph::Graph const &, Graph::Graph const &, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
 			problem.insert(problem.end(), b, e);
 			return false;
 		}
 
-		virtual std::vector<VertexID> const &result() const
+		std::vector<VertexID> const &result() const
 		{
 			return problem;
 		}

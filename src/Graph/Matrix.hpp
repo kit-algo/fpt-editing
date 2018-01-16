@@ -11,16 +11,8 @@
 
 namespace Graph
 {
-	class GraphM : public Graph
-	{
-	public:
-		virtual Packed const *get_row(VertexID u) const = 0;
-		virtual size_t get_row_length() const = 0;
-		virtual std::vector<Packed> alloc_rows(size_t i) const = 0;
-	};
-
-	template<bool _small = false>
-	class Matrix : public GraphM
+	template<bool _small>
+	class Matrix
 	{
 	public:
 		static constexpr size_t bits = 8 * sizeof(Packed);
@@ -39,12 +31,12 @@ namespace Graph
 			assert(!small || row_length == 1);
 		}
 
-		virtual VertexID size() const
+		VertexID size() const
 		{
 			return n;
 		}
 
-		virtual size_t count_edges() const
+		size_t count_edges() const
 		{
 			size_t count = 0;
 			for(auto const &elem: matrix)
@@ -54,7 +46,7 @@ namespace Graph
 			return count / 2;
 		}
 
-		virtual bool has_edge(VertexID u, VertexID v) const
+		bool has_edge(VertexID u, VertexID v) const
 		{
 			assert(u != v);
 			assert(u < n && v < n);
@@ -63,7 +55,7 @@ namespace Graph
 			else {return (matrix.data() + row_length * u)[v / bits] & (Packed(1) << (v % bits));}
 		}
 
-		virtual void set_edge(VertexID u, VertexID v)
+		void set_edge(VertexID u, VertexID v)
 		{
 			assert(u != v);
 			assert(u < n && v < n);
@@ -80,7 +72,7 @@ namespace Graph
 			}
 		}
 
-		virtual void clear_edge(VertexID u, VertexID v)
+		void clear_edge(VertexID u, VertexID v)
 		{
 			assert(u != v);
 			assert(u < n && v < n);
@@ -97,7 +89,7 @@ namespace Graph
 			}
 		}
 
-		virtual void toggle_edge(VertexID u, VertexID v)
+		void toggle_edge(VertexID u, VertexID v)
 		{
 			assert(u != v);
 			assert(u < n && v < n);
@@ -114,7 +106,7 @@ namespace Graph
 			}
 		}
 
-		virtual std::vector<VertexID> const get_neighbours(VertexID u) const
+		std::vector<VertexID> const get_neighbours(VertexID u) const
 		{
 			std::vector<VertexID> neighbours;
 			Packed const *urow = get_row(u);
@@ -130,22 +122,22 @@ namespace Graph
 			return neighbours;
 		}
 
-		virtual Packed const *get_row(VertexID u) const
+		Packed const *get_row(VertexID u) const
 		{
 			return matrix.data() + row_length * u;
 		}
 
-		virtual size_t get_row_length() const
+		size_t get_row_length() const
 		{
 			return small? 1 : row_length;
 		}
 
-		virtual std::vector<Packed> alloc_rows(size_t i) const
+		std::vector<Packed> alloc_rows(size_t i) const
 		{
 			return std::vector<Packed>(i * row_length, 0);
 		}
 
-		virtual bool verify() const
+		bool verify() const
 		{
 			bool valid = true;
 			for(VertexID u = 0; u < n; u++)

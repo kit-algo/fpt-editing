@@ -10,7 +10,8 @@
 
 namespace Lower_Bound
 {
-	class No : public Lower_Bound
+	template<typename Graph, typename Graph_Edits>
+	class No
 	{
 	public:
 		static constexpr char const *name = "No";
@@ -19,18 +20,18 @@ namespace Lower_Bound
 		bool found = false;
 
 	public:
-		virtual void prepare()
+		void prepare()
 		{
 			found = false;
 		}
 
-		virtual bool next(Graph::Graph const &, Graph::Graph const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
+		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
 		{
 			found = true;
 			return false;
 		}
 
-		virtual size_t result() const
+		size_t result() const
 		{
 			return found? 1 : 0;
 		}
