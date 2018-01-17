@@ -5,9 +5,6 @@
 
 #include "../config.hpp"
 
-#include "Lower_Bound.hpp"
-#include "../Graph/Graph.hpp"
-
 namespace Lower_Bound
 {
 	template<typename Graph, typename Graph_Edits>

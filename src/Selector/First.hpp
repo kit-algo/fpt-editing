@@ -5,9 +5,6 @@
 
 #include "../config.hpp"
 
-#include "Selector.hpp"
-#include "../Graph/Graph.hpp"
-
 namespace Selector
 {
 	template<typename Graph, typename Graph_Edits>

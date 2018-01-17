@@ -1,14 +1,11 @@
 #ifndef FINDER_CENTER_MATRIX_HPP
 #define FINDER_CENTER_MATRIX_HPP
 
-#include <algorithm>
-#include <tuple>
+#include <assert.h>
+
 #include <vector>
 
 #include "../config.hpp"
-
-#include "Finder.hpp"
-#include "../Graph/Matrix.hpp"
 
 namespace Finder
 {

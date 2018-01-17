@@ -1,33 +1,10 @@
 #ifndef FINDER_HPP
 #define FINDER_HPP
 
-#include <functional>
 #include <vector>
-
-#include "../Graph/Graph.hpp"
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits>
-	class Finder_Consumer
-	{
-	public:
-		void prepare();
-		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator);
-	};
-
-	using Feeder_Callback = std::function<bool(std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)>;
-
-	template<typename Graph, typename Graph_Edits>
-	class Finder
-	{
-	public:
-		static constexpr char const *name = "Finder Inderface";
-
-		template<typename Feeder>
-		void find(Graph const &, Graph_Edits const &, Feeder &);
-	};
-
 	template<typename Finder, typename Selector, typename Lower_Bound, typename Graph, typename Graph_Edits>
 	class Feeder
 	{

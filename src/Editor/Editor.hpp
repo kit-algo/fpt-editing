@@ -2,16 +2,11 @@
 #define EDITOR_HPP
 
 #include <functional>
-#include <map>
 #include <vector>
 
 #include "../config.hpp"
 
 #include "../Finder/Finder.hpp"
-#include "../Selector/Selector.hpp"
-#include "../Lower_Bound/Lower_Bound.hpp"
-#include "../Graph/Graph.hpp"
-#include "../Graph/Matrix.hpp"
 
 namespace Editor
 {

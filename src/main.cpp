@@ -7,26 +7,23 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <chrono>
-#include <initializer_list>
 #include <iomanip>
 #include <iostream>
 #include <functional>
 #include <map>
-#include <memory>
 #include <numeric>
 #include <set>
 #include <sstream>
 #include <string>
-#include <tuple>
-#include <type_traits>
-#include <utility>
 #include <vector>
 
 #include "config.hpp"
 
 #include "Editor/Editor.hpp"
 
+#include "Finder/Finder.hpp"
 #include "Finder/Center_Matrix.hpp"
 
 #include "Selector/First.hpp"
