@@ -13,6 +13,7 @@ namespace Graph
 	public:
 		static constexpr char const *name = "Graph Interface";
 
+		Graph(VertexID);
 		VertexID size() const;
 		size_t count_edges() const;
 		bool has_edge(VertexID u, VertexID v) const;

@@ -9,19 +9,19 @@
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits>
+	template<typename Graph, typename Graph_Edits, size_t length>
 	class Center_Matrix
 	{
+		static_assert(length > 3, "Can only detect path/cycles with at least 4 vertices");
+
 	public:
 		static constexpr char const *name = "Center_Matrix";
 
 	private:
-		size_t const length;
-
 		std::vector<Packed> forbidden;
 
 	public:
-		Center_Matrix(Graph const &graph, size_t const length) : length(length), forbidden(graph.alloc_rows(length / 2 - 1)) {;}
+		Center_Matrix(Graph const &graph) : forbidden(graph.alloc_rows(length / 2 - 1)) {;}
 
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
@@ -54,7 +54,7 @@ namespace Finder
 									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
 									if(graph.has_edge(vf, vb)) {continue;}
 									path[length / 2 + 1] = vb;
-									if(find_rec(graph, edited, path, length / 2 - 1, length / 2 + 1, feeder)) {return;}
+									if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
 								}
 							}
 						}
@@ -74,7 +74,7 @@ namespace Finder
 							VertexID v = __builtin_ctzll(cur) + i * Packed_Bits;
 							f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
-							if(find_rec(graph, edited, path, length / 2 - 1, length / 2, feeder)) {return;}
+							if(Find_Rec<Feeder, length / 2 - 1, length / 2>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
 							f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 						}
 					}
@@ -84,67 +84,122 @@ namespace Finder
 		}
 
 	private:
-		template<typename Feeder>
-		bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, size_t lf, size_t lb, Feeder &feeder)
-		{
-			Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
-			Packed *nf = f - graph.get_row_length();
-			VertexID &uf = path[lf];
-			VertexID &ub = path[lb];
 
-			if(lf == 1)
+		template<typename Feeder, size_t lf, size_t lb>
+		class Find_Rec
+		{
+		public:
+			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder)
 			{
-				/* last vertices */
-				for(size_t i = 0; i < graph.get_row_length(); i++)
+				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
+				Packed *nf = f - graph.get_row_length();
+				VertexID &uf = path[lf];
+				VertexID &ub = path[lb];
+
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
-						path[lf - 1] = vf;
-						for(size_t j = 0; j < graph.get_row_length(); j++)
-						{
-							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
-							{
-								VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
-								if(vf == vb) {continue;}
-								path[lb + 1] = vb;
-								if(feeder.callback(graph, edited, path.cbegin(), path.cend())) {return true;}
-							}
-						}
+						nf[i] = graph.get_row(uf)[i] | graph.get_row(ub)[i] | f[i];
 					}
-				}
-			}
-			else
-			{
-				for(size_t i = 0; i < graph.get_row_length(); i++)
-				{
-					nf[i] = graph.get_row(uf)[i] | graph.get_row(ub)[i] | f[i];
-				}
-				for(size_t i = 0; i < graph.get_row_length(); i++)
-				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
-						path[lf - 1] = vf;
-						for(size_t j = 0; j < graph.get_row_length(); j++)
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
 						{
-							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+							VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+							path[lf - 1] = vf;
+							for(size_t j = 0; j < graph.get_row_length(); j++)
 							{
-								VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
-								if(vf == vb || graph.has_edge(vf, vb)) {continue;}
-								path[lb + 1] = vb;
-								if(find_rec(graph, edited, path, lf - 1, lb + 1, feeder))
+								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
 								{
-									return true;
+									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+									if(vf == vb || graph.has_edge(vf, vb)) {continue;}
+									path[lb + 1] = vb;
+									if(Find_Rec<Feeder, lf - 1, lb + 1>::find_rec(graph, edited, path, forbidden, feeder))
+									{
+										return true;
+									}
 								}
 							}
 						}
 					}
 				}
+				return false;
 			}
-			return false;
-		}
+		};
+
+		template<typename Feeder, size_t lb>
+		class Find_Rec<Feeder, 1, lb>
+		{
+		public:
+			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder)
+			{
+				constexpr size_t lf = 1;
+				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
+				//Packed *nf = f - graph.get_row_length();
+				VertexID &uf = path[lf];
+				VertexID &ub = path[lb];
+
+				if(lf == 1)
+				{
+					/* last vertices */
+					for(size_t i = 0; i < graph.get_row_length(); i++)
+					{
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+						{
+							VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+							path[lf - 1] = vf;
+							for(size_t j = 0; j < graph.get_row_length(); j++)
+							{
+								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+								{
+									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+									if(vf == vb) {continue;}
+									path[lb + 1] = vb;
+									if(feeder.callback(graph, edited, path.cbegin(), path.cend())) {return true;}
+								}
+							}
+						}
+					}
+				}
+				return false;
+			}
+		};
 	};
+
+	template<typename Graph, typename Graph_Edits>
+	class Center_Matrix_4 : Center_Matrix<Graph, Graph_Edits, 4>
+	{
+	private: using Parent = Center_Matrix<Graph, Graph_Edits, 4>;
+	public:
+		static constexpr char const *name = "Center_Matrix_4";
+
+		Center_Matrix_4(Graph const &graph) : Parent(graph) {;}
+
+		template<typename Feeder>
+		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
+		{
+			Parent::find(graph, edited, feeder);
+		}
+
+	};
+
+	template<typename Graph, typename Graph_Edits>
+	class Center_Matrix_5 : Center_Matrix<Graph, Graph_Edits, 5>
+	{
+	private: using Parent = Center_Matrix<Graph, Graph_Edits, 5>;
+	public:
+		static constexpr char const *name = "Center_Matrix_5";
+
+		Center_Matrix_5(Graph const &graph) : Parent(graph) {;}
+
+		template<typename Feeder>
+		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
+		{
+			Parent::find(graph, edited, feeder);
+		}
+
+	};
+
 }
 
 #endif

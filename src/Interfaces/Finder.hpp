@@ -13,6 +13,8 @@ namespace Finder
 	public:
 		static constexpr char const *name = "Finder Interface";
 
+		Finder(Graph const &);
+
 		template<typename Feeder>
 		void find(Graph const &, Graph_Edits const &, Feeder &);
 	};

@@ -17,6 +17,8 @@ namespace Selector
 		std::vector<VertexID> problem;
 
 	public:
+		First(Graph const &) {;}
+
 		void prepare()
 		{
 			problem.clear();

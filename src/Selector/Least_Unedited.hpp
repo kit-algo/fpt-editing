@@ -18,6 +18,8 @@ namespace Selector
 		size_t free_pairs;
 
 	public:
+		Least_Unedited(Graph const &) {;}
+
 		void prepare()
 		{
 			problem.clear();
@@ -41,9 +43,8 @@ namespace Selector
 			}
 			if(free < free_pairs || free_pairs == 0)
 			{
-				problem.clear();
-				problem.insert(problem.end(), b, e);
-				//problem = std::vector<VertexID>(b, e);
+				free_pairs = free;
+				problem = std::vector<VertexID>(b, e);
 				if(free == 0) {return false;}
 			}
 			return true;

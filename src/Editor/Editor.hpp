@@ -87,6 +87,7 @@ namespace Editor
 		std::vector<size_t> calls;
 		std::vector<size_t> prunes;
 		std::vector<size_t> fallbacks;
+		std::vector<size_t> single;
 #endif
 
 	public:
@@ -104,6 +105,7 @@ namespace Editor
 			calls = decltype(calls)(k + 1, 0);
 			prunes = decltype(prunes)(k + 1, 0);
 			fallbacks = decltype(fallbacks)(k + 1, 0);
+			single = decltype(fallbacks)(k + 1, 0);
 #endif
 			found_soulution = false;
 
@@ -114,7 +116,7 @@ namespace Editor
 #ifdef STATS
 		std::map<std::string, std::vector<size_t> const &> stats() const
 		{
-			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}};
+			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}};
 		}
 #endif
 
@@ -132,7 +134,7 @@ namespace Editor
 			auto problem = selector.result();
 			if(problem.empty())
 			{
-				if(write) {write(graph, edited);}
+				write(graph, edited);
 				found_soulution = true;
 				return !options.all_solutions;
 			}
@@ -152,6 +154,9 @@ namespace Editor
 
 			if(problem.size() == 2)
 			{
+#ifdef STATS
+				single[k]++;
+#endif
 				//TODO: deletion/insertion only
 
 				// single edge editing

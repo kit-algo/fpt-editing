@@ -156,8 +156,8 @@ struct Run
 		Graph::writeDot(filename + ".gv", graph);
 		auto g_orig = graph;
 
-		F finder(graph, 4);
-		S selector;
+		F finder(graph);
+		S selector(graph);
 		B lower_bound(graph);
 		E editor(editor_options, finder, selector, lower_bound, graph);
 
@@ -170,15 +170,18 @@ struct Run
 		{
 			std::chrono::steady_clock::time_point t1, t2;
 			size_t writecount = 0;
-			auto writegraph = options.no_write? std::function<void(G const &, GE const &)>() : [&](G const &graph, GE const &edited) -> void
+			auto writegraph = [&](G const &graph, GE const &edited) -> void
 			{
-				std::ostringstream fname;
-				fname << filename << ".e." << E::name << '-' << Editor::Options::restriction_names.at(editor_options.restrictions) << '-' << Editor::Options::conversion_names.at(editor_options.conversions) << '-' << Editor::Options::mode_names.at(editor_options.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ".k" << k << ".w" << writecount;
-				Graph::writeMetis(fname.str(), graph);
-				Graph::writeDot(fname.str() + ".gv", graph);
-				Graph::writeMetis(fname.str() + ".edits", edited);
-				Graph::writeDot(fname.str() + ".edits.gv", edited);
-				Graph::writeDotCombined(fname.str() + ".combined.gv", graph, edited, g_orig);
+				if(!options.no_write)
+				{
+					std::ostringstream fname;
+					fname << filename << ".e." << E::name << '-' << Editor::Options::restriction_names.at(editor_options.restrictions) << '-' << Editor::Options::conversion_names.at(editor_options.conversions) << '-' << Editor::Options::mode_names.at(editor_options.mode) << '-' << F::name << '-' << S::name << '-' << B::name << '-' << G::name << ".k" << k << ".w" << writecount;
+					Graph::writeMetis(fname.str(), graph);
+					Graph::writeDot(fname.str() + ".gv", graph);
+					Graph::writeMetis(fname.str() + ".edits", edited);
+					Graph::writeDot(fname.str() + ".edits.gv", edited);
+					Graph::writeDotCombined(fname.str() + ".combined.gv", graph, edited, g_orig);
+				}
 				writecount++;
 			};
 
@@ -293,10 +296,14 @@ void run(Options const &options)
 
 			if(false) {;}
 //#include "../build/combinations_edit.i"
-			RUN(Editor, Center_Matrix, First, No, Matrix)
-			RUN(Editor, Center_Matrix, First, Basic, Matrix)
-			RUN(Editor, Center_Matrix, Least_Unedited, No, Matrix)
-			RUN(Editor, Center_Matrix, Least_Unedited, Basic, Matrix)
+			RUN(Editor, Center_Matrix_4, First, No, Matrix)
+			RUN(Editor, Center_Matrix_4, First, Basic, Matrix)
+			RUN(Editor, Center_Matrix_4, Least_Unedited, No, Matrix)
+			RUN(Editor, Center_Matrix_4, Least_Unedited, Basic, Matrix)
+			RUN(Editor, Center_Matrix_5, First, No, Matrix)
+			RUN(Editor, Center_Matrix_5, First, Basic, Matrix)
+			RUN(Editor, Center_Matrix_5, Least_Unedited, No, Matrix)
+			RUN(Editor, Center_Matrix_5, Least_Unedited, Basic, Matrix)
 		}}}
 #undef RUN
 #undef RUN_G
@@ -359,7 +366,7 @@ int main(int argc, char *argv[])
 		{"modes", {'M', {"edit", "delete", "insert"}}},
 		{"editors", {'e', {"Editor"}}},
 		{"heuristics", {'h', {}}},
-		{"finders", {'f', {"Center_Matrix"}}},
+		{"finders", {'f', {"Center_Matrix_5", "Center_Matrix_4"}}},
 		{"selectors", {'s', {"First", "Least_Unedited"}}},
 		{"bounds", {'b', {"No", "Basic"}}},
 		{"graphs", {'g', {"Matrix"}}}
