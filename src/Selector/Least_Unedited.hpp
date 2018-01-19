@@ -5,9 +5,11 @@
 
 #include "../config.hpp"
 
+#include "../Editor/Editor.hpp"
+
 namespace Selector
 {
-	template<typename Graph, typename Graph_Edits>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
 	class Least_Unedited
 	{
 	public:
@@ -26,21 +28,66 @@ namespace Selector
 			free_pairs = 0;
 		}
 
-		bool next(Graph const &, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
 			size_t free = 0;
+
 			// count unedited vertex pairs
-			for(auto it = b + 1; it != e; it++)
+			if(std::is_same<Mode, Editor::Options::Modes::Edit>::value)
 			{
-				for(auto it2 = b; it2 != it; it2++)
+				for(auto vit = b + 1; vit != e; vit++)
 				{
-					if(edited.has_edge(*it, *it2) || (it2 == b && it + 1 == e))
+					for(auto uit = b; uit != vit; uit++)
 					{
-						continue;
+						if(std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						free++;
+					}
+				}
+			}
+			else if(std::is_same<Mode, Editor::Options::Modes::Delete>::value)
+			{
+				for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
+				{
+					if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+					{
+						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
 					free++;
 				}
+				if(!std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && graph.has_edge(*b, *(e - 1)))
+				{
+					auto uit = b;
+					auto vit = e - 1;
+					do
+					{
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						free++;
+					} while(false);
+				}
 			}
+			else if(std::is_same<Mode, Editor::Options::Modes::Insert>::value)
+			{
+				for(auto vit = b + 2; vit != e; vit++)
+				{
+					for(auto uit = b; uit != vit - 1; uit++)
+					{
+						if(uit == b && vit == e - 1 && (std::is_same<Conversion, Editor::Options::Conversions::Skip>::value || graph.has_edge(*b, *(e - 1)))) {continue;}
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						free++;
+					}
+				}
+			}
+
 			if(free < free_pairs || free_pairs == 0)
 			{
 				free_pairs = free;

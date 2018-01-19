@@ -10,7 +10,7 @@ TARGET := graphedit
 
 SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp"))
 HEADER_FILES := $(sort $(shell find src/ -name "*.hpp"))
-GENERATED_FILES := #build/combinations_edit.i build/combinations_heur.i build/list.i
+GENERATED_FILES := build/choices.i
 
 all: $(TARGET)
 
@@ -38,7 +38,7 @@ build/%.o: src/%.cpp | build/%.d
 build/%.d: src/%.cpp | build
 	$(CPP) $(COMMON) $(CPPFLAGS) -MM -MG -MT $(TARGET) -MT build/$*.o $< | sed 's# ../build/# src/../build/#g' > $@
 
-#build/%.i src/../build/%.i: src/main.cpp | build
-#	for f in $(GENERATED_FILES) ; do [ \! -e $$f ] && touch $$f ; done ; true
-#	$(CPP) $(COMMON) $(CPPFLAGS) $< -dM -E | grep -E 'EDITORS|HEURISTICS|FINDERS|GRAPHS' | ./combinations.py $* > $@
-#	for f in $(GENERATED_FILES) ; do [ -e $$f -a \! -s $$f ] && rm $$f ; done ; true
+build/%.i src/../build/%.i: src/main.cpp | build
+	for f in $(GENERATED_FILES) ; do [ \! -e $$f ] && touch $$f ; done ; true
+	$(CPP) $(COMMON) $(CPPFLAGS) $< -dM -E | grep -E 'CHOICES' | ./choices.py $* > $@
+	for f in $(GENERATED_FILES) ; do [ -e $$f -a \! -s $$f ] && rm $$f ; done ; true

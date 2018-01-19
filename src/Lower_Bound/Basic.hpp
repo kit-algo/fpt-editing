@@ -5,9 +5,11 @@
 
 #include "../config.hpp"
 
+#include "../Editor/Editor.hpp"
+
 namespace Lower_Bound
 {
-	template<typename Graph, typename Graph_Edits>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
 	class Basic
 	{
 	public:
@@ -29,38 +31,103 @@ namespace Lower_Bound
 			found = 0;
 		}
 
-		bool next(Graph const &, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
-			//TODO: needs Editor::Options
-			//currently edit + skip
+			if(std::is_same<Mode, Editor::Options::Modes::Edit>::value)
+			{
+				// test
+				for(auto vit = b + 1; vit != e; vit++)
+				{
+					for(auto uit = b; uit != vit; uit++)
+					{
+						if(std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						if(used.has_edge(*uit, *vit)) {return true;}
+					}
+				}
+				// add
+				for(auto vit = b + 1; vit != e; vit++)
+				{
+					for(auto uit = b; uit != vit; uit++)
+					{
+						if(std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						used.set_edge(*uit, *vit);
+					}
+				}
+			}
+			else if(std::is_same<Mode, Editor::Options::Modes::Delete>::value)
+			{
+				// test
+				for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
+				{
+					if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+					{
+						if(edited.has_edge(*uit, *vit)) {continue;}
+					}
+					if(used.has_edge(*uit, *vit)) {return true;}
+				}
+				if(!std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && graph.has_edge(*b, *(e - 1)))
+				{
+					auto uit = b;
+					auto vit = e - 1;
+					do
+					{
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						if(used.has_edge(*uit, *vit)) {return true;}
+						// add
+						used.set_edge(*uit, *vit);
+					} while(false);
+				}
+				// add
+				for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
+				{
+					if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+					{
+						if(edited.has_edge(*uit, *vit)) {continue;}
+					}
+					used.set_edge(*uit, *vit);
+				}
+			}
+			else if(std::is_same<Mode, Editor::Options::Modes::Insert>::value)
+			{
+				// test
+				for(auto vit = b + 2; vit != e; vit++)
+				{
+					for(auto uit = b; uit != vit - 1; uit++)
+					{
+						if(uit == b && vit == e - 1 && (std::is_same<Conversion, Editor::Options::Conversions::Skip>::value || graph.has_edge(*b, *(e - 1)))) {continue;}
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						if(used.has_edge(*uit, *vit)) {return true;}
+					}
+				}
+				// add
+				for(auto vit = b + 2; vit != e; vit++)
+				{
+					for(auto uit = b; uit != vit - 1; uit++)
+					{
+						if(uit == b && vit == e - 1 && (std::is_same<Conversion, Editor::Options::Conversions::Skip>::value || graph.has_edge(*b, *(e - 1)))) {continue;}
+						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
+						{
+							if(edited.has_edge(*uit, *vit)) {continue;}
+						}
+						used.set_edge(*uit, *vit);
+					}
+				}
+			}
 
-			// test if we can add it to bound
-			for(auto it = b + 1; it != e; it++)
-			{
-				for(auto it2 = b; it2 != it; it2++)
-				{
-					if(edited.has_edge(*it, *it2) || (it2 == b && it + 1 == e))
-					{
-						continue;
-					}
-					if(used.has_edge(*it, *it2))
-					{
-						return true;
-					}
-				}
-			}
-			// add to bound
-			for(auto it = b + 1; it != e; it++)
-			{
-				for(auto it2 = b; it2 != it; it2++)
-				{
-					if(edited.has_edge(*it, *it2) || (it2 == b && it + 1 == e))
-					{
-						continue;
-					}
-					used.set_edge(*it, *it2);
-				}
-			}
 			found++;
 			return true;
 		}
