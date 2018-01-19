@@ -170,16 +170,23 @@ namespace Editor
 							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
 						}
 					}
-					if(std::is_same<Conversion, Options::Conversions::Last>::value && !edited.has_edge(problem.front(), problem.back()))
+					if(std::is_same<Conversion, Options::Conversions::Last>::value)
 					{
 						auto uit = problem.begin();
 						auto vit = problem.end() - 1;
-						if(!std::is_same<Restriction, Options::Restrictions::None>::value) {edited.set_edge(*uit, *vit);}
-						graph.toggle_edge(*uit, *vit);
-						if(edit_rec(k - 1)) {return true;}
-						graph.toggle_edge(*uit, *vit);
-						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-						else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+						do
+						{
+							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
+							{
+								if(edited.has_edge(*uit, *vit)) {continue;}
+								edited.set_edge(*uit, *vit);
+							}
+							graph.toggle_edge(*uit, *vit);
+							if(edit_rec(k - 1)) {return true;}
+							graph.toggle_edge(*uit, *vit);
+							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
+							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+						} while(false);
 					}
 				}
 				else if(std::is_same<Mode, Options::Modes::Delete>::value)
@@ -197,16 +204,23 @@ namespace Editor
 						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 						else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
 					}
-					if(!std::is_same<Conversion, Options::Conversions::Skip>::value && graph.has_edge(problem.front(), problem.back()) && !edited.has_edge(problem.front(), problem.back()))
+					if(!std::is_same<Conversion, Options::Conversions::Skip>::value && graph.has_edge(problem.front(), problem.back()))
 					{
 						auto uit = problem.begin();
 						auto vit = problem.end() - 1;
-						if(!std::is_same<Restriction, Options::Restrictions::None>::value) {edited.set_edge(*uit, *vit);}
-						graph.toggle_edge(*uit, *vit);
-						if(edit_rec(k - 1)) {return true;}
-						graph.toggle_edge(*uit, *vit);
-						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-						else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+						do
+						{
+							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
+							{
+								if(edited.has_edge(*uit, *vit)) {continue;}
+								edited.set_edge(*uit, *vit);
+							}
+							graph.toggle_edge(*uit, *vit);
+							if(edit_rec(k - 1)) {return true;}
+							graph.toggle_edge(*uit, *vit);
+							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
+							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+						} while(false);
 					}
 				}
 				else if(std::is_same<Mode, Options::Modes::Insert>::value)
@@ -228,16 +242,23 @@ namespace Editor
 							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
 						}
 					}
-					if(std::is_same<Conversion, Options::Conversions::Last>::value && !graph.has_edge(problem.front(), problem.back()) && !edited.has_edge(problem.front(), problem.back()))
+					if(std::is_same<Conversion, Options::Conversions::Last>::value && !graph.has_edge(problem.front(), problem.back()))
 					{
 						auto uit = problem.begin();
 						auto vit = problem.end() - 1;
-						if(!std::is_same<Restriction, Options::Restrictions::None>::value) {edited.set_edge(*uit, *vit);}
-						graph.toggle_edge(*uit, *vit);
-						if(edit_rec(k - 1)) {return true;}
-						graph.toggle_edge(*uit, *vit);
-						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-						else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+						do
+						{
+							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
+							{
+								if(edited.has_edge(*uit, *vit)) {continue;}
+								edited.set_edge(*uit, *vit);
+							}
+							graph.toggle_edge(*uit, *vit);
+							if(edit_rec(k - 1)) {return true;}
+							graph.toggle_edge(*uit, *vit);
+							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
+							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+						} while(false);
 					}
 				}
 
