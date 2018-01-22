@@ -10,7 +10,7 @@
 namespace Selector
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Least_Unedited
+	class Least_Unedited : Editor::Tag::Selector
 	{
 	public:
 		static constexpr char const *name = "Least";

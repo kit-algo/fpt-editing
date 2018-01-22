@@ -35,7 +35,45 @@ namespace Editor
 		}
 	}
 
-	template<typename Finder, typename Selector, typename Lower_Bound, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	namespace Tag
+	{
+		struct Selector {};
+		struct Lower_Bound {};
+	}
+
+	template<typename Tag, typename... Consumer>
+	struct get_tagged_consumer;
+
+	template<typename Tag, typename Consumer, typename... Consumer_Tail>
+	struct get_tagged_consumer<Tag, Consumer, Consumer_Tail...>
+	{
+		static constexpr size_t value() {return v<Tag, Consumer>();}
+
+		template<typename T, typename C>
+		static constexpr
+		typename std::enable_if<std::is_base_of<T, C>::value, size_t>::type
+		v()
+		{
+			return 0;
+		}
+
+		template<typename T, typename C>
+		static constexpr
+		typename std::enable_if<!std::is_base_of<T, C>::value, size_t>::type
+		v()
+		{
+			return 1 + get_tagged_consumer<Tag, Consumer_Tail...>::value();
+		}
+	};
+
+	template<typename Tag>
+	struct get_tagged_consumer<Tag>
+	{
+		static_assert(!std::is_base_of<Tag, Tag>::value, "No matching consumer for tag");
+		//static constexpr size_t value() {return std::numeric_limits<size_t>::max();}
+	};
+
+	template<typename Finder, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, typename... Consumer>
 	class Editor
 	{
 	public:
@@ -43,12 +81,13 @@ namespace Editor
 
 	private:
 		Finder &finder;
-		Selector &selector;
-		Lower_Bound &lb;
+		std::tuple<Consumer &...> consumer;
+		static constexpr size_t selector = get_tagged_consumer<Tag::Selector, Consumer...>::value();
+		static constexpr size_t lb = get_tagged_consumer<Tag::Lower_Bound, Consumer...>::value();
 		Graph &graph;
 		Graph_Edits edited;
 
-		::Finder::Feeder<Finder, Graph, Graph_Edits, Selector, Lower_Bound> feeder;
+		::Finder::Feeder<Finder, Graph, Graph_Edits, Consumer...> feeder;
 		bool found_soulution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
 
@@ -60,7 +99,7 @@ namespace Editor
 #endif
 
 	public:
-		Editor(Finder &finder, Selector &selector, Lower_Bound &lb, Graph &graph) : finder(finder), selector(selector), lb(lb), graph(graph), edited(graph.size()), feeder(finder, selector, lb)
+		Editor(Finder &finder, Graph &graph, Consumer &... consumer) : finder(finder), consumer(consumer...), graph(graph), edited(graph.size()), feeder(finder, consumer...)
 		{
 			;
 		}
@@ -98,13 +137,13 @@ namespace Editor
 			feeder.feed(graph, edited);
 
 			// graph solved?
-			auto problem = selector.result(k, graph, edited);
+			auto problem = std::get<selector>(consumer).result(k, graph, edited);
 			if(problem.empty())
 			{
 				found_soulution = true;
 				return !write(graph, edited);
 			}
-			else if(k < lb.result())
+			else if(k < std::get<lb>(consumer).result())
 			{
 				// lower bound too high
 #ifdef STATS

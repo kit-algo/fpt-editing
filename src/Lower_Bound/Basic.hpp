@@ -10,7 +10,7 @@
 namespace Lower_Bound
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Basic
+	class Basic : Editor::Tag::Lower_Bound
 	{
 	public:
 		static constexpr char const *name = "Basic";

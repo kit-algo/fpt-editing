@@ -89,10 +89,10 @@ struct Options {
 
 struct Run
 {
-	template<typename E, typename F, typename S, typename B, typename G, typename GE, typename M, typename R, typename C>
+	template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename S, typename B>
 	static void run_watch(Options const &options, std::string const &filename)
 	{
-		if(!options.time_max_hard) {run<E, F, S, B, G, GE, M, R, C>(options, filename);}
+		if(!options.time_max_hard) {run<E, F, G, GE, M, R, C, S, B>(options, filename);}
 		else
 		{
 			// running with hard time limit
@@ -177,7 +177,7 @@ struct Run
 	}
 
 
-	template<typename E, typename F, typename S, typename B, typename G, typename GE, typename M, typename R, typename C>
+	template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename S, typename B>
 	static void run(Options const &options, std::string const &filename)
 	{
 		G graph = Graph::readMetis<G>(filename);
@@ -187,7 +187,7 @@ struct Run
 		F finder(graph);
 		S selector(graph);
 		B lower_bound(graph);
-		E editor(finder, selector, lower_bound, graph);
+		E editor(finder, graph, selector, lower_bound);
 
 		Finder::Feeder<F, G, GE, B> feeder(finder, lower_bound);
 		feeder.feed(graph, GE(graph.size()));
@@ -302,8 +302,8 @@ void run(Options const &options)
 					using F = Finder::FINDER<G, GE>; \
 					using S = Selector::SELECTOR<G, GE, M, R, C>; \
 					using B = Lower_Bound::LOWER_BOUND<G, GE, M, R, C>; \
-					using E = NS::CLASS<F, S, B, G, GE, M, R, C>; \
-					Run::run_watch<E, F, S, B, G, GE, M, R, C>(options, filename); \
+					using E = NS::CLASS<F, G, GE, M, R, C, S, B>; \
+					Run::run_watch<E, F, G, GE, M, R, C, S, B>(options, filename); \
 				} \
 				else \
 				{ \
@@ -312,8 +312,8 @@ void run(Options const &options)
 					using F = Finder::FINDER<G, GE>; \
 					using S = Selector::SELECTOR<G, GE, M, R, C>; \
 					using B = Lower_Bound::LOWER_BOUND<G, GE, M, R, C>; \
-					using E = NS::CLASS<F, S, B, G, GE, M, R, C>; \
-					Run::run_watch<E, F, S, B, G, GE, M, R, C>(options, filename); \
+					using E = NS::CLASS<F, G, GE, M, R, C, S, B>; \
+					Run::run_watch<E, F, G, GE, M, R, C, S, B>(options, filename); \
 				} \
 			}
 

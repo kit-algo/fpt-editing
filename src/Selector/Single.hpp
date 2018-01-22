@@ -23,7 +23,7 @@ namespace Selector
 #define PAIR(a, b) (assert((a) != (b)), std::make_pair(std::min((a), (b)), std::max((a), (b))))
 
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Single
+	class Single : Editor::Tag::Selector
 	{
 	public:
 		static constexpr char const *name = "Single";
@@ -37,7 +37,7 @@ namespace Selector
 
 		struct
 		{
-			std::pair<ssize_t, ssize_t> changes{0, 0};
+			std::pair<size_t, size_t> changes{0, 0};
 			std::vector<VertexID> edge;
 		} best;
 
@@ -177,20 +177,25 @@ namespace Selector
 				edited.set_edge(u, v);
 				// lb
 				feeder.feed(graph, edited);
-				ssize_t mark_change = lb.result();
+				size_t mark_change = lb.result();
 				// edit
 				graph.toggle_edge(u, v);
 				// lb
 				feeder.feed(graph, edited);
-				ssize_t edit_change = lb.result();
+				size_t edit_change = lb.result();
 				// unedit, unmark
 				edited.clear_edge(u, v);
 				graph.toggle_edge(u, v);
 
-				/* compare */
+				/* adjust */
+				if(edit_change + 1 < bounds.size() || mark_change < bounds.size())
+				{
+					return false;
+				}
 				edit_change += 1 - bounds.size();
 				mark_change -= bounds.size();
 
+				/* compare */
 				auto const changes = std::minmax(mark_change, edit_change);
 				// both branches cut: return
 				if(changes.first > k)

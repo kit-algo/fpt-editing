@@ -5,10 +5,12 @@
 
 #include "../config.hpp"
 
+#include "../Editor/Editor.hpp"
+
 namespace Selector
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class First
+	class First : Editor::Tag::Selector
 	{
 	public:
 		static constexpr char const *name = "First";
