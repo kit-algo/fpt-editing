@@ -97,7 +97,7 @@ namespace Selector
 			return true;
 		}
 
-		std::vector<VertexID> const &result() const
+		std::vector<VertexID> const &result(size_t, Graph const &, Graph const &) const
 		{
 			return problem;
 		}

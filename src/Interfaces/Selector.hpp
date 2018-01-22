@@ -14,7 +14,7 @@ namespace Selector
 		Selector(Graph const &);
 		void prepare(Graph const &, Graph_Edits const &);
 		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator);
-		std::vector<VertexID> const &result() const;
+		std::vector<VertexID> const &result(size_t, Graph const &, Graph const &) const;
 	};
 }
 

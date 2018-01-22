@@ -28,12 +28,16 @@
 
 #include "Selector/First.hpp"
 #include "Selector/Least_Unedited.hpp"
+#include "Selector/Single.hpp"
 
 #include "Lower_Bound/No.hpp"
 #include "Lower_Bound/Basic.hpp"
 
 #include "Graph/Matrix.hpp"
 
+#define MINIMAL
+
+#ifndef MINIMAL
 #define CHOICES_MODE Edit, Delete, Insert
 #define CHOICES_RESTRICTION None, Undo, Redundant
 #define CHOICES_CONVERSION Normal, Last, Skip
@@ -43,21 +47,22 @@
 #define CHOICES_SELECTOR First, Least_Unedited
 #define CHOICES_LOWER_BOUND No, Basic
 #define CHOICES_GRAPH Matrix
+#else
+#define CHOICES_MODE Edit
+#define CHOICES_RESTRICTION Redundant
+#define CHOICES_CONVERSION Skip
+#define CHOICES_EDITOR Editor
+#define CHOICES_HEURISTIC
+#define CHOICES_FINDER Center_Matrix_4
+#define CHOICES_SELECTOR Single
+#define CHOICES_LOWER_BOUND Basic
+#define CHOICES_GRAPH Matrix
+#endif
 
 #define LIST_CHOICES_EDITOR EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH, MODE, RESTRICTION, CONVERSION
 #define LIST_CHOICES_HEURISTIC HEURISTIC, FINDER, SELECTOR, LOWER_BOUND, GRAPH, MODE, RESTRICTION, CONVERSION
 
 #include "../build/choices.i"
-
-#define GENERATED_CHOICES_MODE "Edit", "Delete", "Insert"
-#define GENERATED_CHOICES_RESTRICTION "None", "Undo", "Redundant"
-#define GENERATED_CHOICES_CONVERSION "Normal", "Last", "Skip"
-#define GENERATED_CHOICES_EDITOR "Editor"
-#define GENERATED_CHOICES_HEURISTIC ""
-#define GENERATED_CHOICES_FINDER "Center_Matrix_4", "Center_Matrix_5"
-#define GENERATED_CHOICES_SELECTOR "First", "Least_Unedited"
-#define GENERATED_CHOICES_LOWER_BOUND "No", "Basic"
-#define GENERATED_CHOICES_GRAPH "Matrix"
 
 #define STR2(x) #x
 #define STR(x) STR2(x)
@@ -184,7 +189,7 @@ struct Run
 		B lower_bound(graph);
 		E editor(finder, selector, lower_bound, graph);
 
-		Finder::Feeder<F, S, B, G, GE> feeder(finder, selector, lower_bound);
+		Finder::Feeder<F, G, GE, B> feeder(finder, lower_bound);
 		feeder.feed(graph, GE(graph.size()));
 		size_t bound = lower_bound.result();
 

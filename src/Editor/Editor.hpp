@@ -48,7 +48,7 @@ namespace Editor
 		Graph &graph;
 		Graph_Edits edited;
 
-		::Finder::Feeder<Finder, Selector, Lower_Bound, Graph, Graph_Edits> feeder;
+		::Finder::Feeder<Finder, Graph, Graph_Edits, Selector, Lower_Bound> feeder;
 		bool found_soulution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
 
@@ -67,7 +67,6 @@ namespace Editor
 
 		bool edit(size_t k, decltype(write) const &writegraph)
 		{
-
 			// lock?
 			write = writegraph;
 #ifdef STATS
@@ -99,7 +98,7 @@ namespace Editor
 			feeder.feed(graph, edited);
 
 			// graph solved?
-			auto problem = selector.result();
+			auto problem = selector.result(k, graph, edited);
 			if(problem.empty())
 			{
 				found_soulution = true;
@@ -135,14 +134,14 @@ namespace Editor
 				//edit
 				graph.toggle_edge(problem.front(), problem.back());
 				edited.set_edge(problem.front(), problem.back());
-				edit_rec(k - 1);
+				if(edit_rec(k - 1)) {return true;}
 
 				//unedit, mark
 				graph.toggle_edge(problem.front(), problem.back());
-				edit_rec(k);
+				if(edit_rec(k)) {return true;}
 
 				//unmark
-				edited.set_edge(problem.front(), problem.back());
+				edited.clear_edge(problem.front(), problem.back());
 			}
 			else
 			{

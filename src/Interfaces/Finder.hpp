@@ -19,7 +19,7 @@ namespace Finder
 		void find(Graph const &, Graph_Edits const &, Feeder &);
 	};
 
-	template<typename Finder, typename Selector, typename Lower_Bound, typename Graph, typename Graph_Edits>
+	template<typename Finder, typename Graph, typename Graph_Edits, typename Selector, typename Lower_Bound>
 	class Feeder
 	{
 	public:
