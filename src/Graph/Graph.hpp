@@ -5,38 +5,13 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <sstream>
 
 #include "../config.hpp"
 
 namespace Graph
 {
-	uint64_t get_size(std::string const &filename)
-	{
-		std::ifstream f(filename);
-		std::string line;
-		std::istringstream linestream;
-
-		if(!f)
-		{
-			std::cerr << "Error opening file: " << filename << std::endl;
-			throw f;
-		}
-
-		while(std::getline(f, line))
-		{
-			if(line[0] != '%') {break;}
-		}
-		if(!f)
-		{
-			std::cerr << "Premature end of file: " << filename << std::endl;
-			throw f;
-		}
-
-		uint64_t n;
-		linestream.str(line);
-		linestream >> n;
-		return n;
-	}
+	uint64_t get_size(std::string const &filename);
 
 	template<typename Graph>
 	Graph readMetis(std::string const &filename)

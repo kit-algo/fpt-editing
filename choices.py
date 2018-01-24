@@ -28,20 +28,27 @@ for gen, arguments in need.items():
 			collected.add(arg)
 print()
 
-def combinations(template, remaining, generated):
+def combinations(filename, templatefile, template, remaining, generated):
 	if not remaining:
+		tf = open(templatefile, "r")
+		template_text = tf.read()
+		tf.close()
 		for g in generated:
 			print(template.format(*g))
+			fn = filename.format(*g)
+			with open(fn, "w") as of:
+				of.write(template_text.format(*g))
 	else:
 		if not lists[remaining[0]]:
 			return
 		if not generated:
-			combinations(template, remaining[1:], [[b] for b in lists[remaining[0]]])
+			combinations(filename, templatefile, template, remaining[1:], [[b] for b in lists[remaining[0]]])
 		else:
-			combinations(template, remaining[1:], [a + [b] for a in generated for b in lists[remaining[0]]])
+			combinations(filename, templatefile, template, remaining[1:], [a + [b] for a in generated for b in lists[remaining[0]]])
 
 for macro, arguments in need.items():
 	print("#define GENERATED_RUN_", macro, " \\", sep = "")
 	template = "RUN(" + ", ".join(["{}"] * len(arguments)) + ") \\"
-	combinations(template, arguments, [])
-	print()
+	filename = "build/generated/run-" + "-".join(["{}"] * len(arguments)) + ".cpp"
+	combinations(filename, "src/generator_template.tpp", template, arguments, [])
+	print("\n\n")

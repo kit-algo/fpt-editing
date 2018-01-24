@@ -2,88 +2,29 @@
 #define EDITOR_HPP
 
 #include <functional>
+#include <map>
 #include <typeinfo>
 #include <vector>
 
 #include "../config.hpp"
 
+#include "../Options.hpp"
 #include "../Finder/Finder.hpp"
 
 namespace Editor
 {
-	namespace Options
-	{
-		namespace Restrictions
-		{
-			struct None {static constexpr char const *name = "None";};
-			struct Undo {static constexpr char const *name = "Undo";};
-			struct Redundant {static constexpr char const *name = "Redundant";};
-		}
-
-		namespace Conversions
-		{
-			struct Normal {static constexpr char const *name = "Normal";};
-			struct Last {static constexpr char const *name = "Last";};
-			struct Skip {static constexpr char const *name = "Skip";};
-		}
-
-		namespace Modes
-		{
-			struct Edit {static constexpr char const *name = "Edit";};
-			struct Delete {static constexpr char const *name = "Delete";};
-			struct Insert {static constexpr char const *name = "Insert";};
-		}
-	}
-
-	namespace Tag
-	{
-		struct Selector {};
-		struct Lower_Bound {};
-	}
-
-	template<typename Tag, typename... Consumer>
-	struct get_tagged_consumer;
-
-	template<typename Tag, typename Consumer, typename... Consumer_Tail>
-	struct get_tagged_consumer<Tag, Consumer, Consumer_Tail...>
-	{
-		static constexpr size_t value() {return v<Tag, Consumer>();}
-
-		template<typename T, typename C>
-		static constexpr
-		typename std::enable_if<std::is_base_of<T, C>::value, size_t>::type
-		v()
-		{
-			return 0;
-		}
-
-		template<typename T, typename C>
-		static constexpr
-		typename std::enable_if<!std::is_base_of<T, C>::value, size_t>::type
-		v()
-		{
-			return 1 + get_tagged_consumer<Tag, Consumer_Tail...>::value();
-		}
-	};
-
-	template<typename Tag>
-	struct get_tagged_consumer<Tag>
-	{
-		static_assert(!std::is_base_of<Tag, Tag>::value, "No matching consumer for tag");
-		//static constexpr size_t value() {return std::numeric_limits<size_t>::max();}
-	};
-
 	template<typename Finder, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, typename... Consumer>
 	class Editor
 	{
 	public:
 		static constexpr char const *name = "Editor";
+		static constexpr bool valid = Options::has_tagged_consumer<Options::Tag::Selector, Consumer...>::value && Options::has_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value;
 
 	private:
 		Finder &finder;
 		std::tuple<Consumer &...> consumer;
-		static constexpr size_t selector = get_tagged_consumer<Tag::Selector, Consumer...>::value();
-		static constexpr size_t lb = get_tagged_consumer<Tag::Lower_Bound, Consumer...>::value();
+		static constexpr size_t selector = Options::get_tagged_consumer<Options::Tag::Selector, Consumer...>::value();
+		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value();
 		Graph &graph;
 		Graph_Edits edited;
 
@@ -189,116 +130,19 @@ namespace Editor
 				fallbacks[k]++;
 #endif
 				std::vector<std::pair<size_t, size_t>> marked;
-				if(std::is_same<Mode, Options::Modes::Edit>::value)
-				{
-					for(auto vit = problem.begin() + 1; vit != problem.end(); vit++)
+				bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit){
+					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
-						for(auto uit = problem.begin(); uit != vit; uit++)
-						{
-							if(!std::is_same<Conversion, Options::Conversions::Normal>::value && uit == problem.begin() && vit == problem.end() - 1) {continue;}
-							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-								edited.set_edge(*uit, *vit);
-							}
-							graph.toggle_edge(*uit, *vit);
-							if(edit_rec(k - 1)) {return true;}
-							graph.toggle_edge(*uit, *vit);
-							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-						}
+						edited.set_edge(*uit, *vit);
 					}
-					if(std::is_same<Conversion, Options::Conversions::Last>::value)
-					{
-						auto uit = problem.begin();
-						auto vit = problem.end() - 1;
-						do
-						{
-							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-								edited.set_edge(*uit, *vit);
-							}
-							graph.toggle_edge(*uit, *vit);
-							if(edit_rec(k - 1)) {return true;}
-							graph.toggle_edge(*uit, *vit);
-							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-						} while(false);
-					}
-				}
-				else if(std::is_same<Mode, Options::Modes::Delete>::value)
-				{
-					for(auto uit = problem.begin(), vit = problem.begin() + 1; vit != problem.end(); uit++, vit++)
-					{
-						if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-							edited.set_edge(*uit, *vit);
-						}
-						graph.toggle_edge(*uit, *vit);
-						if(edit_rec(k - 1)) {return true;}
-						graph.toggle_edge(*uit, *vit);
-						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-						else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-					}
-					if(!std::is_same<Conversion, Options::Conversions::Skip>::value && graph.has_edge(problem.front(), problem.back()))
-					{
-						auto uit = problem.begin();
-						auto vit = problem.end() - 1;
-						do
-						{
-							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-								edited.set_edge(*uit, *vit);
-							}
-							graph.toggle_edge(*uit, *vit);
-							if(edit_rec(k - 1)) {return true;}
-							graph.toggle_edge(*uit, *vit);
-							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-						} while(false);
-					}
-				}
-				else if(std::is_same<Mode, Options::Modes::Insert>::value)
-				{
-					for(auto vit = problem.begin() + 2; vit != problem.end(); vit++)
-					{
-						for(auto uit = problem.begin(); uit != vit - 1; uit++)
-						{
-							if(uit == problem.begin() && vit == problem.end() - 1 && (!std::is_same<Conversion, Options::Conversions::Normal>::value || graph.has_edge(problem.front(), problem.back()))) {continue;}
-							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-								edited.set_edge(*uit, *vit);
-							}
-							graph.toggle_edge(*uit, *vit);
-							if(edit_rec(k - 1)) {return true;}
-							graph.toggle_edge(*uit, *vit);
-							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-						}
-					}
-					if(std::is_same<Conversion, Options::Conversions::Last>::value && !graph.has_edge(problem.front(), problem.back()))
-					{
-						auto uit = problem.begin();
-						auto vit = problem.end() - 1;
-						do
-						{
-							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-								edited.set_edge(*uit, *vit);
-							}
-							graph.toggle_edge(*uit, *vit);
-							if(edit_rec(k - 1)) {return true;}
-							graph.toggle_edge(*uit, *vit);
-							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-						} while(false);
-					}
-				}
+					graph.toggle_edge(*uit, *vit);
+					if(edit_rec(k - 1)) {return true;}
+					graph.toggle_edge(*uit, *vit);
+					if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
+					else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+					return false;
+				});
+				if(done) {return true;}
 
 				if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 				{

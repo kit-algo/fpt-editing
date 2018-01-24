@@ -5,12 +5,12 @@
 
 #include "../config.hpp"
 
-#include "../Editor/Editor.hpp"
+#include "../Options.hpp"
 
 namespace Selector
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Least_Unedited : Editor::Tag::Selector
+	class Least_Unedited : Options::Tag::Selector
 	{
 	public:
 		static constexpr char const *name = "Least";
@@ -33,60 +33,10 @@ namespace Selector
 			size_t free = 0;
 
 			// count unedited vertex pairs
-			if(std::is_same<Mode, Editor::Options::Modes::Edit>::value)
-			{
-				for(auto vit = b + 1; vit != e; vit++)
-				{
-					for(auto uit = b; uit != vit; uit++)
-					{
-						if(std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						free++;
-					}
-				}
-			}
-			else if(std::is_same<Mode, Editor::Options::Modes::Delete>::value)
-			{
-				for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
-				{
-					if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-					{
-						if(edited.has_edge(*uit, *vit)) {continue;}
-					}
-					free++;
-				}
-				if(!std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && graph.has_edge(*b, *(e - 1)))
-				{
-					auto uit = b;
-					auto vit = e - 1;
-					do
-					{
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						free++;
-					} while(false);
-				}
-			}
-			else if(std::is_same<Mode, Editor::Options::Modes::Insert>::value)
-			{
-				for(auto vit = b + 2; vit != e; vit++)
-				{
-					for(auto uit = b; uit != vit - 1; uit++)
-					{
-						if(uit == b && vit == e - 1 && (std::is_same<Conversion, Editor::Options::Conversions::Skip>::value || graph.has_edge(*b, *(e - 1)))) {continue;}
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						free++;
-					}
-				}
-			}
+			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
+				free++;
+				return false;
+			});
 
 			if(free < free_pairs || free_pairs == 0)
 			{

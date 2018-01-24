@@ -10,30 +10,35 @@
 
 #include <iostream>
 
+#include "../util.hpp"
+
 #include "../config.hpp"
 
-#include "../Editor/Editor.hpp"
+#include "../Options.hpp"
 
 #include "../Finder/Finder.hpp"
 #include "../Finder/Center_Matrix.hpp"
-#include "../Lower_Bound/Basic.hpp"
 
 namespace Selector
 {
 #define PAIR(a, b) (assert((a) != (b)), std::make_pair(std::min((a), (b)), std::max((a), (b))))
 
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Single : Editor::Tag::Selector
+	class Single : Options::Tag::Selector, Options::Tag::Lower_Bound
 	{
 	public:
 		static constexpr char const *name = "Single";
 
 	private:
-		size_t found = 0;
+		//size_t found = 0;
 		Graph_Edits used;
 
 		std::vector<std::vector<VertexID>> bounds;
-		//std::unordered_map<std::pair<VertexID, VertexID>, std::vector<size_t>> bounds_rev;
+		std::unordered_map<std::pair<VertexID, VertexID>, size_t> bounds_rev;
+		size_t replacing_bound;
+
+		Graph_Edits new_use;
+		size_t new_count;
 
 		struct
 		{
@@ -42,11 +47,10 @@ namespace Selector
 		} best;
 
 		Finder::Center_Matrix_4<Graph, Graph_Edits> finder;
-		Lower_Bound::Basic<Graph, Graph_Edits, Mode, Restriction, Conversion> lb;
-		Finder::Feeder<decltype(finder), Graph, Graph_Edits, decltype(lb)> feeder;
+		Finder::Feeder<decltype(finder), Graph, Graph_Edits, Single<Graph, Graph_Edits, Mode, Restriction, Conversion>> feeder;
 
 	public:
-		Single(Graph const &graph) : used(graph.size()), finder(graph), lb(graph), feeder(finder, lb)
+		Single(Graph const &graph) : used(graph.size()), new_use(graph.size()), finder(graph), feeder(finder, *this)
 		{
 			;
 		}
@@ -60,100 +64,16 @@ namespace Selector
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
-			if(std::is_same<Mode, Editor::Options::Modes::Edit>::value)
-			{
-				// test
-				for(auto vit = b + 1; vit != e; vit++)
-				{
-					for(auto uit = b; uit != vit; uit++)
-					{
-						if(std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						if(used.has_edge(*uit, *vit)) {return true;}
-					}
-				}
-				// add
-				for(auto vit = b + 1; vit != e; vit++)
-				{
-					for(auto uit = b; uit != vit; uit++)
-					{
-						if(std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						used.set_edge(*uit, *vit);
-					}
-				}
-			}
-			else if(std::is_same<Mode, Editor::Options::Modes::Delete>::value)
-			{
-				// test
-				for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
-				{
-					if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-					{
-						if(edited.has_edge(*uit, *vit)) {continue;}
-					}
-					if(used.has_edge(*uit, *vit)) {return true;}
-				}
-				if(!std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && graph.has_edge(*b, *(e - 1)))
-				{
-					auto uit = b;
-					auto vit = e - 1;
-					do
-					{
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						if(used.has_edge(*uit, *vit)) {return true;}
-						// add
-						used.set_edge(*uit, *vit);
-					} while(false);
-				}
-				// add
-				for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
-				{
-					if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-					{
-						if(edited.has_edge(*uit, *vit)) {continue;}
-					}
-					used.set_edge(*uit, *vit);
-				}
-			}
-			else if(std::is_same<Mode, Editor::Options::Modes::Insert>::value)
-			{
-				// test
-				for(auto vit = b + 2; vit != e; vit++)
-				{
-					for(auto uit = b; uit != vit - 1; uit++)
-					{
-						if(uit == b && vit == e - 1 && (std::is_same<Conversion, Editor::Options::Conversions::Skip>::value || graph.has_edge(*b, *(e - 1)))) {continue;}
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						if(used.has_edge(*uit, *vit)) {return true;}
-					}
-				}
-				// add
-				for(auto vit = b + 2; vit != e; vit++)
-				{
-					for(auto uit = b; uit != vit - 1; uit++)
-					{
-						if(uit == b && vit == e - 1 && (std::is_same<Conversion, Editor::Options::Conversions::Skip>::value || graph.has_edge(*b, *(e - 1)))) {continue;}
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						used.set_edge(*uit, *vit);
-					}
-				}
-			}
+			bool skip = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
+				return used.has_edge(*uit, *vit);
+			});
+
+			if(skip) {return true;}
+			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
+				used.set_edge(*uit, *vit);
+				bounds_rev.insert({std::minmax(*uit, *vit), bounds.size()});
+				return false;
+			});
 
 			bounds.emplace_back(b, e);
 			return true;
@@ -171,29 +91,34 @@ namespace Selector
 			}
 			if(bounds.size() > k) {return bounds[0];} // fast return since lb will prune anyway
 
-			auto handle_edge = [&](VertexID u, VertexID v) -> bool
+			auto handle_edge = [&](size_t idx, VertexID u, VertexID v) -> bool
 			{
+				/* search radius for Px/Cx from u, v
+				 * 4 -> +2
+				 * 5 -> +3
+				 * ...
+				 *
+				 * how do we know what we're searching for?
+				 * let lb handle that
+				 */
+				replacing_bound = idx;
+
 				// mark
 				edited.set_edge(u, v);
 				// lb
-				feeder.feed(graph, edited);
-				size_t mark_change = lb.result();
+				feeder.feed_near(graph, edited, u, v);
+				size_t mark_change = new_count - 1;
 				// edit
 				graph.toggle_edge(u, v);
 				// lb
-				feeder.feed(graph, edited);
-				size_t edit_change = lb.result();
+				feeder.feed_near(graph, edited, u, v);
+				size_t edit_change = new_count - 1;
 				// unedit, unmark
 				edited.clear_edge(u, v);
 				graph.toggle_edge(u, v);
 
 				/* adjust */
-				if(edit_change + 1 < bounds.size() || mark_change < bounds.size())
-				{
-					return false;
-				}
-				edit_change += 1 - bounds.size();
-				mark_change -= bounds.size();
+				edit_change++;
 
 				/* compare */
 				auto const changes = std::minmax(mark_change, edit_change);
@@ -214,10 +139,6 @@ namespace Selector
 				return false;
 			};
 
-			/* 4 -> +2
-			 * 5 -> +3
-			 * ...
-			 */
 			size_t free_count = 0;
 			size_t free_idx = 0;
 
@@ -227,64 +148,12 @@ namespace Selector
 				auto e = bounds[idx].end();
 				size_t free = 0;
 
-				if(std::is_same<Mode, Editor::Options::Modes::Edit>::value)
-				{
-					for(auto vit = b + 1; vit != e; vit++)
-					{
-						for(auto uit = b; uit != vit; uit++)
-						{
-							if(std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
-							if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-							}
-							if(handle_edge(*uit, *vit)) {return best.edge;}
-							free++;
-						}
-					}
-				}
-				else if(std::is_same<Mode, Editor::Options::Modes::Delete>::value)
-				{
-					for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
-					{
-						if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-						{
-							if(edited.has_edge(*uit, *vit)) {continue;}
-						}
-						if(handle_edge(*uit, *vit)) {return best.edge;}
-						free++;
-					}
-					if(!std::is_same<Conversion, Editor::Options::Conversions::Skip>::value && graph.has_edge(*b, *(e - 1)))
-					{
-						auto uit = b;
-						auto vit = e - 1;
-						do
-						{
-							if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-							}
-							if(handle_edge(*uit, *vit)) {return best.edge;}
-							free++;
-						} while(false);
-					}
-				}
-				else if(std::is_same<Mode, Editor::Options::Modes::Insert>::value)
-				{
-					for(auto vit = b + 2; vit != e; vit++)
-					{
-						for(auto uit = b; uit != vit - 1; uit++)
-						{
-							if(uit == b && vit == e - 1 && (std::is_same<Conversion, Editor::Options::Conversions::Skip>::value || graph.has_edge(*b, *(e - 1)))) {continue;}
-							if(!std::is_same<Restriction, Editor::Options::Restrictions::None>::value)
-							{
-								if(edited.has_edge(*uit, *vit)) {continue;}
-							}
-							if(handle_edge(*uit, *vit)) {return best.edge;}
-							free++;
-						}
-					}
-				}
+				bool done = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
+					if(handle_edge(idx, *uit, *vit)) {return true;}
+					free++;
+					return false;
+				});
+				if(done) {return best.edge;}
 
 				if(free < free_count || free_count == 0)
 				{
@@ -312,6 +181,33 @@ namespace Selector
 			return bounds.size();
 		}
 
+		void prepare_near(VertexID, VertexID)
+		{
+			new_use.clear();
+			new_count = 0;
+		}
+
+		bool next_near(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		{
+			bool skip = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
+				/* count if:
+				 * all edges are either:
+				 *   unused
+				 *   or inside the current bound
+				 * and we didn't find a new bound using them.
+				 * */
+				bool count = (!used.has_edge(*uit, *vit) || bounds_rev.at(std::minmax(*uit, *vit)) == replacing_bound) && !new_use.has_edge(*uit, *vit);
+				return !count;
+			});
+
+			if(skip) {return true;}
+			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
+				new_use.set_edge(*uit, *vit);
+				return false;
+			});
+			new_count++;
+			return true;
+		}
 
 #if 0
 	private:
