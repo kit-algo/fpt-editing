@@ -10,14 +10,13 @@ TARGET := graphedit
 
 SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp"))
 HEADER_FILES := $(sort $(shell find src/ -name "*.hpp"))
-TEMPLATED_FILES := $(sort $(shell find build/generated/ -name "*.cpp"))
-GENERATED_FILES := build/choices.i
 
 all: release
 
 ifneq ($(MAKECMDGOALS), clean)
-include $(SOURCE_FILES:src/%.cpp=build/%.d)
-include build/generated/generated.d
+-include $(SOURCE_FILES:src/%.cpp=build/%.d)
+-include build/generated/generated.d
+-include build/generated/list.d
 endif
 
 debug: TYPEFLAGS := $(DEBUGFLAGS)
@@ -30,25 +29,25 @@ release: $(TARGET)
 clean:
 	rm -rf $(TARGET) build gmon.out *~
 
-$(TARGET): $(SOURCE_FILES:src/%.cpp=build/%.o) $(TEMPLATED_FILES:%.cpp=%.o) | build
+$(TARGET): $(SOURCE_FILES:src/%.cpp=build/%.o) | build build/generated/list.d
 	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o $(TARGET)
 
 build:
 	find src/ -type d | sed 's/^src/build/' | xargs mkdir
 	mkdir build/generated
 
-build/generated/generated.d: | $(GENERATED_FILES)
-	$(CPP) $(COMMON) $(CPPFLAGS) $(RELEASEFLAGS) -MM -MG -MT build/generated/%.o $(lastword $(shell find build/generated/ -name "*.cpp")) | sed 's#build/generated/.*\.cpp#build/generated/%.cpp#' > $@
+build/generated/%.d: build/generated/%.cpp
+	$(CPP) $(COMMON) $(CPPFLAGS) $(RELEASEFLAGS) -MM -MG -MT build/generated/$*.o $< | sed 's#build/generated/\.\./\.\./##g' > $@
 build/%.d: src/%.cpp | build
-	$(CPP) $(COMMON) $(CPPFLAGS) $(RELEASEFLAGS) -MM -MG -MT build/$*.o $< | sed 's# ../build/# src/../build/#g' > $@
+	$(CPP) $(COMMON) $(CPPFLAGS) $(RELEASEFLAGS) -MM -MG -MT build/$*.o $< | sed 's# \.\./build/# src/../build/#g' > $@
 
 build/generated/%.o: build/generated/%.cpp | build/generated/generated.d
 	$(CPP) $(COMMON) $(CPPFLAGS) $(TYPEFLAGS) -c $< -o $@
 build/%.o: src/%.cpp | build/%.d $(GENERATED_FILES)
 	$(CPP) $(COMMON) $(CPPFLAGS) $(TYPEFLAGS) -c $< -o $@
 
-build/generated/%.cpp build/%.i src/../build/%.i: src/config.hpp | build
-	for f in $(GENERATED_FILES) ; do [ \! -e $$f ] && touch $$f ; done ; true
-	$(CPP) $(COMMON) $(CPPFLAGS) $(RELEASEFLAGS) $< -dM -E | grep -E 'CHOICES' | ./choices.py $* > $@
-	for f in $(GENERATED_FILES) ; do [ -e $$f -a \! -s $$f ] && rm $$f ; done ; true
-	touch build/generated/generated.d
+build/generated/%.cpp: build/choices.i
+
+build/choices.i build/generated/list.d build/generated/generated.d: src/config.hpp | build
+	touch build/choices.i
+	$(CPP) $(COMMON) $(CPPFLAGS) $(RELEASEFLAGS) $< -dM -E | grep -E 'CHOICES' | ./choices.py $* > build/choices.i

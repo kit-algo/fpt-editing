@@ -28,7 +28,7 @@ for gen, arguments in need.items():
 			collected.add(arg)
 print()
 
-def combinations(filename, templatefile, template, remaining, generated):
+def combinations(filename, templatefile, template, filelist, includelist, remaining, generated):
 	if not remaining:
 		tf = open(templatefile, "r")
 		template_text = tf.read()
@@ -36,19 +36,25 @@ def combinations(filename, templatefile, template, remaining, generated):
 		for g in generated:
 			print(template.format(*g))
 			fn = filename.format(*g)
+			filelist.write("\t" + fn.replace(".cpp", ".o") + " \\\n")
+			includelist.write("-include " + fn.replace(".cpp", ".d") + "\n")
 			with open(fn, "w") as of:
 				of.write(template_text.format(*g))
 	else:
 		if not lists[remaining[0]]:
 			return
 		if not generated:
-			combinations(filename, templatefile, template, remaining[1:], [[b] for b in lists[remaining[0]]])
+			combinations(filename, templatefile, template, filelist, includelist, remaining[1:], [[b] for b in lists[remaining[0]]])
 		else:
-			combinations(filename, templatefile, template, remaining[1:], [a + [b] for a in generated for b in lists[remaining[0]]])
+			combinations(filename, templatefile, template, filelist, includelist, remaining[1:], [a + [b] for a in generated for b in lists[remaining[0]]])
 
 for macro, arguments in need.items():
 	print("#define GENERATED_RUN_", macro, " \\", sep = "")
 	template = "RUN(" + ", ".join(["{}"] * len(arguments)) + ") \\"
 	filename = "build/generated/run-" + "-".join(["{}"] * len(arguments)) + ".cpp"
-	combinations(filename, "src/generator_template.tpp", template, arguments, [])
+	with open("build/generated/list.d", "w") as filelist:
+		with open("build/generated/generated.d", "w") as includelist:
+			filelist.write("$(TARGET): \\\n")
+			combinations(filename, "src/generator_template.tpp", template, filelist, includelist, arguments, [])
+			filelist.write("\n")
 	print("\n\n")
