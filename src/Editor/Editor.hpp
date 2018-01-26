@@ -94,7 +94,7 @@ namespace Editor
 			}
 			else if(k == 0 && !problem.empty())
 			{
-				// used all edits btu graph still unsolved
+				// used all edits but graph still unsolved
 				return false;
 			}
 

@@ -17,7 +17,8 @@
 #include "../Options.hpp"
 
 #include "../Finder/Finder.hpp"
-#include "../Finder/Center_Matrix.hpp"
+#include "../Finder/Center.hpp"
+#include "../Finder/Center_Edits.hpp"
 
 namespace Selector
 {
@@ -46,7 +47,7 @@ namespace Selector
 			std::vector<VertexID> edge;
 		} best;
 
-		Finder::Center_Matrix_4<Graph, Graph_Edits> finder;
+		Finder::Center_4<Graph, Graph_Edits> finder;
 		Finder::Feeder<decltype(finder), Graph, Graph_Edits, Single<Graph, Graph_Edits, Mode, Restriction, Conversion>> feeder;
 
 	public:
@@ -112,13 +113,10 @@ namespace Selector
 				graph.toggle_edge(u, v);
 				// lb
 				feeder.feed_near(graph, edited, u, v);
-				size_t edit_change = new_count - 1;
+				size_t edit_change = new_count;
 				// unedit, unmark
 				edited.clear_edge(u, v);
 				graph.toggle_edge(u, v);
-
-				/* adjust */
-				edit_change++;
 
 				/* compare */
 				auto const changes = std::minmax(mark_change, edit_change);

@@ -33,7 +33,7 @@ namespace Selector
 			size_t free = 0;
 
 			// count unedited vertex pairs
-			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
+			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto, auto) {
 				free++;
 				return false;
 			});

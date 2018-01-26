@@ -1,5 +1,5 @@
-#ifndef FINDER_CENTER_MATRIX_HPP
-#define FINDER_CENTER_MATRIX_HPP
+#ifndef FINDER_CENTER_HPP
+#define FINDER_CENTER_HPP
 
 #include <assert.h>
 
@@ -10,18 +10,18 @@
 namespace Finder
 {
 	template<typename Graph, typename Graph_Edits, size_t length>
-	class Center_Matrix
+	class Center
 	{
 		static_assert(length > 3, "Can only detect path/cycles with at least 4 vertices");
 
 	public:
-		static constexpr char const *name = "Center_Matrix";
+		static constexpr char const *name = "Center";
 
 	private:
 		std::vector<Packed> forbidden;
 
 	public:
-		Center_Matrix(Graph const &graph) : forbidden(graph.alloc_rows(length / 2 - 1)) {;}
+		Center(Graph const &graph) : forbidden(graph.alloc_rows(length / 2 - 1)) {;}
 
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
@@ -303,21 +303,21 @@ namespace Finder
 	};
 
 	template<typename Graph, typename Graph_Edits>
-	class Center_Matrix_4 : public Center_Matrix<Graph, Graph_Edits, 4>
+	class Center_4 : public Center<Graph, Graph_Edits, 4>
 	{
-	private: using Parent = Center_Matrix<Graph, Graph_Edits, 4>;
+	private: using Parent = Center<Graph, Graph_Edits, 4>;
 	public:
-		static constexpr char const *name = "Center_Matrix_4";
-		Center_Matrix_4(Graph const &graph) : Parent(graph) {;}
+		static constexpr char const *name = "Center_4";
+		Center_4(Graph const &graph) : Parent(graph) {;}
 	};
 
 	template<typename Graph, typename Graph_Edits>
-	class Center_Matrix_5 : public Center_Matrix<Graph, Graph_Edits, 5>
+	class Center_5 : public Center<Graph, Graph_Edits, 5>
 	{
-	private: using Parent = Center_Matrix<Graph, Graph_Edits, 5>;
+	private: using Parent = Center<Graph, Graph_Edits, 5>;
 	public:
-		static constexpr char const *name = "Center_Matrix_5";
-		Center_Matrix_5(Graph const &graph) : Parent(graph) {;}
+		static constexpr char const *name = "Center_5";
+		Center_5(Graph const &graph) : Parent(graph) {;}
 	};
 
 }
