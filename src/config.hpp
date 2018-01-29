@@ -25,7 +25,7 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define CHOICES_CONVERSION Skip
 #define CHOICES_EDITOR Editor
 #define CHOICES_HEURISTIC
-#define CHOICES_FINDER Center_4, Center_Edits_4
+#define CHOICES_FINDER Center_4, Center_Edits_4, Linear_4
 #define CHOICES_SELECTOR Single, Least_Unedited
 #define CHOICES_LOWER_BOUND No, Basic
 #define CHOICES_GRAPH Matrix

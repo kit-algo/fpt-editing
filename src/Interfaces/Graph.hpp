@@ -20,6 +20,7 @@ namespace Graph
 		void set_edge(VertexID u, VertexID v);
 		void clear_edge(VertexID u, VertexID v);
 		void toggle_edge(VertexID u, VertexID v);
+		size_t degree(VertexID u) const;
 		std::vector<VertexID> const get_neighbours(VertexID u) const;
 		bool verify() const;
 	};

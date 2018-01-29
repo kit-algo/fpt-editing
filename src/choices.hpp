@@ -2,6 +2,7 @@
 #include "Editor/Editor.hpp"
 #include "Finder/Center.hpp"
 #include "Finder/Center_Edits.hpp"
+#include "Finder/Linear.hpp"
 #include "Selector/First.hpp"
 #include "Selector/Least_Unedited.hpp"
 #include "Selector/Single.hpp"

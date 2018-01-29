@@ -106,6 +106,17 @@ namespace Graph
 			}
 		}
 
+		size_t degree(VertexID u) const
+		{
+			Packed const *urow = get_row(u);
+			size_t deg = 0;
+			for(size_t i = 0; i < get_row_length(); i++)
+			{
+				deg += __builtin_popcount(urow[i]);
+			}
+			return deg;
+		}
+
 		std::vector<VertexID> const get_neighbours(VertexID u) const
 		{
 			std::vector<VertexID> neighbours;
