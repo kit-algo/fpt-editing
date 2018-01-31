@@ -61,6 +61,7 @@ void Run<E, F, G, GE, M, R, C, S, B>::run_watch(CMDOptions const &options, std::
 			{
 				//timeout
 				kill(pid, SIGKILL);
+				std::cout << std::flush << filename << ": (exact) " << name() << ": Timeout" << std::endl;
 			}
 			wait(NULL);
 		}
@@ -119,13 +120,15 @@ void Run<E, F, G, GE, M, R, C, S, B>::run(CMDOptions const &options, std::string
 	G g_orig = graph;
 
 	F finder(graph);
-	S selector(graph);
-	B lower_bound(graph);
-	E editor(finder, graph, selector, lower_bound);
+	std::tuple<S, B> consumer = std::make_tuple(S(graph), B(graph));
+//	std::tuple<B> lower_bound = std::make_tuple(B(graph));
+	//S selector(graph);
+	//B lower_bound(graph);
+	E editor(finder, graph, consumer);
 
-	Finder::Feeder<F, G, GE, B> feeder(finder, lower_bound);
+	Finder::Feeder<F, G, GE, S, B> feeder(finder, consumer);
 	feeder.feed(graph, GE(graph.size()));
-	size_t bound = lower_bound.result();
+	size_t bound = std::get<1>(consumer).result();
 
 	//finder.recalculate();
 	for(size_t k = std::max(bound, options.k_min); !options.k_max || k <= options.k_max; k++)

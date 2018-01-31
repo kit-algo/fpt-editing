@@ -1,5 +1,5 @@
-#ifndef FINDER_S_LB_CENTER_MATRIX_HPP
-#define FINDER_S_LB_CENTER_MATRIX_HPP
+#ifndef SELECTOR_SINGLE_HPP
+#define SELECTOR_SINGLE_HPP
 
 #include <algorithm>
 #include <set>

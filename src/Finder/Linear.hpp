@@ -3,6 +3,9 @@
 
 #include <assert.h>
 
+#include <iomanip>
+#include <iostream>
+
 #include <unordered_set>
 #include <vector>
 
@@ -24,15 +27,29 @@ namespace Finder
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
 		{
+			//urgh... this needs to be done differently
 			// sort vertices by degree, decreasing
-			std::vector<std::vector<Packed>> L;
+			std::vector<std::pair<std::vector<Packed>, size_t>> L;
 			for(VertexID u = 0; u < graph.size(); u++)
 			{
 				size_t deg = graph.degree(u);
-				if(L.size() <= deg) {L.resize(deg + 1, graph.alloc_rows(1));}
-				L[deg][u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
+				if(L.size() <= deg) {L.resize(deg + 1, {graph.alloc_rows(1), 0});}
+				L[deg].first[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
+				L[deg].second++;
+			}
+			for(size_t i = L.size(); i > 0; i--)
+			{
+				if(L[i - 1].second == 0) {L.erase(L.begin() + (i - 1));}
 			}
 
+/*			std::cout << "deg asc:\n";
+			for(size_t i = 0; i < L.size(); i++)
+			{
+				std::cout << std::setw(3) << +i << ':';
+				for(auto const &x: L[i].first) {std::cout << ' ' << std::hex << std::setw(16) << std::setfill('0') << x;}
+				std::cout << std::setfill(' ') << std::dec << " (" << +L[i].second << ")\n";
+			}
+*/
 			std::vector<Packed> out = graph.alloc_rows(1);
 
 			for(VertexID i = 0; i < graph.size(); i++)
@@ -40,9 +57,14 @@ namespace Finder
 				VertexID x;
 				for(size_t j = 0; j < graph.get_row_length(); j++)
 				{
-					for(Packed px = L.back()[j]; px; px &= ~(Packed(1) << __builtin_ctzll(px)))
+					for(Packed px = L.back().first[j]; px; px &= ~(Packed(1) << __builtin_ctzll(px)))
 					{
 						x = __builtin_ctzll(px) + j * Packed_Bits;
+						L.back().first[j] &= ~(Packed(1) << __builtin_ctzll(px));
+						L.back().second--;
+
+//						std::cout << "cur: " << +x << " (L[" << L.size() - 1 << "])\n";
+
 						goto found_x;
 					}
 				}
@@ -53,6 +75,10 @@ namespace Finder
 				found_x:;
 				out[x / Packed_Bits] |= Packed(1) << (x % Packed_Bits);
 
+/*				std::cout << "done:";
+				for(auto const &x: out) {std::cout << ' ' << std::hex << std::setw(16) << std::setfill('0') << x;}
+				std::cout << std::setfill(' ') << std::dec << '\n';
+*/
 				for(size_t idx = L.size(); idx > 0; idx--)
 				{
 					auto &val = L[idx - 1];
@@ -60,11 +86,11 @@ namespace Finder
 					size_t count = 0;
 					for(size_t j = 0; j < graph.get_row_length(); j++)
 					{
-						p[j] = val[j] & graph.get_row(x)[j];
+						p[j] = val.first[j] & graph.get_row(x)[j];
 						count += __builtin_popcount(p[j]);
 					}
 
-					if(count == 0)
+					if(count != 0)
 					{
 						VertexID y = ~0;
 						for(size_t j = 0; j < graph.get_row_length(); j++)
@@ -96,17 +122,23 @@ namespace Finder
 							for(Packed pz = graph.get_row(w)[j] & ~graph.get_row(x)[j]; pz; pz &= ~(Packed(1) << __builtin_ctzll(pz)))
 							{
 								VertexID z = __builtin_ctzll(pz) + j * Packed_Bits;
+								if(z == x) {continue;}
 								std::vector<VertexID> problem{z, w, x, y};
+								//std::cout << "found " << +z << ' ' << +w << ' ' << +x << ' ' << +y << '\n';
 								feeder.callback(graph, edited, problem.begin(), problem.end());
 								return;
 							}
 						}
 					}
-					for(size_t j = 0; j < graph.get_row_length(); j++)
+					/*else
 					{
-						val[j] &= ~p[j];
-					}
-					L.insert(L.begin() + idx, p);
+						for(size_t j = 0; j < graph.get_row_length(); j++)
+						{
+							val.first[j] &= ~p[j];
+							val.second -= count;
+						}
+						L.insert(L.begin() + idx, {p, count});
+					}*/
 				}
 			}
 		}

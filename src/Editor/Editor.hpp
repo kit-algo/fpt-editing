@@ -1,7 +1,10 @@
 #ifndef EDITOR_HPP
 #define EDITOR_HPP
 
+#include <assert.h>
+
 #include <functional>
+#include <iostream>
 #include <map>
 #include <typeinfo>
 #include <vector>
@@ -22,7 +25,7 @@ namespace Editor
 
 	private:
 		Finder &finder;
-		std::tuple<Consumer &...> consumer;
+		std::tuple<Consumer ...> &consumer;
 		static constexpr size_t selector = Options::get_tagged_consumer<Options::Tag::Selector, Consumer...>::value();
 		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value();
 		Graph &graph;
@@ -40,7 +43,7 @@ namespace Editor
 #endif
 
 	public:
-		Editor(Finder &finder, Graph &graph, Consumer &... consumer) : finder(finder), consumer(consumer...), graph(graph), edited(graph.size()), feeder(finder, consumer...)
+		Editor(Finder &finder, Graph &graph, std::tuple<Consumer ...> &consumer) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer)
 		{
 			;
 		}
@@ -53,7 +56,7 @@ namespace Editor
 			calls = decltype(calls)(k + 1, 0);
 			prunes = decltype(prunes)(k + 1, 0);
 			fallbacks = decltype(fallbacks)(k + 1, 0);
-			single = decltype(fallbacks)(k + 1, 0);
+			single = decltype(single)(k + 1, 0);
 #endif
 			found_soulution = false;
 			edit_rec(k);

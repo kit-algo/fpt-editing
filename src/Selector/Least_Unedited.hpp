@@ -1,5 +1,5 @@
-#ifndef SELECTOR_LEAST_UNEDITED_HPP
-#define SELECTOR_LEAST_UNEDITED_HPP
+#ifndef SELECTOR_LEAST_HPP
+#define SELECTOR_LEAST_HPP
 
 #include <vector>
 
@@ -10,7 +10,7 @@
 namespace Selector
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Least_Unedited : Options::Tag::Selector
+	class Least : Options::Tag::Selector
 	{
 	public:
 		static constexpr char const *name = "Least";
@@ -20,7 +20,7 @@ namespace Selector
 		size_t free_pairs;
 
 	public:
-		Least_Unedited(Graph const &) {;}
+		Least(Graph const &) {;}
 
 		void prepare()
 		{

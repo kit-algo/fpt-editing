@@ -14,13 +14,13 @@ namespace Finder
 	template<size_t N, typename... Consumer>
 	struct Preparer
 	{
-		static void prepare(std::tuple<Consumer &...> &consumer)
+		static void prepare(std::tuple<Consumer ...> &consumer)
 		{
 			Preparer<N - 1, Consumer...>::prepare(consumer);
 			std::get<N - 1>(consumer).prepare();
 		}
 
-		static void prepare_near(std::tuple<Consumer &...> &consumer, VertexID u, VertexID v)
+		static void prepare_near(std::tuple<Consumer ...> &consumer, VertexID u, VertexID v)
 		{
 			Preparer<N - 1, Consumer...>::prepare_near(consumer, u, v);
 			std::get<N - 1>(consumer).prepare_near(u, v);
@@ -30,21 +30,21 @@ namespace Finder
 	template<typename... Consumer>
 	struct Preparer<0, Consumer...>
 	{
-		static void prepare(std::tuple<Consumer &...> &) {;}
-		static void prepare_near(std::tuple<Consumer &...> &, VertexID, VertexID) {;}
+		static void prepare(std::tuple<Consumer ...> &) {;}
+		static void prepare_near(std::tuple<Consumer ...> &, VertexID, VertexID) {;}
 	};
 
 	template<typename Graph, typename Graph_Edits, size_t N, typename... Consumer>
 	struct Caller
 	{
-		static bool call(std::tuple<Consumer &...> &consumer, std::array<bool, sizeof...(Consumer)> &done, Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		static bool call(std::tuple<Consumer ...> &consumer, std::array<bool, sizeof...(Consumer)> &done, Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
 			bool other = Caller<Graph, Graph_Edits, N - 1, Consumer...>::call(consumer, done, graph, edits, b, e);
 			bool self = done[N - 1] || (done[N - 1] = !std::get<N - 1>(consumer).next(graph, edits, b, e));
 			return self && other;
 		}
 
-		static bool call_near(std::tuple<Consumer &...> &consumer, std::array<bool, sizeof...(Consumer)> &done, Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		static bool call_near(std::tuple<Consumer ...> &consumer, std::array<bool, sizeof...(Consumer)> &done, Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
 			bool other = Caller<Graph, Graph_Edits, N - 1, Consumer...>::call_near(consumer, done, graph, edits, b, e);
 			bool self = done[N - 1] || (done[N - 1] = !std::get<N - 1>(consumer).next_near(graph, edits, b, e));
@@ -55,12 +55,12 @@ namespace Finder
 	template<typename Graph, typename Graph_Edits, typename... Consumer>
 	struct Caller<Graph, Graph_Edits, 0, Consumer...>
 	{
-		static bool call(std::tuple<Consumer &...> &, std::array<bool, sizeof...(Consumer)> &, Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
+		static bool call(std::tuple<Consumer ...> &, std::array<bool, sizeof...(Consumer)> &, Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
 		{
 			return true;
 		}
 
-		static bool call_near(std::tuple<Consumer &...> &, std::array<bool, sizeof...(Consumer)> &, Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
+		static bool call_near(std::tuple<Consumer ...> &, std::array<bool, sizeof...(Consumer)> &, Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
 		{
 			return true;
 		}
@@ -72,14 +72,11 @@ namespace Finder
 	private:
 		Finder &finder;
 
-		std::tuple<Consumer &...> consumer;
+		std::tuple<Consumer ...> &consumer;
 		std::array<bool, sizeof...(Consumer)> done;
 
 	public:
-		Feeder(Finder &finder, Consumer &...consumer) : finder(finder), consumer(consumer...)
-		{
-			;
-		}
+		Feeder(Finder &finder, std::tuple<Consumer ...> &consumer) : finder(finder), consumer(consumer) {;}
 
 		void feed(Graph const &graph, Graph_Edits const &edited)
 		{
