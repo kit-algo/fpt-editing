@@ -3,10 +3,14 @@
 
 #include <assert.h>
 
+#include <iomanip>
+#include <algorithm>
+#include <iostream>
+#include <numeric>
+
 #include <condition_variable>
 #include <deque>
 #include <functional>
-#include <iostream>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -61,6 +65,8 @@ namespace Editor
 		std::vector<size_t> fallbacks;
 		std::vector<size_t> single;
 		std::vector<size_t> stolen;
+		std::vector<size_t> inserted;
+		std::vector<size_t> skipped;
 #endif
 
 	public:
@@ -78,6 +84,8 @@ namespace Editor
 			fallbacks = decltype(fallbacks)(k + 1, 0);
 			single = decltype(single)(k + 1, 0);
 			stolen = decltype(stolen)(k + 1, 0);
+			inserted = decltype(inserted)(k + 1, 0);
+			skipped = decltype(skipped)(k + 1, 0);
 #endif
 			found_soulution = false;
 			done = false;
@@ -89,6 +97,7 @@ namespace Editor
 				workers.emplace_back(*this, finder, consumer);
 			}
 
+			inserted[k]++;
 			available_work.push_back(std::make_unique<Work>(graph, Graph_Edits(graph.size()), k));
 			working = jobs;
 			std::vector<std::thread> threads;
@@ -100,6 +109,9 @@ namespace Editor
 			for(auto &t: threads) {t.join();}
 
 #ifdef STATS
+
+			std::cout << "per thread counters:\n";
+
 			for(auto &worker: workers)
 			{
 				for(size_t i = 0; i <= k; i++)
@@ -109,7 +121,59 @@ namespace Editor
 					fallbacks[i] += worker.fallbacks[i];
 					single[i] += worker.single[i];
 					stolen[i] += worker.stolen[i];
+					inserted[i] += worker.inserted[i];
+					skipped[i] += worker.skipped[i];
 				}
+
+				auto const stats = worker.stats();
+				std::ostringstream json;
+				json << "{";
+				bool first_stat = true;
+				for(auto stat : stats)
+				{
+					json << (first_stat ? "" : ",") << "\"" << stat.first << "\":[";
+					first_stat = false;
+					bool first_value = true;
+					for(auto value : stat.second)
+					{
+						json << (first_value ? "" : ",") << +value;
+						first_value = false;
+					}
+					json << ']';
+				}
+				json << "},";
+				std::cout << json.str() << std::endl;
+
+				std::map<std::string, std::ostringstream> output;
+				{
+					size_t l = std::max_element(stats.begin(), stats.end(), [](typename decltype(stats)::value_type const & a, typename decltype(stats)::value_type const & b)
+					{
+						return a.first.length() < b.first.length();
+					})->first.length();
+					for(auto &stat : stats)
+					{
+						output[stat.first] << std::setw(l) << stat.first << ':';
+					}
+				}
+				for(size_t j = 0; j <= k; j++)
+				{
+					size_t m = std::max_element(stats.begin(), stats.end(), [&j](typename decltype(stats)::value_type const & a, typename decltype(stats)::value_type const & b)
+					{
+						return a.second[j] < b.second[j];
+					})->second[j];
+					size_t l = 0;
+					do
+					{
+						m /= 10;
+						l++;
+					}
+					while(m > 0);
+					for(auto &stat : stats)
+					{
+						output[stat.first] << " " << std::setw(l) << +stat.second[j];
+					}
+				}
+				for(auto &stat: stats) {std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << std::endl;}
 			}
 #endif
 			return found_soulution;
@@ -118,7 +182,7 @@ namespace Editor
 #ifdef STATS
 		std::map<std::string, std::vector<size_t> const &> stats() const
 		{
-			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}};
+			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"inserted", inserted}, {"skipped", skipped}};
 		}
 #endif
 
@@ -150,11 +214,18 @@ namespace Editor
 			std::vector<size_t> fallbacks;
 			std::vector<size_t> single;
 			std::vector<size_t> stolen;
+			std::vector<size_t> inserted;
+			std::vector<size_t> skipped;
 #endif
 
 			Worker(MT &editor, Finder finder, std::tuple<Consumer ...> consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, this->consumer)
 			{
 				;
+			}
+
+			std::map<std::string, std::vector<size_t> const &> stats() const
+			{
+				return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"inserted", inserted}, {"skipped", skipped}};
 			}
 
 			void edit(size_t kmax)
@@ -165,6 +236,8 @@ namespace Editor
 				fallbacks = decltype(fallbacks)(kmax + 1, 0);
 				single = decltype(single)(kmax + 1, 0);
 				stolen = decltype(stolen)(kmax + 1, 0);
+				inserted = decltype(inserted)(kmax + 1, 0);
+				skipped = decltype(skipped)(kmax + 1, 0);
 #endif
 				while(true)
 				{
@@ -224,6 +297,12 @@ namespace Editor
 				auto &graph = work->graph;
 				auto &edited = work->edited;
 				auto &k = work->k;
+
+				if(k == 17)
+				{
+					std::unique_lock<std::mutex> ul(editor.write_mutex);
+					editor.write(graph, edited);
+				}
 
 //				std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << std::endl;
 #ifdef STATS
@@ -288,6 +367,7 @@ namespace Editor
 						{
 							graph.toggle_edge(problem.front(), problem.back());
 							k--;
+							inserted[k]++;
 							editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
 							k++;
 							graph.toggle_edge(problem.front(), problem.back());
@@ -296,10 +376,11 @@ namespace Editor
 						//unedit, mark
 						if(edges_done < 2)
 						{
+							inserted[k]++;
 							editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
 						}
 
-						// if == 0: d/c: delete then return
+						// if == 0: don't care: delete then return
 						// if == 1: dec k, g.toggle
 						if(edges_done == 1)
 						{
@@ -319,28 +400,44 @@ namespace Editor
 						size_t current_edits;
 						bool current_set = false;
 
+
+						Graph before(graph);
+						Graph_Edits before_edited(edited);
+
+						if(edges_done == 0)
+						{
+							skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0);
+							/*::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto, auto)
+							{
+								skipped[k]--;
+								return false;
+							});*/
+						}
+
 						std::vector<std::pair<size_t, size_t>> marked;
 						::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
 						{
-							edges_finished++;
 							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 							{
 								edited.set_edge(*uit, *vit);
 							}
-							if(edges_finished == edges_done)
+							edges_finished++;
+							if(edges_done == 0 || edges_finished > edges_done)
+							{
+								skipped[k - 1]--;
+								graph.toggle_edge(*uit, *vit);
+								k--;
+								inserted[k]++;
+								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
+								k++;
+								graph.toggle_edge(*uit, *vit);
+							}
+							else if(edges_finished == edges_done)
 							{
 								current_u = *uit;
 								current_v = *vit;
 								current_edits = marked.size();
 								current_set = true;
-							}
-							else if(edges_done == 0 || edges_finished > edges_done)
-							{
-								graph.toggle_edge(*uit, *vit);
-								k--;
-								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
-								k++;
-								graph.toggle_edge(*uit, *vit);
 							}
 							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
@@ -350,6 +447,7 @@ namespace Editor
 						if(edges_done > 0 && current_set)
 						{
 							graph.toggle_edge(current_u, current_v);
+							k--;
 							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 							{
 								for(auto it = marked.begin() + current_edits; it != marked.end(); it++)
@@ -408,7 +506,10 @@ namespace Editor
 #endif
 					std::vector<std::pair<size_t, size_t>> marked;
 					bool empty = false;
-					bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit){
+					skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value? 1 : 0);
+					bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
+					{
+						skipped[k - 1]--;
 						if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 						{
 							edited.set_edge(*uit, *vit);
@@ -444,3 +545,4 @@ namespace Editor
 }
 
 #endif
+
