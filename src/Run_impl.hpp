@@ -18,12 +18,11 @@
 
 #include "config.hpp"
 
+#include "util.hpp"
 #include "Run.hpp"
 
-//template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename Con...>
-//void Run<E, F, G, GE, M, R, C, Con...>::run_watch(Options const &options, std::string const &filename)
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename S, typename B>
-void Run<E, F, G, GE, M, R, C, S, B>::run_watch(CMDOptions const &options, std::string const &filename)
+template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
+void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std::string const &filename)
 {
 	if(!options.time_max_hard) {run(options, filename);}
 	else
@@ -93,7 +92,7 @@ void Run<E, F, G, GE, M, R, C, S, B>::run_watch(CMDOptions const &options, std::
 			char const *argv[] = {buf,
 				"-k", k.data(), "-K", K.data(), "-t", t.data(), "-j", j.data(), boolopts.data(),
 				"-M", M::name, "-R", R::name, "-C", C::name,
-				editheur, E::name, "-f", F::name, "-s", S::name, "-b", B::name, "-g", G::name,
+				editheur, E::name, "-f", F::name, "-s", E::Selector_type::name, "-b", E::Lower_Bound_type::name, "-g", G::name,
 				filename.data(), NULL
 			};
 
@@ -110,25 +109,21 @@ void Run<E, F, G, GE, M, R, C, S, B>::run_watch(CMDOptions const &options, std::
 	}
 }
 
-//template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename Con...>
-//void Run<E, F, G, GE, M, R, C, Con...>::run(Options const &options, std::string const &filename)
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename S, typename B>
-void Run<E, F, G, GE, M, R, C, S, B>::run(CMDOptions const &options, std::string const &filename)
+template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
+void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::string const &filename)
 {
 	G graph = Graph::readMetis<G>(filename);
 	Graph::writeDot(filename + ".gv", graph);
 	G g_orig = graph;
 
 	F finder(graph);
-	std::tuple<S, B> consumer = std::make_tuple(S(graph), B(graph));
-//	std::tuple<B> lower_bound = std::make_tuple(B(graph));
-	//S selector(graph);
-	//B lower_bound(graph);
-	E editor(finder, graph, consumer, options.threads);
+	std::tuple<Con...> consumer{Con(graph)...};
+	std::tuple<Con &...> consumer_ref = Util::MakeTupleRef(consumer);
+	E editor(finder, graph, consumer_ref, options.threads);
 
-	Finder::Feeder<F, G, GE, S, B> feeder(finder, consumer);
+	Finder::Feeder<F, G, GE, typename E::Lower_Bound_type> feeder(finder, std::get<E::lb>(consumer));
 	feeder.feed(graph, GE(graph.size()));
-	size_t bound = std::get<1>(consumer).result();
+	size_t bound = std::get<E::lb>(consumer).result();
 
 	//finder.recalculate();
 	for(size_t k = std::max(bound, options.k_min); !options.k_max || k <= options.k_max; k++)
@@ -222,15 +217,6 @@ void Run<E, F, G, GE, M, R, C, S, B>::run(CMDOptions const &options, std::string
 	}
 }
 
-/*//template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename Con...>
-//void Run<E, F, G, GE, M, R, C, Con...>::run(Options const &options, std::string const &filename)
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename S, typename B>
-typename std::enable_if<!E::valid, void>
-::type Run<E, F, G, GE, M, R, C, S, B>::run(Options const &options, std::string const &filename)
-{
-	std::cerr << name() << " is not a valid combination\n";
-}*/
-
 template<typename C, typename... Con>
 struct Namer
 {
@@ -249,14 +235,8 @@ struct Namer<C>
 	static constexpr std::string name() {return C::name;}
 };
 
-/*template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
+template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
 constexpr std::string Run<E, F, G, GE, M, R, C, Con...>::name()
 {
 	return Namer<E, M, R, C, F, Con..., G>::name();
-}*/
-
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename S, typename B>
-constexpr std::string Run<E, F, G, GE, M, R, C, S, B>::name()
-{
-	return Namer<E, M, R, C, F, S, B, G>::name();
 }

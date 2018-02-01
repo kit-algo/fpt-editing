@@ -48,7 +48,7 @@ namespace Selector
 		} best;
 
 		Finder::Center_4<Graph, Graph_Edits> finder;
-		Finder::Feeder<decltype(finder), Graph, Graph_Edits, Single<Graph, Graph_Edits, Mode, Restriction, Conversion>> feeder;
+		Finder::Feeder<decltype(finder), Graph, Graph_Edits, Single> feeder;
 
 	public:
 		Single(Graph const &graph) : used(graph.size()), new_use(graph.size()), finder(graph), feeder(finder, *this)
@@ -69,7 +69,7 @@ namespace Selector
 				return used.has_edge(*uit, *vit);
 			});
 
-			if(skip) {return true;}
+			if(skip) {return false;}
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
 				used.set_edge(*uit, *vit);
 				bounds_rev.insert({std::minmax(*uit, *vit), bounds.size()});
@@ -77,7 +77,7 @@ namespace Selector
 			});
 
 			bounds.emplace_back(b, e);
-			return true;
+			return false;
 		}
 
 		std::vector<VertexID> const &result(size_t k, Graph const &g, Graph_Edits const &e)
@@ -198,13 +198,13 @@ namespace Selector
 				return !count;
 			});
 
-			if(skip) {return true;}
+			if(skip) {return false;}
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
 				new_use.set_edge(*uit, *vit);
 				return false;
 			});
 			new_count++;
-			return true;
+			return false;
 		}
 
 #if 0

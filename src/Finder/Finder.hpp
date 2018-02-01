@@ -11,95 +11,66 @@
 
 namespace Finder
 {
-	template<size_t N, typename... Consumer>
-	struct Preparer
-	{
-		static void prepare(std::tuple<Consumer ...> &consumer)
-		{
-			Preparer<N - 1, Consumer...>::prepare(consumer);
-			std::get<N - 1>(consumer).prepare();
-		}
-
-		static void prepare_near(std::tuple<Consumer ...> &consumer, VertexID u, VertexID v)
-		{
-			Preparer<N - 1, Consumer...>::prepare_near(consumer, u, v);
-			std::get<N - 1>(consumer).prepare_near(u, v);
-		}
-	};
-
-	template<typename... Consumer>
-	struct Preparer<0, Consumer...>
-	{
-		static void prepare(std::tuple<Consumer ...> &) {;}
-		static void prepare_near(std::tuple<Consumer ...> &, VertexID, VertexID) {;}
-	};
-
-	template<typename Graph, typename Graph_Edits, size_t N, typename... Consumer>
-	struct Caller
-	{
-		static bool call(std::tuple<Consumer ...> &consumer, std::array<bool, sizeof...(Consumer)> &done, Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
-		{
-			bool other = Caller<Graph, Graph_Edits, N - 1, Consumer...>::call(consumer, done, graph, edits, b, e);
-			bool self = done[N - 1] || (done[N - 1] = !std::get<N - 1>(consumer).next(graph, edits, b, e));
-			return self && other;
-		}
-
-		static bool call_near(std::tuple<Consumer ...> &consumer, std::array<bool, sizeof...(Consumer)> &done, Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
-		{
-			bool other = Caller<Graph, Graph_Edits, N - 1, Consumer...>::call_near(consumer, done, graph, edits, b, e);
-			bool self = done[N - 1] || (done[N - 1] = !std::get<N - 1>(consumer).next_near(graph, edits, b, e));
-			return self && other;
-		}
-	};
-
-	template<typename Graph, typename Graph_Edits, typename... Consumer>
-	struct Caller<Graph, Graph_Edits, 0, Consumer...>
-	{
-		static bool call(std::tuple<Consumer ...> &, std::array<bool, sizeof...(Consumer)> &, Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
-		{
-			return true;
-		}
-
-		static bool call_near(std::tuple<Consumer ...> &, std::array<bool, sizeof...(Consumer)> &, Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
-		{
-			return true;
-		}
-	};
-
 	template<typename Finder, typename Graph, typename Graph_Edits, typename... Consumer>
 	class Feeder
 	{
 	private:
 		Finder &finder;
 
-		std::tuple<Consumer ...> &consumer;
+		std::tuple<Consumer &...> consumer;
 		std::array<bool, sizeof...(Consumer)> done;
 
 	public:
-		Feeder(Finder &finder, std::tuple<Consumer ...> &consumer) : finder(finder), consumer(consumer) {;}
+		Feeder(Finder &finder, std::tuple<Consumer &...> consumer) : finder(finder), consumer(consumer) {;}
+		Feeder(Finder &finder, Consumer &... consumer) : finder(finder), consumer(consumer...) {;}
 
 		void feed(Graph const &graph, Graph_Edits const &edited)
 		{
 			done.fill(false);
-			Preparer<sizeof...(Consumer), Consumer...>::prepare(consumer);
+			prepare_impl(std::index_sequence_for<Consumer ...>{});
 			finder.find(graph, edited, *this);
 		}
 
 		bool callback(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
-			return Caller<Graph, Graph_Edits, sizeof...(Consumer), Consumer...>::call(consumer, done, graph, edited, b, e);
+			return call_impl(graph, edited, b, e, std::index_sequence_for<Consumer ...>{});
 		}
 
 		void feed_near(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			done.fill(false);
-			Preparer<sizeof...(Consumer), Consumer...>::prepare_near(consumer, u, v);
+			prepare_near_impl(u, v, std::index_sequence_for<Consumer ...>{});
 			finder.find_near(graph, edited, u, v, *this);
 		}
 
 		bool callback_near(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
-			return Caller<Graph, Graph_Edits, sizeof...(Consumer), Consumer...>::call_near(consumer, done, graph, edited, b, e);
+			return call_near_impl(graph, edited, b, e, std::index_sequence_for<Consumer ...>{});
+		}
+
+	private:
+		template<size_t... Is>
+		void prepare_impl(std::index_sequence<Is ...>)
+		{
+			((std::get<Is>(consumer).prepare()), ...);
+		}
+
+		template<size_t... Is>
+		bool call_impl(Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e, std::index_sequence<Is ...>)
+		{
+			return ((!done[Is] && (done[Is] = std::get<Is>(consumer).next(graph, edits, b, e))) & ...);
+		}
+
+		template<size_t... Is>
+		void prepare_near_impl(VertexID u, VertexID v, std::index_sequence<Is ...>)
+		{
+			((std::get<Is>(consumer).prepare_near(u, v)), ...);
+		}
+
+		template<size_t... Is>
+		bool call_near_impl(Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e, std::index_sequence<Is ...>)
+		{
+			return ((!done[Is] && (done[Is] = std::get<Is>(consumer).next_near(graph, edits, b, e))) & ...);
 		}
 	};
 

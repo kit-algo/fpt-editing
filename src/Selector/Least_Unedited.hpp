@@ -42,9 +42,9 @@ namespace Selector
 			{
 				free_pairs = free;
 				problem = std::vector<VertexID>(b, e);
-				if(free == 0) {return false;}
+				if(free == 0) {return true;}
 			}
-			return true;
+			return false;
 		}
 
 		std::vector<VertexID> const &result(size_t, Graph const &, Graph const &) const

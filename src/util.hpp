@@ -17,4 +17,20 @@ namespace std
 		};
 }
 
-#endif // UTIL_HPP
+namespace Util
+{
+	template <typename... Args, std::size_t... Is>
+	std::tuple<Args&...> MakeTupleRef(std::tuple<Args...>& tuple, std::index_sequence<Is...>)
+	{
+		return std::tie(std::get<Is>(tuple)...);
+	}
+
+
+	template <typename... Args>
+	std::tuple<Args&...> MakeTupleRef(std::tuple<Args...>& tuple)
+	{
+		return MakeTupleRef(tuple, std::make_index_sequence<sizeof...(Args)>());
+	}
+}
+
+#endif

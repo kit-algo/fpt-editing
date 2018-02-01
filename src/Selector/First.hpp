@@ -29,7 +29,7 @@ namespace Selector
 		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
 			problem.insert(problem.end(), b, e);
-			return false;
+			return true;
 		}
 
 		std::vector<VertexID> const &result(size_t, Graph const &, Graph const &) const

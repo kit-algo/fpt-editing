@@ -20,6 +20,7 @@
 
 #include "../config.hpp"
 
+#include "../util.hpp"
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
 
@@ -32,6 +33,11 @@ namespace Editor
 		static constexpr char const *name = "MT";
 		static constexpr bool valid = Options::has_tagged_consumer<Options::Tag::Selector, Consumer...>::value && Options::has_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value;
 
+		static constexpr size_t selector = Options::get_tagged_consumer<Options::Tag::Selector, Consumer...>::value();
+		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value();
+		using Selector_type = typename std::tuple_element<selector, std::tuple<Consumer ...>>::type;
+		using Lower_Bound_type = typename std::tuple_element<lb, std::tuple<Consumer ...>>::type;
+
 	private:
 		struct Work
 		{
@@ -43,9 +49,7 @@ namespace Editor
 		};
 
 		Finder &finder;
-		std::tuple<Consumer ...> &consumer;
-		static constexpr size_t selector = Options::get_tagged_consumer<Options::Tag::Selector, Consumer...>::value();
-		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value();
+		std::tuple<Consumer &...> consumer;
 		Graph &graph;
 
 		std::deque<std::unique_ptr<Work>> available_work;
@@ -69,7 +73,7 @@ namespace Editor
 #endif
 
 	public:
-		MT(Finder &finder, Graph &graph, std::tuple<Consumer ...> &consumer, size_t threads) : finder(finder), consumer(consumer), graph(graph), threads(threads)
+		MT(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t threads) : finder(finder), consumer(consumer), graph(graph), threads(threads)
 		{
 			;
 		}
@@ -211,7 +215,7 @@ namespace Editor
 			std::vector<size_t> skipped;
 #endif
 
-			Worker(MT &editor, Finder finder, std::tuple<Consumer ...> consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, this->consumer)
+			Worker(MT &editor, Finder finder, std::tuple<Consumer ...> consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, Util::MakeTupleRef(this->consumer))
 			{
 				;
 			}

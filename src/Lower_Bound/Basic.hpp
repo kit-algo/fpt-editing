@@ -38,14 +38,14 @@ namespace Lower_Bound
 				return used.has_edge(*uit, *vit);
 			});
 
-			if(skip) {return true;}
+			if(skip) {return false;}
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
 				used.set_edge(*uit, *vit);
 				return false;
 			});
 
 			found++;
-			return true;
+			return false;
 		}
 
 		size_t result() const

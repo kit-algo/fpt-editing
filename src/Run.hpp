@@ -25,8 +25,7 @@ struct CMDOptions {
 	std::vector<std::string> filenames;
 };
 
-//template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename Con...>
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename S, typename B>
+template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
 struct Run
 {
 	static void run_watch(CMDOptions const &options, std::string const &filename);

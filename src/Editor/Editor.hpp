@@ -23,11 +23,14 @@ namespace Editor
 		static constexpr char const *name = "Editor";
 		static constexpr bool valid = Options::has_tagged_consumer<Options::Tag::Selector, Consumer...>::value && Options::has_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value;
 
-	private:
-		Finder &finder;
-		std::tuple<Consumer ...> &consumer;
 		static constexpr size_t selector = Options::get_tagged_consumer<Options::Tag::Selector, Consumer...>::value();
 		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value();
+		using Selector_type = typename std::tuple_element<selector, std::tuple<Consumer ...>>::type;
+		using Lower_Bound_type = typename std::tuple_element<lb, std::tuple<Consumer ...>>::type;
+
+	private:
+		Finder &finder;
+		std::tuple<Consumer &...> consumer;
 		Graph &graph;
 		Graph_Edits edited;
 
@@ -43,7 +46,7 @@ namespace Editor
 #endif
 
 	public:
-		Editor(Finder &finder, Graph &graph, std::tuple<Consumer ...> &consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer)
+		Editor(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer)
 		{
 			;
 		}

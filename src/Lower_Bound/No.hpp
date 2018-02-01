@@ -29,7 +29,7 @@ namespace Lower_Bound
 		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator, std::vector<VertexID>::const_iterator)
 		{
 			found = true;
-			return false;
+			return true;
 		}
 
 		size_t result() const
