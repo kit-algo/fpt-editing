@@ -124,7 +124,7 @@ void Run<E, F, G, GE, M, R, C, S, B>::run(CMDOptions const &options, std::string
 //	std::tuple<B> lower_bound = std::make_tuple(B(graph));
 	//S selector(graph);
 	//B lower_bound(graph);
-	E editor(finder, graph, consumer);
+	E editor(finder, graph, consumer, options.threads);
 
 	Finder::Feeder<F, G, GE, S, B> feeder(finder, consumer);
 	feeder.feed(graph, GE(graph.size()));

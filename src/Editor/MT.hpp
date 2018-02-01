@@ -54,7 +54,7 @@ namespace Editor
 		size_t working;
 		bool done = false;
 		std::condition_variable idlers;
-		size_t jobs = 4;
+		size_t threads;
 
 		bool found_soulution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
@@ -65,12 +65,11 @@ namespace Editor
 		std::vector<size_t> fallbacks;
 		std::vector<size_t> single;
 		std::vector<size_t> stolen;
-		std::vector<size_t> inserted;
 		std::vector<size_t> skipped;
 #endif
 
 	public:
-		MT(Finder &finder, Graph &graph, std::tuple<Consumer ...> &consumer) : finder(finder), consumer(consumer), graph(graph)
+		MT(Finder &finder, Graph &graph, std::tuple<Consumer ...> &consumer, size_t threads) : finder(finder), consumer(consumer), graph(graph), threads(threads)
 		{
 			;
 		}
@@ -84,34 +83,29 @@ namespace Editor
 			fallbacks = decltype(fallbacks)(k + 1, 0);
 			single = decltype(single)(k + 1, 0);
 			stolen = decltype(stolen)(k + 1, 0);
-			inserted = decltype(inserted)(k + 1, 0);
 			skipped = decltype(skipped)(k + 1, 0);
 #endif
 			found_soulution = false;
 			done = false;
 
 			std::vector<Worker> workers;
-			workers.reserve(jobs);
-			for(size_t i = 0; i < jobs; i++)
+			workers.reserve(threads);
+			for(size_t i = 0; i < threads; i++)
 			{
 				workers.emplace_back(*this, finder, consumer);
 			}
 
-			inserted[k]++;
 			available_work.push_back(std::make_unique<Work>(graph, Graph_Edits(graph.size()), k));
-			working = jobs;
-			std::vector<std::thread> threads;
-			for(size_t t = 1; t < jobs; t++)
+			working = threads;
+			std::vector<std::thread> work_threads;
+			for(size_t t = 1; t < threads; t++)
 			{
-				threads.emplace_back(&Worker::edit, &workers[t], k);
+				work_threads.emplace_back(&Worker::edit, &workers[t], k);
 			}
 			workers[0].edit(k);
-			for(auto &t: threads) {t.join();}
+			for(auto &t: work_threads) {t.join();}
 
 #ifdef STATS
-
-			std::cout << "per thread counters:\n";
-
 			for(auto &worker: workers)
 			{
 				for(size_t i = 0; i <= k; i++)
@@ -121,11 +115,10 @@ namespace Editor
 					fallbacks[i] += worker.fallbacks[i];
 					single[i] += worker.single[i];
 					stolen[i] += worker.stolen[i];
-					inserted[i] += worker.inserted[i];
 					skipped[i] += worker.skipped[i];
 				}
 
-				auto const stats = worker.stats();
+				/*auto const stats = worker.stats();
 				std::ostringstream json;
 				json << "{";
 				bool first_stat = true;
@@ -174,6 +167,7 @@ namespace Editor
 					}
 				}
 				for(auto &stat: stats) {std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << std::endl;}
+				*/
 			}
 #endif
 			return found_soulution;
@@ -182,7 +176,7 @@ namespace Editor
 #ifdef STATS
 		std::map<std::string, std::vector<size_t> const &> stats() const
 		{
-			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"inserted", inserted}, {"skipped", skipped}};
+			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"skipped", skipped}};
 		}
 #endif
 
@@ -214,7 +208,6 @@ namespace Editor
 			std::vector<size_t> fallbacks;
 			std::vector<size_t> single;
 			std::vector<size_t> stolen;
-			std::vector<size_t> inserted;
 			std::vector<size_t> skipped;
 #endif
 
@@ -225,7 +218,7 @@ namespace Editor
 
 			std::map<std::string, std::vector<size_t> const &> stats() const
 			{
-				return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"inserted", inserted}, {"skipped", skipped}};
+				return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"skipped", skipped}};
 			}
 
 			void edit(size_t kmax)
@@ -236,7 +229,6 @@ namespace Editor
 				fallbacks = decltype(fallbacks)(kmax + 1, 0);
 				single = decltype(single)(kmax + 1, 0);
 				stolen = decltype(stolen)(kmax + 1, 0);
-				inserted = decltype(inserted)(kmax + 1, 0);
 				skipped = decltype(skipped)(kmax + 1, 0);
 #endif
 				while(true)
@@ -281,7 +273,7 @@ namespace Editor
 					lock.unlock();
 
 					top = std::make_unique<Work>(work->graph, work->edited, work->k);
-					if(edit_rec(0))
+					if(edit_rec())
 					{
 						editor.done = true;
 						editor.idlers.notify_all();
@@ -292,19 +284,18 @@ namespace Editor
 			}
 
 		private:
-			bool edit_rec(size_t indent)
+			bool edit_rec()
 			{
 				auto &graph = work->graph;
 				auto &edited = work->edited;
 				auto &k = work->k;
 
-				if(k == 17)
+				/*if(k == 17)
 				{
 					std::unique_lock<std::mutex> ul(editor.write_mutex);
 					editor.write(graph, edited);
-				}
+				}*/
 
-//				std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << std::endl;
 #ifdef STATS
 				calls[k]++;
 #endif
@@ -334,137 +325,125 @@ namespace Editor
 				}
 
 				path.emplace_back(problem);
-//				std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << " #queue=" << editor.available_work.size() << " post feed" << std::endl;
 
-				if(editor.available_work.size() < editor.jobs)
+				if(editor.available_work.size() < editor.threads)
 				{
-					std::unique_lock<std::mutex> lock(editor.work_mutex);
-//					std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << " #queue=" << editor.available_work.size() << " queueing" << std::endl;
-					// add new work to queue
-					// take top problem and split
-					// same logic as below, but no recursion
-					// update top
-
-					auto &graph = top->graph;
-					auto &edited = top->edited;
-					auto &k = top->k;
-					auto const &problem = path.front().problem;
-					auto const &edges_done = path.front().edges_done;
-
-					if(problem.size() == 2)
+					// skip sharing if some other thread already does
+					std::unique_lock<std::mutex> lock(editor.work_mutex, std::try_to_lock);
+					if(lock)
 					{
-						//TODO: deletion/insertion only
+						// add new work to queue
+						// take top problem and split
+						// same logic as below, but no recursion
+						// update top
 
-						// single edge editing
-						if(edited.has_edge(problem.front(), problem.back()))
+						auto &graph = top->graph;
+						auto &edited = top->edited;
+						auto &k = top->k;
+						auto const &problem = path.front().problem;
+						auto const &edges_done = path.front().edges_done;
+
+						if(problem.size() == 2)
 						{
-							abort();
-						}
+							//TODO: deletion/insertion only
 
-						//edit
-						edited.set_edge(problem.front(), problem.back());
-						if(edges_done < 1)
-						{
-							graph.toggle_edge(problem.front(), problem.back());
-							k--;
-							inserted[k]++;
-							editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
-							k++;
-							graph.toggle_edge(problem.front(), problem.back());
-						}
-
-						//unedit, mark
-						if(edges_done < 2)
-						{
-							inserted[k]++;
-							editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
-						}
-
-						// if == 0: don't care: delete then return
-						// if == 1: dec k, g.toggle
-						if(edges_done == 1)
-						{
-							k--;
-							graph.toggle_edge(problem.front(), problem.back());
-						}
-						// if == 2: top in correct state
-					}
-					else
-					{
-						// normal editing
-#ifdef STATS
-						if(edges_done == 0) {fallbacks[k]++;}
-#endif
-						size_t edges_finished = 0;
-						VertexID current_u, current_v;
-						size_t current_edits;
-						bool current_set = false;
-
-
-						Graph before(graph);
-						Graph_Edits before_edited(edited);
-
-						if(edges_done == 0)
-						{
-							skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0);
-							/*::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto, auto)
+							// single edge editing
+							if(edited.has_edge(problem.front(), problem.back()))
 							{
-								skipped[k]--;
-								return false;
-							});*/
-						}
-
-						std::vector<std::pair<size_t, size_t>> marked;
-						::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
-						{
-							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-							{
-								edited.set_edge(*uit, *vit);
+								abort();
 							}
-							edges_finished++;
-							if(edges_done == 0 || edges_finished > edges_done)
+
+							//edit
+							edited.set_edge(problem.front(), problem.back());
+							if(edges_done < 1)
 							{
-								skipped[k - 1]--;
-								graph.toggle_edge(*uit, *vit);
+								graph.toggle_edge(problem.front(), problem.back());
 								k--;
-								inserted[k]++;
 								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
 								k++;
-								graph.toggle_edge(*uit, *vit);
+								graph.toggle_edge(problem.front(), problem.back());
 							}
-							else if(edges_finished == edges_done)
-							{
-								current_u = *uit;
-								current_v = *vit;
-								current_edits = marked.size();
-								current_set = true;
-							}
-							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-							else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-							return false;
-						});
 
-						if(edges_done > 0 && current_set)
-						{
-							graph.toggle_edge(current_u, current_v);
-							k--;
-							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+							//unedit, mark
+							if(edges_done < 2)
 							{
-								for(auto it = marked.begin() + current_edits; it != marked.end(); it++)
-								{
-									edited.clear_edge(it->first, it->second);
-								}
-								marked.resize(current_edits);
+								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
 							}
+
+							// if == 0: don't care: delete then return
+							// if == 1: dec k, g.toggle
+							if(edges_done == 1)
+							{
+								k--;
+								graph.toggle_edge(problem.front(), problem.back());
+							}
+							// if == 2: top in correct state
 						}
-						else if(edges_done > 0 && !current_set) {abort();}
+						else
+						{
+							// normal editing
+	#ifdef STATS
+							if(edges_done == 0) {fallbacks[k]++;}
+	#endif
+							size_t edges_finished = 0;
+							VertexID current_u, current_v;
+							size_t current_edits;
+							bool current_set = false;
+
+							if(edges_done == 0)
+							{
+								skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0);
+							}
+
+							std::vector<std::pair<size_t, size_t>> marked;
+							::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
+							{
+								if(!std::is_same<Restriction, Options::Restrictions::None>::value)
+								{
+									edited.set_edge(*uit, *vit);
+								}
+								edges_finished++;
+								if(edges_done == 0 || edges_finished > edges_done)
+								{
+									skipped[k - 1]--;
+									graph.toggle_edge(*uit, *vit);
+									k--;
+									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
+									k++;
+									graph.toggle_edge(*uit, *vit);
+								}
+								else if(edges_finished == edges_done)
+								{
+									current_u = *uit;
+									current_v = *vit;
+									current_edits = marked.size();
+									current_set = true;
+								}
+								if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
+								else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
+								return false;
+							});
+
+							if(edges_done > 0 && current_set)
+							{
+								graph.toggle_edge(current_u, current_v);
+								k--;
+								if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+								{
+									for(auto it = marked.begin() + current_edits; it != marked.end(); it++)
+									{
+										edited.clear_edge(it->first, it->second);
+									}
+									marked.resize(current_edits);
+								}
+							}
+							else if(edges_done > 0 && !current_set) {abort();}
+						}
+						path.pop_front();
 					}
-					path.pop_front();
 				}
 
-//				std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << " #queue=" << editor.available_work.size() << " post queue" << std::endl;
 				if(path.empty()) {return false;}
-//				std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << " post empty return" << std::endl;
 
 				if(problem.size() == 2)
 				{
@@ -485,14 +464,14 @@ namespace Editor
 					edited.set_edge(problem.front(), problem.back());
 					k--;
 					path.back().edges_done++;
-					if(edit_rec(indent + 1)) {return true;}
+					if(edit_rec()) {return true;}
 					else if(path.empty()) {return false;}
 					k++;
 
 					//unedit, mark
 					graph.toggle_edge(problem.front(), problem.back());
 					path.back().edges_done++;
-					if(edit_rec(indent + 1)) {return true;}
+					if(edit_rec()) {return true;}
 					else if(path.empty()) {return false;}
 
 					//unmark
@@ -517,10 +496,9 @@ namespace Editor
 						graph.toggle_edge(*uit, *vit);
 						k--;
 						path.back().edges_done++;
-						if(edit_rec(indent + 1)) {return true;}
+						if(edit_rec()) {return true;}
 						else if(path.empty()) {empty = true; return true;}
 						k++;
-//						std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << " post rec" << std::endl;
 						graph.toggle_edge(*uit, *vit);
 						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 						else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
@@ -536,7 +514,6 @@ namespace Editor
 						}
 					}
 				}
-//				std::cout << std::string(indent, ' ') << std::this_thread::get_id() << " k=" << k << ", #path=" << path.size() << " post branch" << std::endl;
 				path.pop_back();
 				return false;
 			}

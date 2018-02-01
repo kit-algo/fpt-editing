@@ -43,7 +43,7 @@ namespace Editor
 #endif
 
 	public:
-		Editor(Finder &finder, Graph &graph, std::tuple<Consumer ...> &consumer) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer)
+		Editor(Finder &finder, Graph &graph, std::tuple<Consumer ...> &consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer)
 		{
 			;
 		}
