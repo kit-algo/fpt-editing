@@ -215,7 +215,7 @@ namespace Editor
 			std::vector<size_t> skipped;
 #endif
 
-			Worker(MT &editor, Finder finder, std::tuple<Consumer ...> const &consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, Util::MakeTupleRef(this->consumer))
+			Worker(MT &editor, Finder const &finder, std::tuple<Consumer ...> const &consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, Util::MakeTupleRef(this->consumer))
 			{
 				;
 			}
@@ -337,8 +337,7 @@ namespace Editor
 					if(lock)
 					{
 						// add new work to queue
-						// take top problem and split
-						// same logic as below, but no recursion
+						// take top problem and split (same logic as below, but no recursion)
 						// update top
 
 						auto &graph = top->graph;
@@ -374,7 +373,8 @@ namespace Editor
 								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
 							}
 
-							// if == 0: don't care: delete then return
+							// adjust top:
+							// if edges_done == 0: don't care: delete then return
 							// if == 1: dec k, g.toggle
 							if(edges_done == 1)
 							{
@@ -386,9 +386,9 @@ namespace Editor
 						else
 						{
 							// normal editing
-	#ifdef STATS
+#ifdef STATS
 							if(edges_done == 0) {fallbacks[k]++;}
-	#endif
+#endif
 							size_t edges_finished = 0;
 							VertexID current_u, current_v;
 							size_t current_edits;

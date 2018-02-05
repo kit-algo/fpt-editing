@@ -17,7 +17,7 @@ namespace Selector
 
 	private:
 		std::vector<VertexID> problem;
-		size_t free_pairs;
+		size_t free_pairs = 0;
 
 	public:
 		Least(Graph const &) {;}

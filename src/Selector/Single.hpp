@@ -22,8 +22,6 @@
 
 namespace Selector
 {
-#define PAIR(a, b) (assert((a) != (b)), std::make_pair(std::min((a), (b)), std::max((a), (b))))
-
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
 	class Single : Options::Tag::Selector, Options::Tag::Lower_Bound
 	{
@@ -31,54 +29,70 @@ namespace Selector
 		static constexpr char const *name = "Single";
 
 	private:
-		Graph_Edits used;
-
-		std::vector<std::vector<VertexID>> bounds;
-		std::unordered_map<std::pair<VertexID, VertexID>, size_t> bounds_rev;
-		size_t replacing_bound;
-
-		Graph_Edits new_use;
-		size_t new_count;
-
-		struct
+		// feeder contains references to this which turn to dangling pointers with default {copy,move} {constructor,assignment}.
+		// This struct holds the members for which the default functions to the right thing,
+		// so the {copy,move} {constructor,assignment} doesn't have to mention every single member.
+		struct M
 		{
-			std::pair<size_t, size_t> changes{0, 0};
-			std::vector<VertexID> edge;
-		} best;
+			Graph_Edits used;
 
-		Finder::Center_4<Graph, Graph_Edits> finder;
-		Finder::Feeder<decltype(finder), Graph, Graph_Edits, Single> feeder;
+			std::vector<std::vector<VertexID>> bounds;
+			std::unordered_map<std::pair<VertexID, VertexID>, size_t> bounds_rev;
+			size_t replacing_bound;
+
+			Graph_Edits new_use;
+			size_t new_count;
+
+			struct
+			{
+				std::pair<size_t, size_t> changes{0, 0};
+				std::vector<VertexID> edge;
+			} best;
+
+			Finder::Center_4<Graph, Graph_Edits> finder;
+
+			M(Graph const &graph) : used(graph.size()), new_use(graph.size()), finder(graph) {;}
+		} m;
+
+		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single> feeder;
 
 	public:
-		Single() = delete;
-		Single(Single const &o) : used(o.used), bounds(o.bounds), bounds_rev(o.bounds_rev), replacing_bound(o.replacing_bound), new_use(o.new_use), new_count(o.new_count), best(o.best), finder(o.finder), feeder(this->finder, *this) {;}
-		Single(Single &&o) : used(std::move(o.used)), bounds(std::move(o.bounds)), bounds_rev(std::move(o.bounds_rev)), replacing_bound(std::move(o.replacing_bound)), new_use(std::move(o.new_use)), new_count(std::move(o.new_count)), best(std::move(o.best)), finder(std::move(o.finder)), feeder(this->finder, *this) {;}
-		Single &operator =(Single const &) = delete;
-		Single &operator =(Single &&) = default;
+		Single(Single const &o) : m(o.m), feeder(this->m.finder, *this) {;}
+		Single(Single &&o) : m(std::move(o.m)), feeder(this->m.finder, *this) {;}
+		Single &operator =(Single const &o)
+		{
+			m = o.m;
+			feeder = decltype(feeder)(this->m.finder, *this);
+		}
+		Single &operator =(Single &&o)
+		{
+			m = std::move(o.m);
+			feeder = decltype(feeder)(this->m.finder, *this);
+		}
 
-		Single(Graph const &graph) : used(graph.size()), new_use(graph.size()), finder(graph), feeder(finder, *this) {;}
+		Single(Graph const &graph) : m(graph), feeder(m.finder, *this) {;}
 
 		void prepare()
 		{
-			used.clear();
-			bounds.clear();
-			best = {{0, 0}, {0, 0}};
+			m.used.clear();
+			m.bounds.clear();
+			m.best = {{0, 0}, {0, 0}};
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
 			bool skip = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
-				return used.has_edge(*uit, *vit);
+				return m.used.has_edge(*uit, *vit);
 			});
 
 			if(skip) {return false;}
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
-				used.set_edge(*uit, *vit);
-				bounds_rev.insert({std::minmax(*uit, *vit), bounds.size()});
+				m.used.set_edge(*uit, *vit);
+				m.bounds_rev.insert({std::minmax(*uit, *vit), m.bounds.size()});
 				return false;
 			});
 
-			bounds.emplace_back(b, e);
+			m.bounds.emplace_back(b, e);
 			return false;
 		}
 
@@ -87,12 +101,12 @@ namespace Selector
 			auto &graph = const_cast<Graph &>(g);
 			auto &edited = const_cast<Graph_Edits &>(e);
 
-			if(bounds.empty())
+			if(m.bounds.empty())
 			{
-				best.edge.clear();
-				return best.edge;
+				m.best.edge.clear();
+				return m.best.edge;
 			}
-			if(bounds.size() > k) {return bounds[0];} // fast return since lb will prune anyway
+			if(m.bounds.size() > k) {return m.bounds[0];} // fast return since lb will prune anyway
 
 			auto handle_edge = [&](size_t idx, VertexID u, VertexID v) -> bool
 			{
@@ -104,18 +118,18 @@ namespace Selector
 				 * how do we know what we're searching for?
 				 * let lb handle that
 				 */
-				replacing_bound = idx;
+				m.replacing_bound = idx;
 
 				// mark
 				edited.set_edge(u, v);
 				// lb
 				feeder.feed_near(graph, edited, u, v);
-				size_t mark_change = new_count - 1;
+				size_t mark_change = m.new_count - 1;
 				// edit
 				graph.toggle_edge(u, v);
 				// lb
 				feeder.feed_near(graph, edited, u, v);
-				size_t edit_change = new_count;
+				size_t edit_change = m.new_count;
 				// unedit, unmark
 				edited.clear_edge(u, v);
 				graph.toggle_edge(u, v);
@@ -125,27 +139,27 @@ namespace Selector
 				// both branches cut: return
 				if(changes.first > k)
 				{
-					best = {changes, {u, v}};
+					m.best = {changes, {u, v}};
 					return true;
 				}
 				// one branch cut: maximize other branch
-				else if(changes.second > k && (best.changes.second <= k || best.changes.first < changes.first)) {;}
+				else if(changes.second > k && (m.best.changes.second <= k || m.best.changes.first < changes.first)) {;}
 				// no branch cut: maximize lower value
-				else if(changes.first > best.changes.first) {;}
+				else if(changes.first > m.best.changes.first) {;}
 				//     equal lower value: maximize higher value
-				else if(changes.first == best.changes.first && changes.second > best.changes.second) {;}
+				else if(changes.first == m.best.changes.first && changes.second > m.best.changes.second) {;}
 				else {return false;}
-				best = {changes, {u, v}};
+				m.best = {changes, {u, v}};
 				return false;
 			};
 
 			size_t free_count = 0;
 			size_t free_idx = 0;
 
-			for(size_t idx = 0; idx < bounds.size(); idx++)
+			for(size_t idx = 0; idx < m.bounds.size(); idx++)
 			{
-				auto b = bounds[idx].begin();
-				auto e = bounds[idx].end();
+				auto b = m.bounds[idx].begin();
+				auto e = m.bounds[idx].end();
 				size_t free = 0;
 
 				bool done = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
@@ -153,38 +167,38 @@ namespace Selector
 					free++;
 					return false;
 				});
-				if(done) {return best.edge;}
+				if(done) {return m.best.edge;}
 
 				if(free < free_count || free_count == 0)
 				{
 					if(free == 0)
 					{
-						return bounds[idx];
+						return m.bounds[idx];
 					}
 					free_idx = idx;
 					free_count = free;
 				}
 			}
 
-			if(best.changes.first > 0)
+			if(m.best.changes.first > 0)
 			{
-				return best.edge;
+				return m.best.edge;
 			}
 			else
 			{
-				return bounds[free_idx];
+				return m.bounds[free_idx];
 			}
 		}
 
 		size_t result() const
 		{
-			return bounds.size();
+			return m.bounds.size();
 		}
 
 		void prepare_near(VertexID, VertexID)
 		{
-			new_use.clear();
-			new_count = 0;
+			m.new_use.clear();
+			m.new_count = 0;
 		}
 
 		bool next_near(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
@@ -196,20 +210,21 @@ namespace Selector
 				 *   or inside the current bound
 				 * and we didn't find a new bound using them.
 				 * */
-				bool count = (!used.has_edge(*uit, *vit) || bounds_rev.at(std::minmax(*uit, *vit)) == replacing_bound) && !new_use.has_edge(*uit, *vit);
+				bool count = (!m.used.has_edge(*uit, *vit) || m.bounds_rev.at(std::minmax(*uit, *vit)) == m.replacing_bound) && !m.new_use.has_edge(*uit, *vit);
 				return !count;
 			});
 
 			if(skip) {return false;}
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
-				new_use.set_edge(*uit, *vit);
+				m.new_use.set_edge(*uit, *vit);
 				return false;
 			});
-			new_count++;
+			m.new_count++;
 			return false;
 		}
 
 #if 0
+#define PAIR(a, b) (assert((a) != (b)), std::make_pair(std::min((a), (b)), std::max((a), (b))))
 	private:
 		struct Graph_Update
 		{
@@ -977,9 +992,9 @@ namespace Selector
 
 			return std::make_tuple(found_fixed, found_edited);
 		}
+#undef PAIR
 #endif
 	};
-#undef PAIR
 }
 
 #endif
