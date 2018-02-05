@@ -215,7 +215,7 @@ namespace Editor
 			std::vector<size_t> skipped;
 #endif
 
-			Worker(MT &editor, Finder finder, std::tuple<Consumer ...> consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, Util::MakeTupleRef(this->consumer))
+			Worker(MT &editor, Finder finder, std::tuple<Consumer ...> const &consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, Util::MakeTupleRef(this->consumer))
 			{
 				;
 			}
@@ -443,6 +443,7 @@ namespace Editor
 							}
 							else if(edges_done > 0 && !current_set) {abort();}
 						}
+						editor.idlers.notify_all();
 						path.pop_front();
 					}
 				}
@@ -454,7 +455,6 @@ namespace Editor
 #ifdef STATS
 					single[k]++;
 #endif
-					abort();
 					//TODO: deletion/insertion only
 
 					// single edge editing

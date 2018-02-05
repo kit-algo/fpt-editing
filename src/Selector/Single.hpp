@@ -31,7 +31,6 @@ namespace Selector
 		static constexpr char const *name = "Single";
 
 	private:
-		//size_t found = 0;
 		Graph_Edits used;
 
 		std::vector<std::vector<VertexID>> bounds;
@@ -51,10 +50,13 @@ namespace Selector
 		Finder::Feeder<decltype(finder), Graph, Graph_Edits, Single> feeder;
 
 	public:
-		Single(Graph const &graph) : used(graph.size()), new_use(graph.size()), finder(graph), feeder(finder, *this)
-		{
-			;
-		}
+		Single() = delete;
+		Single(Single const &o) : used(o.used), bounds(o.bounds), bounds_rev(o.bounds_rev), replacing_bound(o.replacing_bound), new_use(o.new_use), new_count(o.new_count), best(o.best), finder(o.finder), feeder(this->finder, *this) {;}
+		Single(Single &&o) : used(std::move(o.used)), bounds(std::move(o.bounds)), bounds_rev(std::move(o.bounds_rev)), replacing_bound(std::move(o.replacing_bound)), new_use(std::move(o.new_use)), new_count(std::move(o.new_count)), best(std::move(o.best)), finder(std::move(o.finder)), feeder(this->finder, *this) {;}
+		Single &operator =(Single const &) = delete;
+		Single &operator =(Single &&) = default;
+
+		Single(Graph const &graph) : used(graph.size()), new_use(graph.size()), finder(graph), feeder(finder, *this) {;}
 
 		void prepare()
 		{
