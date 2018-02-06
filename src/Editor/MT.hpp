@@ -222,10 +222,18 @@ namespace Editor
 
 			std::map<std::string, std::vector<size_t> const &> stats() const
 			{
+#ifdef STATS
 				return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"skipped", skipped}};
+#else
+				return {};
+#endif
 			}
 
+#ifdef STATS
 			void edit(size_t kmax)
+#else
+			void edit(size_t)
+#endif
 			{
 #ifdef STATS
 				calls = decltype(calls)(kmax + 1, 0);
@@ -348,8 +356,6 @@ namespace Editor
 
 						if(problem.size() == 2)
 						{
-							//TODO: deletion/insertion only
-
 							// single edge editing
 							if(edited.has_edge(problem.front(), problem.back()))
 							{
@@ -387,17 +393,15 @@ namespace Editor
 						{
 							// normal editing
 #ifdef STATS
-							if(edges_done == 0) {fallbacks[k]++;}
-#endif
-							size_t edges_finished = 0;
-							VertexID current_u, current_v;
-							size_t current_edits;
-							bool current_set = false;
-
 							if(edges_done == 0)
 							{
+								fallbacks[k]++;
 								skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0);
 							}
+#endif
+							size_t edges_finished = 0;
+							VertexID current_u = 0, current_v = 0;
+							size_t current_marks = 0;
 
 							std::vector<std::pair<size_t, size_t>> marked;
 							::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
@@ -409,7 +413,9 @@ namespace Editor
 								edges_finished++;
 								if(edges_done == 0 || edges_finished > edges_done)
 								{
+#ifdef STATS
 									skipped[k - 1]--;
+#endif
 									graph.toggle_edge(*uit, *vit);
 									k--;
 									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
@@ -420,28 +426,35 @@ namespace Editor
 								{
 									current_u = *uit;
 									current_v = *vit;
-									current_edits = marked.size();
-									current_set = true;
+									current_marks = marked.size() + 1;
 								}
 								if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 								else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
 								return false;
 							});
 
-							if(edges_done > 0 && current_set)
+							/* adjust top for recursion this thread is currently in */
+							if(edges_done > 0)
 							{
+								assert(current_u || current_v);
 								graph.toggle_edge(current_u, current_v);
 								k--;
 								if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 								{
-									for(auto it = marked.begin() + current_edits; it != marked.end(); it++)
+									for(auto it = marked.begin() + current_marks; it != marked.end(); it++)
 									{
 										edited.clear_edge(it->first, it->second);
 									}
-									marked.resize(current_edits);
+									marked.resize(current_marks);
 								}
+								else if(std::is_same<Restriction, Options::Restrictions::Undo>::value)
+								{
+									edited.set_edge(current_u, current_v);
+								}
+#define COMMA ,
+								assert(std::is_same<Restriction COMMA Options::Restrictions::None>::value || edited.has_edge(current_u, current_v));
+#undef COMMA
 							}
-							else if(edges_done > 0 && !current_set) {abort();}
 						}
 						editor.idlers.notify_all();
 						path.pop_front();
@@ -455,8 +468,6 @@ namespace Editor
 #ifdef STATS
 					single[k]++;
 #endif
-					//TODO: deletion/insertion only
-
 					// single edge editing
 					if(edited.has_edge(problem.front(), problem.back()))
 					{
@@ -486,13 +497,15 @@ namespace Editor
 					// normal editing
 #ifdef STATS
 					fallbacks[k]++;
+					skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value? 1 : 0);
 #endif
 					std::vector<std::pair<size_t, size_t>> marked;
 					bool empty = false;
-					skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value? 1 : 0);
 					bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
 					{
+#ifdef STATS
 						skipped[k - 1]--;
+#endif
 						if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 						{
 							edited.set_edge(*uit, *vit);
