@@ -20,7 +20,7 @@
 #include "../Finder/Center.hpp"
 #include "../Finder/Center_Edits.hpp"
 
-namespace Selector
+namespace Consumer
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
 	class Single : Options::Tag::Selector, Options::Tag::Lower_Bound

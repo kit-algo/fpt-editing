@@ -10,11 +10,11 @@
 #include "Finder/Center.hpp"
 #include "Finder/Center_Edits.hpp"
 //#include "Finder/Linear.hpp"
-#include "Selector/First.hpp"
-#include "Selector/Least_Unedited.hpp"
-#include "Selector/Single.hpp"
-#include "Lower_Bound/No.hpp"
-#include "Lower_Bound/Basic.hpp"
+#include "Consumer/S_First.hpp"
+#include "Consumer/S_Least_Unedited.hpp"
+#include "Consumer/S_Single.hpp"
+#include "Consumer/LB_No.hpp"
+#include "Consumer/LB_Basic.hpp"
 #include "Graph/Matrix.hpp"
 
 #endif

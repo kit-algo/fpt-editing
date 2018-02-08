@@ -32,8 +32,8 @@ void run(CMDOptions const &options)
 					using G = Graph::GRAPH<true>; \
 					using GE = Graph::GRAPH_EDITS<true>; \
 					using F = Finder::FINDER<G, GE>; \
-					using S = Selector::SELECTOR<G, GE, M, R, C>; \
-					using B = Lower_Bound::LOWER_BOUND<G, GE, M, R, C>; \
+					using S = Consumer::SELECTOR<G, GE, M, R, C>; \
+					using B = Consumer::LOWER_BOUND<G, GE, M, R, C>; \
 					using E = NS::CLASS<F, G, GE, M, R, C, S, B>; \
 					Run<E, F, G, GE, M, R, C, S, B>::run_watch(options, filename); \
 				} \
@@ -42,8 +42,8 @@ void run(CMDOptions const &options)
 					using G = Graph::GRAPH<false>; \
 					using GE = Graph::GRAPH_EDITS<false>; \
 					using F = Finder::FINDER<G, GE>; \
-					using S = Selector::SELECTOR<G, GE, M, R, C>; \
-					using B = Lower_Bound::LOWER_BOUND<G, GE, M, R, C>; \
+					using S = Consumer::SELECTOR<G, GE, M, R, C>; \
+					using B = Consumer::LOWER_BOUND<G, GE, M, R, C>; \
 					using E = NS::CLASS<F, G, GE, M, R, C, S, B>; \
 					Run<E, F, G, GE, M, R, C, S, B>::run_watch(options, filename); \
 				} \
