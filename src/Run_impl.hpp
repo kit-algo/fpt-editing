@@ -85,7 +85,6 @@ void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std
 			std::string boolopts = "-_";
 			if(options.all_solutions) {boolopts.push_back('a');}
 			if(options.no_write) {boolopts.push_back('W');}
-			if(options.no_stats) {boolopts.push_back('S');}
 			if(options.stats_json) {boolopts.push_back('J');}
 
 			char const *editheur = "-e"; //std::is_base_of<Editor::is_editor, E>::value? "-e" : "-h";
@@ -116,11 +115,12 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 	Graph::writeDot(filename + ".gv", graph);
 	G g_orig = graph;
 
-	F finder(graph);
-	std::tuple<Con...> consumer{Con(graph)...};
+	F finder(graph.size());
+	std::tuple<Con...> consumer{Con(graph.size())...};
 	std::tuple<Con &...> consumer_ref = Util::MakeTupleRef(consumer);
 	E editor(finder, graph, consumer_ref, options.threads);
 
+	// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
 	Finder::Feeder<F, G, GE, typename E::Lower_Bound_type> feeder(finder, std::get<E::lb>(consumer));
 	feeder.feed(graph, GE(graph.size()));
 	size_t bound = std::get<E::lb>(consumer).result();
@@ -151,67 +151,77 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 		t2 = std::chrono::steady_clock::now();
 		double time_passed = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count();
 
-		if(!options.no_stats)
+		if(options.stats_json)
+		{
+			std::ostringstream json;
+			json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"k\":" << k << ",";
+			json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed;
+#ifdef STATS
+			json << ",\"counters\":{";
+			auto const stats = editor.stats();
+			bool first_stat = true;
+			for(auto stat : stats)
+			{
+				json << (first_stat? "" : ",") << "\"" << stat.first << "\":[";
+				first_stat = false;
+				bool first_value = true;
+				for(auto value : stat.second)
+				{
+					json << (first_value? "" : ",") << +value;
+					first_value = false;
+				}
+				json << ']';
+			}
+			json << '}';
+#endif
+			json << "}},";
+			std::cout << json.str() << std::endl;
+		}
+		else
 		{
 #ifdef STATS
-			if(options.stats_json)
+			std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << '\n';
+			std::cout << "recursions:\n";
+			auto const &stats = editor.stats();
+			std::map<std::string, std::ostringstream> output;
 			{
-				std::ostringstream json;
-				json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"k\":" << k << ",";
-				json << "\"results\":{\"solved\":\""<< (solved? "true" : "false") << "\",\"time\":" << time_passed << ",\"counters\":{";
-				auto const stats = editor.stats();
-				bool first_stat = true;
-				for(auto stat: stats)
+				size_t l = std::max_element(stats.begin(), stats.end(), [](auto const &a, auto const &b)
 				{
-					json << (first_stat? "" : ",") << "\"" << stat.first << "\":[";
-					first_stat = false;
-					bool first_value = true;
-					for(auto value: stat.second)
-					{
-						json << (first_value? "" : ",") << +value;
-						first_value = false;
-					}
-					json << ']';
+					return a.first.length() < b.first.length();
+				})->first.length();
+				for(auto const &stat: stats)
+				{
+					output[stat.first] << std::setw(l) << stat.first << ':';
 				}
-				json << "}}},";
-				std::cout << json.str() << std::endl;
 			}
-			else
+			for(size_t j = 0; j <= k; j++)
 			{
-				std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << std::endl;
-# ifdef STATS_LB
-				std::cout << "lb changes:" << std::endl;
-				auto const &lb_diff = editor.lb_stats();
-				for(size_t j = 0; j <= k; j++)
+				size_t m = std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)
 				{
-					auto const &lbdk = lb_diff[j];
-					std::cout << "k=" << j << ": [" << lbdk.first << ", " << lbdk.first + (ssize_t) lbdk.second.size() - 1 << "]";
-					for(auto const &v: lbdk.second) {std::cout << " " << +v;}
-					std::cout << std::endl;
-				}
-# endif
-				std::cout << "recursions:" << std::endl;
-				auto const stats = editor.stats();
-				std::map<std::string, std::ostringstream> output;
+					return a.second[j] < b.second[j];
+				})->second[j];
+				size_t l = 0;
+				do
 				{
-					size_t l = std::max_element(stats.begin(), stats.end(), [](typename decltype(stats)::value_type const &a, typename decltype(stats)::value_type const &b) {return a.first.length() < b.first.length();})->first.length();
-					for(auto &stat: stats) {output[stat.first] << std::setw(l) << stat.first << ':';}
+					m /= 10;
+					l++;
 				}
-				for(size_t j = 0; j <= k; j++)
+				while(m > 0);
+				for(auto const &stat: stats)
 				{
-					size_t m = std::max_element(stats.begin(), stats.end(), [&j](typename decltype(stats)::value_type const &a, typename decltype(stats)::value_type const &b) {return a.second[j] < b.second[j];})->second[j];
-					size_t l = 0;
-					do {m /= 10; l++;} while(m > 0);
-					for(auto &stat: stats) {output[stat.first] << " " << std::setw(l) << +stat.second[j];}
+					output[stat.first] << " " << std::setw(l) << +stat.second[j];
 				}
-				for(auto &stat: stats) {std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << std::endl;}
+			}
+			for(auto const &stat: stats)
+			{
+				std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << '\n';
 			}
 #endif
-		}
-		if(!options.stats_json)
-		{
-			std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved? "yes" : "no") << " [" << time_passed << "s]" << std::endl;
-			if(solved && options.all_solutions) {std::cout << writecount << " solutions" << std::endl;}
+			std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved ? "yes" : "no") << " [" << time_passed << "s]" << std::endl;
+			if(solved && options.all_solutions)
+			{
+				std::cout << writecount << " solutions" << std::endl;
+			}
 		}
 		if(solved || (options.time_max && time_passed >= options.time_max)) {break;}
 	}
@@ -220,13 +230,7 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 template<typename C, typename... Con>
 struct Namer
 {
-	static constexpr std::string name();
-};
-
-template<typename C, typename C2, typename... Con>
-struct Namer<C, C2, Con...>
-{
-	static constexpr std::string name() {return std::string(C::name) + '-' + Namer<C2, Con...>::name();}
+	static constexpr std::string name() {return (std::string(C::name) + ... + (std::string("-") + Con::name));}
 };
 
 template<typename C>

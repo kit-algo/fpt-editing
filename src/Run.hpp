@@ -16,12 +16,11 @@ struct CMDOptions {
 	size_t threads = 1;
 	// output options
 	bool no_write = false;
-	bool no_stats = false;
 	bool stats_json = false;
-	//combinations
+	// combinations
 	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::string>>>>>>>> combinations_edit;
 	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::string>>>>>>>> combinations_heur;
-	//graphs
+	// graphs
 	std::vector<std::string> filenames;
 };
 
@@ -30,6 +29,5 @@ struct Run
 {
 	static void run_watch(CMDOptions const &options, std::string const &filename);
 	static void run(CMDOptions const &options, std::string const &filename);
-
 	static constexpr std::string name();
 };

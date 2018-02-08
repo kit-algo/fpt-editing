@@ -1,7 +1,6 @@
 #include <getopt.h>
 #include <string.h>
 
-//#include <algorithm>
 #include <iostream>
 #include <map>
 #include <numeric>
@@ -15,7 +14,7 @@
 #include "Graph/Graph.hpp"
 
 #include "choices.hpp"
-#include "../build/choices.i"
+#include "../build/choices.i" // provides GENERATED_* macros, generated during build process
 
 #define STR2(x) #x
 #define STR(x) STR2(x)
@@ -28,7 +27,7 @@ void run(CMDOptions const &options)
 				using M = Options::Modes::MODE; \
 				using R = Options::Restrictions::RESTRICTION; \
 				using C = Options::Conversions::CONVERSION; \
-				if(gs <= 64) \
+				if(gs <= Packed_Bits) \
 				{ \
 					using G = Graph::GRAPH<true>; \
 					using GE = Graph::GRAPH_EDITS<true>; \
@@ -77,8 +76,11 @@ void run(CMDOptions const &options)
 
 int main(int argc, char *argv[])
 {
+	/* command line options */
 	struct option const longopts[] =
 	{
+		// general
+		{"help", no_argument, NULL, '?'},
 		// search
 		{"kmin", required_argument, NULL, 'k'},
 		{"kmax", required_argument, NULL, 'K'},
@@ -89,7 +91,6 @@ int main(int argc, char *argv[])
 		{"threads", required_argument, NULL, 'j'},
 		// output
 		{"no-write", no_argument, NULL, 'W'},
-		{"no-stats", no_argument, NULL, 'S'},
 		{"json", no_argument, NULL, 'J'},
 
 		// combinations
@@ -108,7 +109,7 @@ int main(int argc, char *argv[])
 
 		{NULL, 0, NULL, 0}
 	};
-	char const *shortopts = "k:K:at:T:j:WSJ{}M:R:C:e:h:f:s:b:g:_";
+	char const *shortopts = "?k:K:at:T:j:WSJ{}M:R:C:e:h:f:s:b:g:_";
 
 	CMDOptions options;
 	bool usage = false;
@@ -163,6 +164,9 @@ int main(int argc, char *argv[])
 		if(c == -1) {break;}
 		switch(c)
 		{
+		case '?':
+			usage = true;
+			break;
 		case 'k':
 			options.k_min = std::stoull(optarg);
 			break;
@@ -183,9 +187,6 @@ int main(int argc, char *argv[])
 			break;
 		case 'W':
 			options.no_write = true;
-			break;
-		case 'S':
-			options.no_stats = true;
 			break;
 		case 'J':
 			options.stats_json = true;
@@ -243,10 +244,6 @@ int main(int argc, char *argv[])
 		case '_':
 			//dummy option
 			break;
-		default:
-			std::cerr << "Unknown option: " << (char) c << std::endl;
-			usage = true;
-			break;
 		}
 	}
 	if(!choices.begin()->second.stack.empty())
@@ -257,11 +254,26 @@ int main(int argc, char *argv[])
 
 	if(usage)
 	{
-		std::cerr << "Usage: " << argv[0] << " options... files..." << std::endl;
+		std::cerr << "Usage: " << argv[0] << " options... graphs...\n"
+			<< "Options are:\n"
+			<< "  -? --help: Display this help\n"
+			<< "  -k --kmin <number> / -K --kmax <number>: Minimum/Maximum number of edits to try\n"
+			<< "  -t --time <number> / -T --time-hard <number>: Time limit in seconds; -t allows the current experimant to end, -T aborts it\n"
+			<< "  -j --threads <number>: Number of threads to use, if editor supports multithreading\n"
+			<< "  -a --all: Find all solutions, not just the first one\n"
+			<< "  -W --no-write: Do not write solutions to disk\n"
+			<< "  -J --json: Output results as JSON fragment\n\n"
+			<< "  -e --editor / -h --heuristic / -f --finder / -s --selector / -b --bound / -g --graph / -M --mode / -C --conversion / -R --restriction:\n"
+			//<< "    Select an algorithm\n"
+			<< "    All options take the name of an algorithm as argument; use \"list\" to show available ones, \"all\" to select all\n"
+			<< "  You can group algorithm choices with -{ --{ / -} --}\n"
+			<< "Graphs need to be in METIS format.\n"
+		;
+		std::cerr << std::endl;
 	}
 	if(!usage && options.threads < 1)
 	{
-		std::cerr << "can't run without threads [-j < 1]" << std::endl;
+		std::cerr << "Can't run without threads [-j < 1]" << std::endl;
 		usage = true;
 	}
 	// if no combinations were specified yet (use of -{, -} ), force showing options for categories with no selection

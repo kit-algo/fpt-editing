@@ -1,5 +1,11 @@
 #!/usr/bin/python3
 
+"""
+Generates files for instanziating and selecting all combinations of components available to the user
+
+if the preprocessor would support loops or proper recursion this would be unneeded (preprocessor libraries like P99 or BOOST_PP don't suffice)
+"""
+
 import sys
 
 need = {}

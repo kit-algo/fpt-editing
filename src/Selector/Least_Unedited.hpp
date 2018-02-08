@@ -20,7 +20,7 @@ namespace Selector
 		size_t free_pairs = 0;
 
 	public:
-		Least(Graph const &) {;}
+		Least(VertexID) {;}
 
 		void prepare()
 		{

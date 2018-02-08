@@ -2,6 +2,7 @@
 #define GRAPH_HPP
 
 #include <assert.h>
+
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -11,8 +12,10 @@
 
 namespace Graph
 {
+	/** Number of vertices in the graph stored in filename */
 	uint64_t get_size(std::string const &filename);
 
+	/** reads a graph in METIS format */
 	template<typename Graph>
 	Graph readMetis(std::string const &filename)
 	{
@@ -79,6 +82,7 @@ namespace Graph
 		return g;
 	}
 
+	/** Writes a graph in METIS format */
 	template<typename Graph>
 	void writeMetis(std::string const &filename, Graph const &g)
 	{
@@ -104,6 +108,7 @@ namespace Graph
 		}
 	}
 
+	/** Writes a graph in Dot format */
 	template<typename Graph>
 	static void writeDot(std::string const &filename, Graph const &g)
 	{
@@ -126,6 +131,7 @@ namespace Graph
 		f << "}\n";
 	}
 
+	/** writes a graph in Dot format, annotating edges that were modified or marked */
 	template<typename Graph, typename Graph_Edits>
 	void writeDotCombined(std::string const &filename, Graph const &g, Graph_Edits const &edits, Graph const &g_orig)
 	{

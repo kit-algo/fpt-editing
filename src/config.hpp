@@ -1,10 +1,17 @@
 #ifndef CONFIG_HPP
 #define CONFIG_HPP
 
+#include <stddef.h>
+#include <stdint.h>
+
+/* Should statistics be gathered */
 #define STATS
 
+/* Type used for vertex identifiers */
 using VertexID = uint8_t;
+/* Type used for adjecency matrices */
 using Packed = uint64_t;
+/* Numer of bits in Packed */
 constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 
 #define MINIMAL

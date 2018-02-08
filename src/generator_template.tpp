@@ -1,3 +1,5 @@
+/** template used by choices.py to force template instanziation */
+
 #include "../../src/choices.hpp"
 #include "../../src/Run_impl.hpp"
 

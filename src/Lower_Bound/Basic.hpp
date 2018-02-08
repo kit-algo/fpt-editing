@@ -21,10 +21,7 @@ namespace Lower_Bound
 		Graph_Edits used;
 
 	public:
-		Basic(Graph const &graph) : used(graph.size())
-		{
-			;
-		}
+		Basic(VertexID graph_size) : used(graph_size) {;}
 
 		void prepare()
 		{

@@ -19,7 +19,7 @@ namespace Lower_Bound
 		bool found = false;
 
 	public:
-		No(Graph const &) {;}
+		No(VertexID) {;}
 
 		void prepare()
 		{

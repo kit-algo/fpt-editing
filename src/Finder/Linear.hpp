@@ -22,7 +22,7 @@ namespace Finder
 		static constexpr char const *name = "Linear";
 
 	public:
-		Linear(Graph const &) {;}
+		Linear(VertexID) {;}
 
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
@@ -150,7 +150,7 @@ namespace Finder
 	private: using Parent = Linear<Graph, Graph_Edits, 4>;
 	public:
 		static constexpr char const *name = "Linear_4";
-		Linear_4(Graph const &graph) : Parent(graph) {;}
+		Linear_4(VertexID graph_size) : Parent(graph_size) {;}
 	};
 }
 

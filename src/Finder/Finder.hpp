@@ -24,6 +24,7 @@ namespace Finder
 		Feeder(Finder &finder, std::tuple<Consumer &...> consumer) : finder(finder), consumer(consumer) {;}
 		Feeder(Finder &finder, Consumer &... consumer) : finder(finder), consumer(consumer...) {;}
 
+		/** Prepares consumers for a new run of the Finder and starts it */
 		void feed(Graph const &graph, Graph_Edits const &edited)
 		{
 			done.fill(false);
@@ -31,11 +32,13 @@ namespace Finder
 			finder.find(graph, edited, *this);
 		}
 
-		bool callback(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		/** Provides each consumer with the found forbidden subgraph, returns true iff no Consumer want further forbidden subgraphs */
+		bool callback(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end)
 		{
-			return call_impl(graph, edited, b, e, std::index_sequence_for<Consumer ...>{});
+			return call_impl(graph, edited, begin, end, std::index_sequence_for<Consumer ...>{});
 		}
 
+		/** Prepares consumers for a new run of the Finder and starts it, but only search area near u and v */
 		void feed_near(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			done.fill(false);
@@ -43,9 +46,10 @@ namespace Finder
 			finder.find_near(graph, edited, u, v, *this);
 		}
 
-		bool callback_near(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		/** Provides each consumer with the found forbidden subgraph, returns true iff no Consumer want further forbidden subgraphs */
+		bool callback_near(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end)
 		{
-			return call_near_impl(graph, edited, b, e, std::index_sequence_for<Consumer ...>{});
+			return call_near_impl(graph, edited, begin, end, std::index_sequence_for<Consumer ...>{});
 		}
 
 	private:
@@ -56,9 +60,9 @@ namespace Finder
 		}
 
 		template<size_t... Is>
-		bool call_impl(Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e, std::index_sequence<Is ...>)
+		bool call_impl(Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end, std::index_sequence<Is ...>)
 		{
-			return ((!done[Is] && (done[Is] = std::get<Is>(consumer).next(graph, edits, b, e))) & ...);
+			return ((!done[Is] && (done[Is] = std::get<Is>(consumer).next(graph, edits, begin, end))) & ...);
 		}
 
 		template<size_t... Is>
@@ -68,152 +72,161 @@ namespace Finder
 		}
 
 		template<size_t... Is>
-		bool call_near_impl(Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e, std::index_sequence<Is ...>)
+		bool call_near_impl(Graph const &graph, Graph_Edits const &edits, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end, std::index_sequence<Is ...>)
 		{
-			return ((!done[Is] && (done[Is] = std::get<Is>(consumer).next_near(graph, edits, b, e))) & ...);
+			return ((!done[Is] && (done[Is] = std::get<Is>(consumer).next_near(graph, edits, begin, end))) & ...);
 		}
 	};
 
+	/* Helper functions */
+
+	/** Iterate over a forbidden subgraph, limited to edges currently editable
+	 * calls f(iterator, iterator) for each editable edge
+	 */
 	template<typename Mode, typename Restriction, typename Conversion, typename Graph, typename Graph_Edits, typename Func>
-	inline bool for_all_edges_ordered(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e, Func f)
+	inline bool for_all_edges_ordered(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end, Func func)
 	{
 		if(std::is_same<Mode, Options::Modes::Edit>::value)
 		{
-			for(auto vit = b + 1; vit != e; vit++)
+			for(auto vit = begin + 1; vit != end; vit++)
 			{
-				for(auto uit = b; uit != vit; uit++)
+				for(auto uit = begin; uit != vit; uit++)
 				{
-					if(!std::is_same<Conversion, Options::Conversions::Normal>::value && uit == b && vit == e - 1) {continue;}
+					if(!std::is_same<Conversion, Options::Conversions::Normal>::value && uit == begin && vit == end - 1) {continue;}
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				}
 			}
 			if(std::is_same<Conversion, Options::Conversions::Last>::value)
 			{
-				auto uit = b;
-				auto vit = e - 1;
+				auto uit = begin;
+				auto vit = end - 1;
 				do
 				{
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				} while(false);
 			}
 		}
 		else if(std::is_same<Mode, Options::Modes::Delete>::value)
 		{
-			for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
+			for(auto uit = begin, vit = begin + 1; vit != end; uit++, vit++)
 			{
 				if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 				{
 					if(edited.has_edge(*uit, *vit)) {continue;}
 				}
-				if(f(uit, vit)) {return true;}
+				if(func(uit, vit)) {return true;}
 			}
-			if(!std::is_same<Conversion, Options::Conversions::Skip>::value && graph.has_edge(*b, *(e - 1)))
+			if(!std::is_same<Conversion, Options::Conversions::Skip>::value && graph.has_edge(*begin, *(end - 1)))
 			{
-				auto uit = b;
-				auto vit = e - 1;
+				auto uit = begin;
+				auto vit = end - 1;
 				do
 				{
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				} while(false);
 			}
 		}
 		else if(std::is_same<Mode, Options::Modes::Insert>::value)
 		{
-			for(auto vit = b + 2; vit != e; vit++)
+			for(auto vit = begin + 2; vit != end; vit++)
 			{
-				for(auto uit = b; uit != vit - 1; uit++)
+				for(auto uit = begin; uit != vit - 1; uit++)
 				{
-					if(uit == b && vit == e - 1 && (!std::is_same<Conversion, Options::Conversions::Normal>::value || graph.has_edge(*uit, *vit))) {continue;}
+					if(uit == begin && vit == end - 1 && (!std::is_same<Conversion, Options::Conversions::Normal>::value || graph.has_edge(*uit, *vit))) {continue;}
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				}
 			}
-			if(std::is_same<Conversion, Options::Conversions::Last>::value && !graph.has_edge(*b, *(e - 1)))
+			if(std::is_same<Conversion, Options::Conversions::Last>::value && !graph.has_edge(*begin, *(end - 1)))
 			{
-				auto uit = b;
-				auto vit = e - 1;
+				auto uit = begin;
+				auto vit = end - 1;
 				do
 				{
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				} while(false);
 			}
 		}
 		return false;
 	}
 
+	/** Iterate over a forbidden subgraph, limited to edges currently editable, without adhering to editing order (i.e. Options::Conversion::Skip is treated as Normal)
+	 * useful if order doesn't matter, e.g. when just counting edges
+	 * calls f(iterator, iterator) for each editable edge
+	 */
 	template<typename Mode, typename Restriction, typename Conversion, typename Graph, typename Graph_Edits, typename Func>
-	inline bool for_all_edges_unordered(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e, Func f)
+	inline bool for_all_edges_unordered(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end, Func func)
 	{
 		if(std::is_same<Mode, Options::Modes::Edit>::value)
 		{
-			for(auto vit = b + 1; vit != e; vit++)
+			for(auto vit = begin + 1; vit != end; vit++)
 			{
-				for(auto uit = b; uit != vit; uit++)
+				for(auto uit = begin; uit != vit; uit++)
 				{
-					if(std::is_same<Conversion, Options::Conversions::Skip>::value && uit == b && vit == e - 1) {continue;}
+					if(std::is_same<Conversion, Options::Conversions::Skip>::value && uit == begin && vit == end - 1) {continue;}
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				}
 			}
 		}
 		else if(std::is_same<Mode, Options::Modes::Delete>::value)
 		{
-			for(auto uit = b, vit = b + 1; vit != e; uit++, vit++)
+			for(auto uit = begin, vit = begin + 1; vit != end; uit++, vit++)
 			{
 				if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 				{
 					if(edited.has_edge(*uit, *vit)) {continue;}
 				}
-				if(f(uit, vit)) {return true;}
+				if(func(uit, vit)) {return true;}
 			}
-			if(!std::is_same<Conversion, Options::Conversions::Skip>::value && graph.has_edge(*b, *(e - 1)))
+			if(!std::is_same<Conversion, Options::Conversions::Skip>::value && graph.has_edge(*begin, *(end - 1)))
 			{
-				auto uit = b;
-				auto vit = e - 1;
+				auto uit = begin;
+				auto vit = end - 1;
 				do
 				{
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				} while(false);
 			}
 		}
 		else if(std::is_same<Mode, Options::Modes::Insert>::value)
 		{
-			for(auto vit = b + 2; vit != e; vit++)
+			for(auto vit = begin + 2; vit != end; vit++)
 			{
-				for(auto uit = b; uit != vit - 1; uit++)
+				for(auto uit = begin; uit != vit - 1; uit++)
 				{
-					if(uit == b && vit == e - 1 && (std::is_same<Conversion, Options::Conversions::Skip>::value || graph.has_edge(*uit, *vit))) {continue;}
+					if(uit == begin && vit == end - 1 && (std::is_same<Conversion, Options::Conversions::Skip>::value || graph.has_edge(*uit, *vit))) {continue;}
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						if(edited.has_edge(*uit, *vit)) {continue;}
 					}
-					if(f(uit, vit)) {return true;}
+					if(func(uit, vit)) {return true;}
 				}
 			}
 		}

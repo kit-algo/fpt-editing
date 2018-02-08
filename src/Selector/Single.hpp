@@ -51,12 +51,13 @@ namespace Selector
 
 			Finder::Center_4<Graph, Graph_Edits> finder;
 
-			M(Graph const &graph) : used(graph.size()), new_use(graph.size()), finder(graph) {;}
+			M(VertexID graph_size) : used(graph_size), new_use(graph_size), finder(graph_size) {;}
 		} m;
 
 		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single> feeder;
 
 	public:
+		// manual {copy,move} {constructor,assignment} implementations due to feeder
 		Single(Single const &o) : m(o.m), feeder(this->m.finder, *this) {;}
 		Single(Single &&o) : m(std::move(o.m)), feeder(this->m.finder, *this) {;}
 		Single &operator =(Single const &o)
@@ -70,7 +71,7 @@ namespace Selector
 			feeder = decltype(feeder)(this->m.finder, *this);
 		}
 
-		Single(Graph const &graph) : m(graph), feeder(m.finder, *this) {;}
+		Single(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
 		void prepare()
 		{

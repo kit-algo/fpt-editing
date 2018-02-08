@@ -21,7 +21,7 @@ namespace Finder
 		std::vector<Packed> forbidden;
 
 	public:
-		Center(Graph const &graph) : forbidden(graph.alloc_rows(length / 2 - 1)) {;}
+		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length / 2 - 1)) {;}
 
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
@@ -308,7 +308,7 @@ namespace Finder
 	private: using Parent = Center<Graph, Graph_Edits, 4>;
 	public:
 		static constexpr char const *name = "Center_4";
-		Center_4(Graph const &graph) : Parent(graph) {;}
+		Center_4(VertexID graph_size) : Parent(graph_size) {;}
 	};
 
 	template<typename Graph, typename Graph_Edits>
@@ -317,7 +317,7 @@ namespace Finder
 	private: using Parent = Center<Graph, Graph_Edits, 5>;
 	public:
 		static constexpr char const *name = "Center_5";
-		Center_5(Graph const &graph) : Parent(graph) {;}
+		Center_5(VertexID graph_size) : Parent(graph_size) {;}
 	};
 
 }

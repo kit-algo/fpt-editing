@@ -11,12 +11,10 @@
 
 namespace Graph
 {
-	template<bool _small>
+	template<bool small>
 	class Matrix
 	{
 	public:
-		static constexpr size_t bits = 8 * sizeof(Packed);
-		static constexpr bool small = _small;
 		static constexpr char const *name = "Matrix";
 
 	private:
@@ -25,10 +23,9 @@ namespace Graph
 		std::vector<Packed> matrix;
 
 	public:
-		Matrix(VertexID n) : n(n), row_length(small? 1 : (n + bits - 1) / bits), matrix(n * row_length, 0)
+		Matrix(VertexID n) : n(n), row_length(small? 1 : (n + Packed_Bits - 1) / Packed_Bits), matrix(n * row_length, 0)
 		{
-			assert(!small || n <= bits);
-			assert(!small || row_length == 1);
+			if(small && n > Packed_Bits) {throw "Too many Vertices";}
 		}
 
 		VertexID size() const
@@ -52,7 +49,7 @@ namespace Graph
 			assert(u < n && v < n);
 
 			if(small) {return matrix.data()[u] & (Packed(1) << v);}
-			else {return (matrix.data() + row_length * u)[v / bits] & (Packed(1) << (v % bits));}
+			else {return (matrix.data() + row_length * u)[v / Packed_Bits] & (Packed(1) << (v % Packed_Bits));}
 		}
 
 		void set_edge(VertexID u, VertexID v)
@@ -67,8 +64,8 @@ namespace Graph
 			}
 			else
 			{
-				(matrix.data() + row_length * u)[v / bits] |= Packed(1) << (v % bits);
-				(matrix.data() + row_length * v)[u / bits] |= Packed(1) << (u % bits);
+				(matrix.data() + row_length * u)[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
+				(matrix.data() + row_length * v)[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 			}
 		}
 
@@ -84,8 +81,8 @@ namespace Graph
 			}
 			else
 			{
-				(matrix.data() + row_length * u)[v / bits] &= ~(Packed(1) << (v % bits));
-				(matrix.data() + row_length * v)[u / bits] &= ~(Packed(1) << (u % bits));
+				(matrix.data() + row_length * u)[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
+				(matrix.data() + row_length * v)[u / Packed_Bits] &= ~(Packed(1) << (u % Packed_Bits));
 			}
 		}
 
@@ -101,8 +98,8 @@ namespace Graph
 			}
 			else
 			{
-				(matrix.data() + row_length * u)[v / bits] ^= Packed(1) << (v % bits);
-				(matrix.data() + row_length * v)[u / bits] ^= Packed(1) << (u % bits);
+				(matrix.data() + row_length * u)[v / Packed_Bits] ^= Packed(1) << (v % Packed_Bits);
+				(matrix.data() + row_length * v)[u / Packed_Bits] ^= Packed(1) << (u % Packed_Bits);
 			}
 		}
 
@@ -126,7 +123,7 @@ namespace Graph
 			{
 				for(Packed ui = urow[i]; ui; ui &= ~(Packed(1) << __builtin_ctzll(ui)))
 				{
-					VertexID v = __builtin_ctzll(ui) + i * bits;
+					VertexID v = __builtin_ctzll(ui) + i * Packed_Bits;
 					neighbours.push_back(v);
 				}
 			}
@@ -138,14 +135,25 @@ namespace Graph
 			return matrix.data() + row_length * u;
 		}
 
+		static size_t get_row_length(VertexID graph_size)
+		{
+			if(small && graph_size > Packed_Bits) {throw "Too many Vertices";}
+			return small? 1 : (graph_size + Packed_Bits - 1) / Packed_Bits;
+		}
+
 		size_t get_row_length() const
 		{
 			return small? 1 : row_length;
 		}
 
-		std::vector<Packed> alloc_rows(size_t i) const
+		static std::vector<Packed> alloc_rows(VertexID graph_size, size_t rows)
 		{
-			return std::vector<Packed>(i * row_length, 0);
+			return std::vector<Packed>(rows * get_row_length(graph_size), 0);
+		}
+
+		std::vector<Packed> alloc_rows(size_t rows) const
+		{
+			return std::vector<Packed>(rows * row_length, 0);
 		}
 
 		bool verify() const
@@ -159,8 +167,8 @@ namespace Graph
 				{
 					for(Packed ui = urow[i]; ui; ui &= ~(Packed(1) << __builtin_ctzll(ui)))
 					{
-						VertexID v = __builtin_ctzll(ui) + i * bits;
-						if(!(get_row(v)[u / bits] & (Packed(1) << (u % bits))))
+						VertexID v = __builtin_ctzll(ui) + i * Packed_Bits;
+						if(!(get_row(v)[u / Packed_Bits] & (Packed(1) << (u % Packed_Bits))))
 						{
 							std::cerr << "[matrix] " << +u << " -> " << +v << " but not " << +v << " -> " << +u << "\n";
 							valid = false;
