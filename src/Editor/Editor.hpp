@@ -81,16 +81,16 @@ namespace Editor
 			calls[k]++;
 #endif
 			// start finder and feed into selector and lb
-			feeder.feed(graph, edited);
+			feeder.feed(k, graph, edited);
 
 			// graph solved?
-			auto problem = std::get<selector>(consumer).result(k, graph, edited);
+			auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
 			if(problem.empty())
 			{
 				found_soulution = true;
 				return !write(graph, edited);
 			}
-			else if(k < std::get<lb>(consumer).result())
+			else if(k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 			{
 				// lower bound too high
 #ifdef STATS

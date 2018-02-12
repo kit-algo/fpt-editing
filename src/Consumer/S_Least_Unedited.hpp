@@ -47,7 +47,7 @@ namespace Consumer
 			return false;
 		}
 
-		std::vector<VertexID> const &result(size_t, Graph const &, Graph const &) const
+		std::vector<VertexID> const &result(size_t, Graph const &, Graph const &, Options::Tag::Selector) const
 		{
 			return problem;
 		}

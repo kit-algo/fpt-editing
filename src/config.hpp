@@ -29,10 +29,10 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #else
 #define CHOICES_MODE Edit
 #define CHOICES_RESTRICTION Redundant
-#define CHOICES_CONVERSION Normal, Last, Skip
+#define CHOICES_CONVERSION Skip
 #define CHOICES_EDITOR MT
 #define CHOICES_HEURISTIC
-#define CHOICES_FINDER Center_4, Center_5
+#define CHOICES_FINDER Center_4, Center_Edits_4, Center_Edits_Sparse_4
 #define CHOICES_SELECTOR Least, Single
 #define CHOICES_LOWER_BOUND No, Basic
 #define CHOICES_GRAPH Matrix

@@ -19,6 +19,7 @@
 #include "../Finder/Finder.hpp"
 #include "../Finder/Center.hpp"
 #include "../Finder/Center_Edits.hpp"
+#include "../Finder/Center_Edits_Sparse.hpp"
 
 namespace Consumer
 {
@@ -97,7 +98,7 @@ namespace Consumer
 			return false;
 		}
 
-		std::vector<VertexID> const &result(size_t k, Graph const &g, Graph_Edits const &e)
+		std::vector<VertexID> const &result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
 		{
 			auto &graph = const_cast<Graph &>(g);
 			auto &edited = const_cast<Graph_Edits &>(e);
@@ -124,12 +125,12 @@ namespace Consumer
 				// mark
 				edited.set_edge(u, v);
 				// lb
-				feeder.feed_near(graph, edited, u, v);
+				feeder.feed_near(k, graph, edited, u, v);
 				size_t mark_change = m.new_count - 1;
 				// edit
 				graph.toggle_edge(u, v);
 				// lb
-				feeder.feed_near(graph, edited, u, v);
+				feeder.feed_near(k, graph, edited, u, v);
 				size_t edit_change = m.new_count;
 				// unedit, unmark
 				edited.clear_edge(u, v);
@@ -137,18 +138,19 @@ namespace Consumer
 
 				/* compare */
 				auto const changes = std::minmax(mark_change, edit_change);
+				size_t space = k - m.bounds.size();
 				// both branches cut: return
-				if(changes.first > k)
+				if(space < changes.first)
 				{
 					m.best = {changes, {u, v}};
 					return true;
 				}
 				// one branch cut: maximize other branch
-				else if(changes.second > k && (m.best.changes.second <= k || m.best.changes.first < changes.first)) {;}
+				else if(space < changes.second && (m.bounds.size() <= space || m.best.changes.first < changes.first)) {;}
 				// no branch cut: maximize lower value
-				else if(changes.first > m.best.changes.first) {;}
+				else if(m.best.changes.first < changes.first) {;}
 				//     equal lower value: maximize higher value
-				else if(changes.first == m.best.changes.first && changes.second > m.best.changes.second) {;}
+				else if(m.best.changes.first == changes.first && m.best.changes.second < changes.second) {;}
 				else {return false;}
 				m.best = {changes, {u, v}};
 				return false;
@@ -174,6 +176,7 @@ namespace Consumer
 				{
 					if(free == 0)
 					{
+						// found completly edited/marked forbidden subgraph
 						return m.bounds[idx];
 					}
 					free_idx = idx;
@@ -191,7 +194,7 @@ namespace Consumer
 			}
 		}
 
-		size_t result() const
+		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
 			return m.bounds.size();
 		}

@@ -45,7 +45,7 @@ namespace Consumer
 			return false;
 		}
 
-		size_t result() const
+		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
 			return found;
 		}

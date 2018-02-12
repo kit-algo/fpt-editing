@@ -11,6 +11,48 @@
 
 namespace Finder
 {
+	template<size_t NN, typename... Consumer>
+	struct Result_impl
+	{
+		template<typename Graph, typename Graph_Edits, size_t N = NN>
+		static typename std::enable_if<std::is_base_of<Options::Tag::Result, typename std::tuple_element<N - 1, std::tuple<Consumer ...>>::type>::value,
+		void>::type result(std::tuple<Consumer &...> &consumer, size_t k, Graph const &graph, Graph_Edits const &edited)
+		{
+			Result_impl<N - 1, Consumer...>::result(consumer, k, graph, edited);
+			std::get<N - 1>(consumer).result(k, graph, edited, Options::Tag::Result());
+		}
+
+		template<typename Graph, typename Graph_Edits, size_t N = NN>
+		static typename std::enable_if<!std::is_base_of<Options::Tag::Result, typename std::tuple_element<N - 1, std::tuple<Consumer ...>>::type>::value,
+		void>::type result(std::tuple<Consumer &...> &consumer, size_t k, Graph const &graph, Graph_Edits const &edited)
+		{
+			Result_impl<N - 1, Consumer...>::result(consumer, k, graph, edited);
+		}
+
+		template<typename Graph, typename Graph_Edits, size_t N = NN>
+		static typename std::enable_if<std::is_base_of<Options::Tag::Result, typename std::tuple_element<N - 1, std::tuple<Consumer ...>>::type>::value,
+		void>::type result_near(std::tuple<Consumer &...> &consumer, size_t k, Graph const &graph, Graph_Edits const &edited)
+		{
+			Result_impl<N - 1, Consumer...>::result_near(consumer, k, graph, edited);
+			std::get<N - 1>(consumer).result_near(k, graph, edited, Options::Tag::Result());
+		}
+
+		template<typename Graph, typename Graph_Edits, size_t N = NN>
+		static typename std::enable_if<!std::is_base_of<Options::Tag::Result, typename std::tuple_element<N - 1, std::tuple<Consumer ...>>::type>::value,
+		void>::type result_near(std::tuple<Consumer &...> &consumer, size_t k, Graph const &graph, Graph_Edits const &edited)
+		{
+			Result_impl<N - 1, Consumer...>::result_near(consumer, k, graph, edited);
+		}
+	};
+	template<typename... Consumer>
+	struct Result_impl<0, Consumer...>
+	{
+		template<typename Graph, typename Graph_Edits>
+		static void result(std::tuple<Consumer &...> &, size_t, Graph const &, Graph_Edits const &) {;}
+		template<typename Graph, typename Graph_Edits>
+		static void result_near(std::tuple<Consumer &...> &, size_t, Graph const &, Graph_Edits const &) {;}
+	};
+
 	template<typename Finder, typename Graph, typename Graph_Edits, typename... Consumer>
 	class Feeder
 	{
@@ -25,11 +67,12 @@ namespace Finder
 		Feeder(Finder &finder, Consumer &... consumer) : finder(finder), consumer(consumer...) {;}
 
 		/** Prepares consumers for a new run of the Finder and starts it */
-		void feed(Graph const &graph, Graph_Edits const &edited)
+		void feed(size_t k, Graph const &graph, Graph_Edits const &edited)
 		{
 			done.fill(false);
 			prepare_impl(std::index_sequence_for<Consumer ...>{});
 			finder.find(graph, edited, *this);
+			Result_impl<sizeof...(Consumer), Consumer...>::result(consumer, k, graph, edited);
 		}
 
 		/** Provides each consumer with the found forbidden subgraph, returns true iff no Consumer want further forbidden subgraphs */
@@ -39,11 +82,12 @@ namespace Finder
 		}
 
 		/** Prepares consumers for a new run of the Finder and starts it, but only search area near u and v */
-		void feed_near(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		void feed_near(size_t k, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			done.fill(false);
 			prepare_near_impl(u, v, std::index_sequence_for<Consumer ...>{});
 			finder.find_near(graph, edited, u, v, *this);
+			Result_impl<sizeof...(Consumer), Consumer...>::result_near(consumer, k, graph, edited);
 		}
 
 		/** Provides each consumer with the found forbidden subgraph, returns true iff no Consumer want further forbidden subgraphs */

@@ -15,6 +15,7 @@
 #include "Consumer/S_Single.hpp"
 #include "Consumer/LB_No.hpp"
 #include "Consumer/LB_Basic.hpp"
+#include "Consumer/Counter.hpp"
 #include "Graph/Matrix.hpp"
 
 #endif

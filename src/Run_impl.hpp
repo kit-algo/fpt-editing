@@ -18,8 +18,11 @@
 
 #include "config.hpp"
 
-#include "util.hpp"
+#include "Consumer/Counter.hpp"
+
 #include "Run.hpp"
+#include "Options.hpp"
+#include "util.hpp"
 
 template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
 void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std::string const &filename)
@@ -121,9 +124,10 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 	E editor(finder, graph, consumer_ref, options.threads);
 
 	// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
-	Finder::Feeder<F, G, GE, typename E::Lower_Bound_type> feeder(finder, std::get<E::lb>(consumer));
-	feeder.feed(graph, GE(graph.size()));
-	size_t bound = std::get<E::lb>(consumer).result();
+	Consumer::Counter<G, GE, M, R, C> counter(graph.size());
+	Finder::Feeder<F, G, GE, typename E::Lower_Bound_type, decltype(counter)> feeder(finder, std::get<E::lb>(consumer), counter);
+	feeder.feed(0, graph, GE(graph.size()));
+	size_t bound = std::get<E::lb>(consumer).result(0, graph, GE(graph.size()), Options::Tag::Lower_Bound());
 
 	//finder.recalculate();
 	for(size_t k = std::max(bound, options.k_min); !options.k_max || k <= options.k_max; k++)

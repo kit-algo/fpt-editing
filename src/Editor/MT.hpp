@@ -301,28 +301,21 @@ namespace Editor
 				auto &graph = work->graph;
 				auto &edited = work->edited;
 				auto &k = work->k;
-
-				/*if(k == 17)
-				{
-					std::unique_lock<std::mutex> ul(editor.write_mutex);
-					editor.write(graph, edited);
-				}*/
-
 #ifdef STATS
 				calls[k]++;
 #endif
 				// start finder and feed into selector and lb
-				feeder.feed(graph, edited);
+				feeder.feed(k, graph, edited);
 
 				// graph solved?
-				auto problem = std::get<selector>(consumer).result(k, graph, edited);
+				auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
 				if(problem.empty())
 				{
 					std::unique_lock<std::mutex> ul(editor.write_mutex);
 					editor.found_soulution = true;
 					return !editor.write(graph, edited);
 				}
-				else if(k < std::get<lb>(consumer).result())
+				else if(k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 				{
 					// lower bound too high
 #ifdef STATS
@@ -357,6 +350,12 @@ namespace Editor
 						if(problem.size() == 2)
 						{
 							// single edge editing
+#ifdef STATS
+							if(edges_done == 0)
+							{
+								single[k]++;
+							}
+#endif
 							if(edited.has_edge(problem.front(), problem.back()))
 							{
 								abort();
