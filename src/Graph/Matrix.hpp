@@ -18,8 +18,8 @@ namespace Graph
 		static constexpr char const *name = "Matrix";
 
 	private:
-		VertexID const n;
-		size_t const row_length;
+		VertexID n;
+		size_t row_length;
 		std::vector<Packed> matrix;
 
 	public:

@@ -82,11 +82,11 @@ namespace Finder
 		}
 
 		/** Prepares consumers for a new run of the Finder and starts it, but only search area near u and v */
-		void feed_near(size_t k, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		void feed_near(size_t k, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v, Graph_Edits const *used)
 		{
 			done.fill(false);
 			prepare_near_impl(u, v, std::index_sequence_for<Consumer ...>{});
-			finder.find_near(graph, edited, u, v, *this);
+			finder.find_near(graph, edited, u, v, *this, used);
 			Result_impl<sizeof...(Consumer), Consumer...>::result_near(consumer, k, graph, edited);
 		}
 

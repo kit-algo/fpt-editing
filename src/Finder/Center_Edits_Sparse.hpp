@@ -40,13 +40,17 @@ namespace Finder
 		}
 
 		template<typename Feeder>
-		void find_near(Graph const &graph, Graph_Edits const &edited, VertexID uu, VertexID vv, Feeder &feeder)
+		void find_near(Graph const &graph, Graph_Edits const &edited, VertexID uu, VertexID vv, Feeder &feeder, Graph_Edits const *used)
 		{
 			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
 			/* only search for forbidden subgraphs near u-v
 			 * -> both vertices of starting edge must be within length / 2 of u or v
 			 */
-			offered.clear();
+			if(used)
+			{
+				offered = *used;
+			}
+			else {offered.clear();}
 
 			std::vector<Packed> start = graph.alloc_rows(3);//start vertices and neighbourhoods included
 			Packed *area = start.data();

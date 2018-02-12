@@ -50,7 +50,7 @@ namespace Consumer
 				std::vector<VertexID> edge;
 			} best;
 
-			Finder::Center_4<Graph, Graph_Edits> finder;
+			Finder::Center_Edits_Sparse_4<Graph, Graph_Edits> finder;
 
 			M(VertexID graph_size) : used(graph_size), new_use(graph_size), finder(graph_size) {;}
 		} m;
@@ -78,6 +78,7 @@ namespace Consumer
 		{
 			m.used.clear();
 			m.bounds.clear();
+			m.bounds_rev.clear();
 			m.best = {{0, 0}, {0, 0}};
 		}
 
@@ -121,38 +122,66 @@ namespace Consumer
 				 * let lb handle that
 				 */
 				m.replacing_bound = idx;
+				::Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, m.bounds[m.replacing_bound].begin(), m.bounds[m.replacing_bound].end(), [&](auto uit, auto vit) {
+					if(!m.used.has_edge(*uit, *vit)) {abort();}
+					m.used.clear_edge(*uit, *vit);
+					return false;
+				});
 
 				// mark
 				edited.set_edge(u, v);
 				// lb
-				feeder.feed_near(k, graph, edited, u, v);
-				size_t mark_change = m.new_count - 1;
+				feeder.feed_near(k, graph, edited, u, v, &m.used);
+				size_t mark_change = m.new_count;
 				// edit
 				graph.toggle_edge(u, v);
 				// lb
-				feeder.feed_near(k, graph, edited, u, v);
+				feeder.feed_near(k, graph, edited, u, v, &m.used);
 				size_t edit_change = m.new_count;
 				// unedit, unmark
 				edited.clear_edge(u, v);
 				graph.toggle_edge(u, v);
 
+				::Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, m.bounds[m.replacing_bound].begin(), m.bounds[m.replacing_bound].end(), [&](auto uit, auto vit) {
+					m.used.set_edge(*uit, *vit);
+					return false;
+				});
+				/* adjustments */
+				mark_change--; edit_change--;// edited/marked subgraph no longer in bound
+				edit_change++;// spending an edit
+				mark_change++; edit_change++;
+				if(mark_change == -1) {abort();}
+
 				/* compare */
+				//std::cout << "current best: " << +m.best.changes.first << ", " << +m.best.changes.second << ": " << +m.best.edge.front() << " - " << +m.best.edge.back() << '\n';
 				auto const changes = std::minmax(mark_change, edit_change);
 				size_t space = k - m.bounds.size();
+				space++;
 				// both branches cut: return
 				if(space < changes.first)
 				{
 					m.best = {changes, {u, v}};
+//					std::cout << "cut: " << +changes.first << ", " << +changes.second << ": " << +u << " - " << +v << '\n';
 					return true;
 				}
 				// one branch cut: maximize other branch
-				else if(space < changes.second && (m.bounds.size() <= space || m.best.changes.first < changes.first)) {;}
+				else if(space < changes.second)
+				{
+					if(m.best.changes.second <= space) {;}
+					else if(space < m.best.changes.second && m.best.changes.first < changes.first) {;}
+					else {return false;}
+				}
 				// no branch cut: maximize lower value
-				else if(m.best.changes.first < changes.first) {;}
-				//     equal lower value: maximize higher value
-				else if(m.best.changes.first == changes.first && m.best.changes.second < changes.second) {;}
+				else if(m.best.changes.second <= space)
+				{
+					if(m.best.changes.first < changes.first) {;}
+					//     equal lower value: maximize higher value
+					else if(m.best.changes.first == changes.first && m.best.changes.second < changes.second) {;}
+					else {return false;}
+				}
 				else {return false;}
 				m.best = {changes, {u, v}};
+//				std::cout << "new best: " << +changes.first << ", " << +changes.second << ": " << +u << " - " << +v << '\n';
 				return false;
 			};
 
@@ -170,7 +199,11 @@ namespace Consumer
 					free++;
 					return false;
 				});
-				if(done) {return m.best.edge;}
+				if(done)
+				{
+//					std::cout << "using " << +m.best.edge.front() << " - " << +m.best.edge.back() << '\n';
+					return m.best.edge;
+				}
 
 				if(free < free_count || free_count == 0)
 				{
@@ -186,10 +219,12 @@ namespace Consumer
 
 			if(m.best.changes.first > 0)
 			{
+//				std::cout << "using " << +m.best.edge.front() << " - " << +m.best.edge.back() << '\n';
 				return m.best.edge;
 			}
 			else
 			{
+//				std::cout << "using bound " << +free_idx << " (" << +free_count << " free edges)\n";
 				return m.bounds[free_idx];
 			}
 		}
@@ -217,8 +252,8 @@ namespace Consumer
 				bool count = (!m.used.has_edge(*uit, *vit) || m.bounds_rev.at(std::minmax(*uit, *vit)) == m.replacing_bound) && !m.new_use.has_edge(*uit, *vit);
 				return !count;
 			});
-
 			if(skip) {return false;}
+
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
 				m.new_use.set_edge(*uit, *vit);
 				return false;
