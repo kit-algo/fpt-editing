@@ -38,7 +38,7 @@ namespace Graph
 			size_t count = 0;
 			for(auto const &elem: matrix)
 			{
-				count += __builtin_popcountll(elem);
+				count += PACKED_POP(elem);
 			}
 			return count / 2;
 		}
@@ -109,7 +109,7 @@ namespace Graph
 			size_t deg = 0;
 			for(size_t i = 0; i < get_row_length(); i++)
 			{
-				deg += __builtin_popcount(urow[i]);
+				deg += PACKED_POP(urow[i]);
 			}
 			return deg;
 		}
@@ -121,9 +121,9 @@ namespace Graph
 
 			for(size_t i = 0; i < get_row_length(); i++)
 			{
-				for(Packed ui = urow[i]; ui; ui &= ~(Packed(1) << __builtin_ctzll(ui)))
+				for(Packed ui = urow[i]; ui; ui &= ~(Packed(1) << PACKED_CTZ(ui)))
 				{
-					VertexID v = __builtin_ctzll(ui) + i * Packed_Bits;
+					VertexID v = PACKED_CTZ(ui) + i * Packed_Bits;
 					neighbours.push_back(v);
 				}
 			}
@@ -165,9 +165,9 @@ namespace Graph
 
 				for(size_t i = 0; i < get_row_length(); i++)
 				{
-					for(Packed ui = urow[i]; ui; ui &= ~(Packed(1) << __builtin_ctzll(ui)))
+					for(Packed ui = urow[i]; ui; ui &= ~(Packed(1) << PACKED_CTZ(ui)))
 					{
-						VertexID v = __builtin_ctzll(ui) + i * Packed_Bits;
+						VertexID v = PACKED_CTZ(ui) + i * Packed_Bits;
 						if(!(get_row(v)[u / Packed_Bits] & (Packed(1) << (u % Packed_Bits))))
 						{
 							std::cerr << "[matrix] " << +u << " -> " << +v << " but not " << +v << " -> " << +u << "\n";

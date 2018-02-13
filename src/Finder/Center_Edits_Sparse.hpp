@@ -62,9 +62,9 @@ namespace Finder
 			{
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(Packed cur = area[i] & ~included[i]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+					for(Packed cur = area[i] & ~included[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 					{
-						VertexID add = __builtin_ctzll(cur) + i * Packed_Bits;
+						VertexID add = PACKED_CTZ(cur) + i * Packed_Bits;
 						included[add / Packed_Bits] |= Packed(1) << (add % Packed_Bits);
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
@@ -80,9 +80,9 @@ namespace Finder
 
 			for(size_t ii = 0; ii < graph.get_row_length(); ii++)
 			{
-				for(Packed cur = area[ii]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+				for(Packed cur = area[ii]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 				{
-					VertexID u = __builtin_ctzll(cur) + ii * Packed_Bits;
+					VertexID u = PACKED_CTZ(cur) + ii * Packed_Bits;
 					if(find_start<Feeder, true>(graph, edited, feeder, u)) {return;}
 				}
 			}
@@ -104,14 +104,14 @@ namespace Finder
 
 			auto outer = [&](size_t const i, Packed const curf)
 			{
-				VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+				VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 				if(offered.has_edge(u, vf)) {return false;}
 				path[length / 2 - 1] = vf;
-				Packed vf_mask = ~((Packed(2) << __builtin_ctzll(curf)) - 1);
+				Packed vf_mask = ~((Packed(2) << PACKED_CTZ(curf)) - 1);
 
 				auto inner = [&](size_t const j, Packed const curb)
 				{
-					VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+					VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 					if(offered.has_edge(u, vb) || offered.has_edge(vf, vb)) {return false;}
 					if(graph.has_edge(vf, vb)) {return false;}
 					path[length / 2 + 1] = vb;
@@ -121,14 +121,14 @@ namespace Finder
 
 				for(size_t j = i; j < graph.get_row_length(); j++)
 				{
-					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 					{
 						if(inner(j, curb)) {return true;}
 					}
 				}
 				for(size_t j = i; j < graph.get_row_length(); j++)
 				{
-					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & ~edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & ~edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 					{
 						if(inner(j, curb)) {return true;}
 					}
@@ -138,14 +138,14 @@ namespace Finder
 
 			for(size_t i = 0; i < graph.get_row_length(); i++)
 			{
-				for(Packed curf = graph.get_row(u)[i] & edited.get_row(u)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+				for(Packed curf = graph.get_row(u)[i] & edited.get_row(u)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 				{
 					if(outer(i, curf)) {return true;}
 				}
 			}
 			for(size_t i = 0; i < graph.get_row_length(); i++)
 			{
-				for(Packed curf = graph.get_row(u)[i] & ~edited.get_row(u)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+				for(Packed curf = graph.get_row(u)[i] & ~edited.get_row(u)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 				{
 					if(outer(i, curf)) {return true;}
 				}
@@ -160,7 +160,7 @@ namespace Finder
 			Packed *f = forbidden.data() + (length / 2 - 2) * graph.get_row_length();
 			auto inner = [&](size_t const i, Packed const cur) -> bool
 			{
-				VertexID v = __builtin_ctzll(cur) + i * Packed_Bits;
+				VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
 				if(offered.has_edge(u, v)) {return false;}
 				f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 				path[length / 2] = v;
@@ -173,14 +173,14 @@ namespace Finder
 			path[length / 2 - 1] = u;
 			for(size_t i = u / Packed_Bits; i < graph.get_row_length(); i++)// double exploration: i = 0  cur = graph.get_row(u)[i]
 			{
-				for(Packed cur = (i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]) & edited.get_row(u)[i]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+				for(Packed cur = (i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]) & edited.get_row(u)[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 				{
 					if(inner(i, cur)) {return true;}
 				}
 			}
 			for(size_t i = u / Packed_Bits; i < graph.get_row_length(); i++)// double exploration: i = 0  cur = graph.get_row(u)[i]
 			{
-				for(Packed cur = (i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]) & ~edited.get_row(u)[i]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+				for(Packed cur = (i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]) & ~edited.get_row(u)[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 				{
 					if(inner(i, cur)) {return true;}
 				}
@@ -208,13 +208,13 @@ namespace Finder
 
 					auto outer = [&](size_t const i, Packed const curf) -> bool
 					{
-						VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+						VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vf)) {return false;}
 						path[lf - 1] = vf;
 
 						auto inner = [&](size_t const j, Packed const curb) -> bool
 						{
-							VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+							VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 							if(offered.has_edge(vf, vb)) {return false;}
 							for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
 							if(vf == vb || graph.has_edge(vf, vb)) {return false;}
@@ -224,14 +224,14 @@ namespace Finder
 
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 							{
 								if(inner(j, curb)) {return true;}
 							}
 						}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 							{
 								if(inner(j, curb)) {return true;}
 							}
@@ -241,14 +241,14 @@ namespace Finder
 
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
 							if(outer(i, curf)) {return true;}
 						}
 					}
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
 							if(outer(i, curf)) {return true;}
 						}
@@ -273,13 +273,13 @@ namespace Finder
 				/* last vertices */
 				auto outer = [&](size_t const i, Packed const curf) -> bool
 				{
-					VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+					VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 					for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vf)) {return false;}
 					path[lf - 1] = vf;
 
 					auto inner = [&](size_t const j, Packed const curb) -> bool
 					{
-						VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+						VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 						//if(std::is_same<Conversion, Options::Conversions::Skip>::value && offered.has_edge(vf, vb)) {return false;}
 						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
 						if(vf == vb) {return false;}
@@ -291,14 +291,14 @@ namespace Finder
 
 					for(size_t j = 0; j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
 							if(inner(j, curb)) {return true;}
 						}
 					}
 					for(size_t j = 0; j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
 							if(inner(j, curb)) {return true;}
 						}
@@ -308,14 +308,14 @@ namespace Finder
 
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
 						if(outer(i, curf)) {return true;}
 					}
 				}
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
 						if(outer(i, curf)) {return true;}
 					}
@@ -339,13 +339,13 @@ namespace Finder
 				/* last vertices */
 				auto outer = [&](size_t const i, Packed const curf) -> bool
 				{
-					VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+					VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 					for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vf)) {return false;}
 					path[lf - 1] = vf;
 
 					auto inner = [&](size_t const j, Packed const curb) -> bool
 					{
-						VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+						VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 						//if(offered.has_edge(vf, vb)) {return false;}
 						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
 						if(vf == vb) {return false;}
@@ -356,14 +356,14 @@ namespace Finder
 
 					for(size_t j = 0; j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
 							if(inner(j, curb)) {return true;}
 						}
 					}
 					for(size_t j = 0; j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
 							if(inner(j, curb)) {return true;}
 						}
@@ -373,14 +373,14 @@ namespace Finder
 
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
 						if(outer(i, curf)) {return true;}
 					}
 				}
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
 						if(outer(i, curf)) {return true;}
 					}

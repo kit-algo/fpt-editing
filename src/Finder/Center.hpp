@@ -43,15 +43,15 @@ namespace Finder
 					path[length / 2] = u;
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(u)[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+						for(Packed curf = graph.get_row(u)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
-							VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 							path[length / 2 - 1] = vf;
 							for(size_t j = i; j < graph.get_row_length(); j++)
 							{
-								for(Packed curb = j == i? curf & ~(Packed(1) << __builtin_ctzll(curf)) : graph.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+								for(Packed curb = j == i? curf & ~(Packed(1) << PACKED_CTZ(curf)) : graph.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 								{
-									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 									if(graph.has_edge(vf, vb)) {continue;}
 									path[length / 2 + 1] = vb;
 									if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1, false>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
@@ -69,9 +69,9 @@ namespace Finder
 					path[length / 2 - 1] = u;
 					for(size_t i = u / Packed_Bits; i < graph.get_row_length(); i++)// double exploration: i = 0  cur = graph.get_row(u)[i]
 					{
-						for(Packed cur = i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+						for(Packed cur = i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 						{
-							VertexID v = __builtin_ctzll(cur) + i * Packed_Bits;
+							VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
 							f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
 							if(Find_Rec<Feeder, length / 2 - 1, length / 2, false>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
@@ -104,9 +104,9 @@ namespace Finder
 			{
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(Packed cur = area[i] & ~included[i]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+					for(Packed cur = area[i] & ~included[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 					{
-						VertexID add = __builtin_ctzll(cur) + i * Packed_Bits;
+						VertexID add = PACKED_CTZ(cur) + i * Packed_Bits;
 						included[add / Packed_Bits] |= Packed(1) << (add % Packed_Bits);
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
@@ -125,9 +125,9 @@ namespace Finder
 				// does not work for length == 3
 				for(size_t ii = 0; ii < graph.get_row_length(); ii++)
 				{
-					for(Packed cur = area[ii]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+					for(Packed cur = area[ii]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 					{
-						VertexID u = __builtin_ctzll(cur) + ii * Packed_Bits;
+						VertexID u = PACKED_CTZ(cur) + ii * Packed_Bits;
 						for(size_t i = 0; i < graph.get_row_length(); i++)
 						{
 							f[i] = graph.get_row(u)[i];
@@ -136,15 +136,15 @@ namespace Finder
 						path[length / 2] = u;
 						for(size_t i = 0; i < graph.get_row_length(); i++)
 						{
-							for(Packed curf = graph.get_row(u)[i] & area[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+							for(Packed curf = graph.get_row(u)[i] & area[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 							{
-								VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+								VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 								path[length / 2 - 1] = vf;
 								for(size_t j = i; j < graph.get_row_length(); j++)
 								{
-									for(Packed curb = j == i? curf & ~(Packed(1) << __builtin_ctzll(curf)) : graph.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+									for(Packed curb = j == i? curf & ~(Packed(1) << PACKED_CTZ(curf)) : graph.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 									{
-										VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+										VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 										if(graph.has_edge(vf, vb)) {continue;}
 										path[length / 2 + 1] = vb;
 										if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1, true>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
@@ -159,16 +159,16 @@ namespace Finder
 			{
 				for(size_t ii = 0; ii < graph.get_row_length(); ii++)
 				{
-					for(Packed curs = area[ii]; curs; curs &= ~(Packed(1) << __builtin_ctzll(curs)))
+					for(Packed curs = area[ii]; curs; curs &= ~(Packed(1) << PACKED_CTZ(curs)))
 					{
-						VertexID u = __builtin_ctzll(curs) + ii * Packed_Bits;
+						VertexID u = PACKED_CTZ(curs) + ii * Packed_Bits;
 						f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 						path[length / 2 - 1] = u;
 						for(size_t i = u / Packed_Bits; i < graph.get_row_length(); i++)// double exploration: i = 0  cur = graph.get_row(u)[i]
 						{
-							for(Packed cur = i == u / Packed_Bits? graph.get_row(u)[i] & ~area[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i] & ~area[i]; cur; cur &= ~(Packed(1) << __builtin_ctzll(cur)))
+							for(Packed cur = i == u / Packed_Bits? graph.get_row(u)[i] & ~area[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i] & ~area[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 							{
-								VertexID v = __builtin_ctzll(cur) + i * Packed_Bits;
+								VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
 								f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 								path[length / 2] = v;
 								if(Find_Rec<Feeder, length / 2 - 1, length / 2, true>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
@@ -201,15 +201,15 @@ namespace Finder
 					}
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
-							VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 							path[lf - 1] = vf;
 							for(size_t j = 0; j < graph.get_row_length(); j++)
 							{
-								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 								{
-									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 									if(vf == vb || graph.has_edge(vf, vb)) {continue;}
 									path[lb + 1] = vb;
 									if(Find_Rec<Feeder, lf - 1, lb + 1, near>::find_rec(graph, edited, path, forbidden, feeder))
@@ -242,15 +242,15 @@ namespace Finder
 					/* last vertices */
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
-							VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 							path[lf - 1] = vf;
 							for(size_t j = 0; j < graph.get_row_length(); j++)
 							{
-								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 								{
-									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 									if(vf == vb) {continue;}
 									path[lb + 1] = vb;
 									if(feeder.callback(graph, edited, path.cbegin(), path.cend())) {return true;}
@@ -280,15 +280,15 @@ namespace Finder
 					/* last vertices */
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << __builtin_ctzll(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
-							VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
+							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 							path[lf - 1] = vf;
 							for(size_t j = 0; j < graph.get_row_length(); j++)
 							{
-								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 								{
-									VertexID vb = __builtin_ctzll(curb) + j * Packed_Bits;
+									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 									if(vf == vb) {continue;}
 									path[lb + 1] = vb;
 									if(feeder.callback_near(graph, edited, path.cbegin(), path.cend())) {return true;}

@@ -617,9 +617,9 @@ namespace Consumer
 					{
 						for(size_t i = 0; i < graph.get_row_length(); i++)
 						{
-							for(typename Graph::Packed cur = graph.get_row(x)[i]; cur; cur &= ~(typename Graph::Packed(1) << __builtin_ctzll(cur)))
+							for(typename Graph::Packed cur = graph.get_row(x)[i]; cur; cur &= ~(typename Graph::Packed(1) << PACKED_CTZ(cur)))
 							{
-								typename Graph::VertexID y = __builtin_ctzll(cur) + i * Graph::bits;
+								typename Graph::VertexID y = PACKED_CTZ(cur) + i * Graph::bits;
 								near_next.push_back(y);
 							}
 						}
@@ -723,9 +723,9 @@ namespace Consumer
 			{
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(typename Graph::Packed nu = graph.get_row(u)[i]; nu; nu &= ~(typename Graph::Packed(1) << __builtin_ctzll(nu)))
+					for(typename Graph::Packed nu = graph.get_row(u)[i]; nu; nu &= ~(typename Graph::Packed(1) << PACKED_CTZ(nu)))
 					{
-						typename Graph::VertexID vnu = __builtin_ctzll(nu) + i * Graph::bits;
+						typename Graph::VertexID vnu = PACKED_CTZ(nu) + i * Graph::bits;
 						if(vnu == v) {continue;}
 						if(graph.has_edge(vnu, v)) {continue;}
 						if(bounds_rev.count(PAIR(vnu, u))) {continue;}
@@ -734,9 +734,9 @@ namespace Consumer
 						if(used.count(PAIR(vnu, v))) {continue;}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nvnu = graph.get_row(vnu)[j]; nvnu; nvnu &= ~(typename Graph::Packed(1) << __builtin_ctzll(nvnu)))
+							for(typename Graph::Packed nvnu = graph.get_row(vnu)[j]; nvnu; nvnu &= ~(typename Graph::Packed(1) << PACKED_CTZ(nvnu)))
 							{
-								typename Graph::VertexID vvnu = __builtin_ctzll(nvnu) + j * Graph::bits;
+								typename Graph::VertexID vvnu = PACKED_CTZ(nvnu) + j * Graph::bits;
 								if(vvnu == u || vvnu == v) {continue;}
 								if(graph.has_edge(vvnu, u)) {continue;}
 								if(bounds_rev.count(PAIR(vvnu, vnu))) {continue;}
@@ -755,9 +755,9 @@ namespace Consumer
 						}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nv)))
+							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nv)))
 							{
-								typename Graph::VertexID vnv = __builtin_ctzll(nv) + j * Graph::bits;
+								typename Graph::VertexID vnv = PACKED_CTZ(nv) + j * Graph::bits;
 								if(u == vnv || vnu == vnv) {continue;}
 								if(graph.has_edge(u, vnv)) {continue;}
 								if(bounds_rev.count(PAIR(u, vnv))) {continue;}
@@ -779,9 +779,9 @@ namespace Consumer
 				}
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(typename Graph::Packed nv = graph.get_row(v)[i]; nv; nv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nv)))
+					for(typename Graph::Packed nv = graph.get_row(v)[i]; nv; nv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nv)))
 					{
-						typename Graph::VertexID vnv = __builtin_ctzll(nv) + i * Graph::bits;
+						typename Graph::VertexID vnv = PACKED_CTZ(nv) + i * Graph::bits;
 						if(vnv == u) {continue;}
 						if(graph.has_edge(u, vnv)) {continue;}
 						if(bounds_rev.count(PAIR(vnv, u))) {continue;}
@@ -790,9 +790,9 @@ namespace Consumer
 						if(used.count(PAIR(vnv, v))) {continue;}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nvnv = graph.get_row(vnv)[j]; nvnv; nvnv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nvnv)))
+							for(typename Graph::Packed nvnv = graph.get_row(vnv)[j]; nvnv; nvnv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nvnv)))
 							{
-								typename Graph::VertexID vvnv = __builtin_ctzll(nvnv) + j * Graph::bits;
+								typename Graph::VertexID vvnv = PACKED_CTZ(nvnv) + j * Graph::bits;
 								if(vvnv == u || vvnv == v) {continue;}
 								if(graph.has_edge(v, vvnv)) {continue;}
 								if(bounds_rev.count(PAIR(vvnv, vnv))) {continue;}
@@ -817,18 +817,18 @@ namespace Consumer
 			{
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(typename Graph::Packed nc = graph.get_row(u)[i] & graph.get_row(v)[i]; nc; nc &= ~(typename Graph::Packed(1) << __builtin_ctzll(nc)))
+					for(typename Graph::Packed nc = graph.get_row(u)[i] & graph.get_row(v)[i]; nc; nc &= ~(typename Graph::Packed(1) << PACKED_CTZ(nc)))
 					{
-						typename Graph::VertexID vnc = __builtin_ctzll(nc) + i * Graph::bits;
+						typename Graph::VertexID vnc = PACKED_CTZ(nc) + i * Graph::bits;
 						if(bounds_rev.count(PAIR(u, vnc))) {continue;}
 						if(used.count(PAIR(u, vnc))) {continue;}
 						if(bounds_rev.count(PAIR(vnc, v))) {continue;}
 						if(used.count(PAIR(vnc, v))) {continue;}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nu = graph.get_row(u)[j]; nu; nu &= ~(typename Graph::Packed(1) << __builtin_ctzll(nu)))
+							for(typename Graph::Packed nu = graph.get_row(u)[j]; nu; nu &= ~(typename Graph::Packed(1) << PACKED_CTZ(nu)))
 							{
-								typename Graph::VertexID vnu = __builtin_ctzll(nu) + j * Graph::bits;
+								typename Graph::VertexID vnu = PACKED_CTZ(nu) + j * Graph::bits;
 								if(u == vnu || vnc == vnu) {continue;}
 								if(graph.has_edge(vnc, vnu)) {continue;}
 								if(bounds_rev.count(PAIR(vnc, vnu))) {continue;}
@@ -847,9 +847,9 @@ namespace Consumer
 						}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nv)))
+							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nv)))
 							{
-								typename Graph::VertexID vnv = __builtin_ctzll(nv) + j * Graph::bits;
+								typename Graph::VertexID vnv = PACKED_CTZ(nv) + j * Graph::bits;
 								if(u == vnv || vnc == vnv) {continue;}
 								if(graph.has_edge(vnc, vnv)) {continue;}
 								if(bounds_rev.count(PAIR(vnc, vnv))) {continue;}
@@ -878,9 +878,9 @@ namespace Consumer
 			{
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(typename Graph::Packed nu = graph.get_row(u)[i]; nu; nu &= ~(typename Graph::Packed(1) << __builtin_ctzll(nu)))
+					for(typename Graph::Packed nu = graph.get_row(u)[i]; nu; nu &= ~(typename Graph::Packed(1) << PACKED_CTZ(nu)))
 					{
-						typename Graph::VertexID vnu = __builtin_ctzll(nu) + i * Graph::bits;
+						typename Graph::VertexID vnu = PACKED_CTZ(nu) + i * Graph::bits;
 						if(vnu == v) {continue;}
 						if(graph.has_edge(vnu, v)) {continue;}
 						if(bounds_rev.count(PAIR(vnu, u)) && bounds_rev[PAIR(vnu, u)] != lbi) {continue;}
@@ -889,9 +889,9 @@ namespace Consumer
 						if(used.count(PAIR(vnu, v))) {continue;}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nvnu = graph.get_row(vnu)[j]; nvnu; nvnu &= ~(typename Graph::Packed(1) << __builtin_ctzll(nvnu)))
+							for(typename Graph::Packed nvnu = graph.get_row(vnu)[j]; nvnu; nvnu &= ~(typename Graph::Packed(1) << PACKED_CTZ(nvnu)))
 							{
-								typename Graph::VertexID vvnu = __builtin_ctzll(nvnu) + j * Graph::bits;
+								typename Graph::VertexID vvnu = PACKED_CTZ(nvnu) + j * Graph::bits;
 								if(vvnu == u || vvnu == v) {continue;}
 								if(graph.has_edge(vvnu, u)) {continue;}
 								if(bounds_rev.count(PAIR(vvnu, vnu)) && bounds_rev[PAIR(vvnu, vnu)] != lbi) {continue;}
@@ -910,9 +910,9 @@ namespace Consumer
 						}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nv)))
+							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nv)))
 							{
-								typename Graph::VertexID vnv = __builtin_ctzll(nv) + j * Graph::bits;
+								typename Graph::VertexID vnv = PACKED_CTZ(nv) + j * Graph::bits;
 								if(u == vnv || vnu == vnv) {continue;}
 								if(graph.has_edge(u, vnv)) {continue;}
 								if(bounds_rev.count(PAIR(u, vnv)) && bounds_rev[PAIR(u, vnv)] != lbi) {continue;}
@@ -934,9 +934,9 @@ namespace Consumer
 				}
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(typename Graph::Packed nv = graph.get_row(v)[i]; nv; nv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nv)))
+					for(typename Graph::Packed nv = graph.get_row(v)[i]; nv; nv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nv)))
 					{
-						typename Graph::VertexID vnv = __builtin_ctzll(nv) + i * Graph::bits;
+						typename Graph::VertexID vnv = PACKED_CTZ(nv) + i * Graph::bits;
 						if(vnv == u) {continue;}
 						if(graph.has_edge(u, vnv)) {continue;}
 						if(bounds_rev.count(PAIR(vnv, u)) && bounds_rev[PAIR(u, vnv)] != lbi) {continue;}
@@ -945,9 +945,9 @@ namespace Consumer
 						if(used.count(PAIR(vnv, v))) {continue;}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nvnv = graph.get_row(vnv)[j]; nvnv; nvnv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nvnv)))
+							for(typename Graph::Packed nvnv = graph.get_row(vnv)[j]; nvnv; nvnv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nvnv)))
 							{
-								typename Graph::VertexID vvnv = __builtin_ctzll(nvnv) + j * Graph::bits;
+								typename Graph::VertexID vvnv = PACKED_CTZ(nvnv) + j * Graph::bits;
 								if(vvnv == u || vvnv == v) {continue;}
 								if(graph.has_edge(v, vvnv)) {continue;}
 								if(bounds_rev.count(PAIR(vvnv, vnv)) && bounds_rev[PAIR(vvnv, vnv)] != lbi) {continue;}
@@ -972,18 +972,18 @@ namespace Consumer
 			{
 				for(size_t i = 0; i < graph.get_row_length(); i++)
 				{
-					for(typename Graph::Packed nc = graph.get_row(u)[i] & graph.get_row(v)[i]; nc; nc &= ~(typename Graph::Packed(1) << __builtin_ctzll(nc)))
+					for(typename Graph::Packed nc = graph.get_row(u)[i] & graph.get_row(v)[i]; nc; nc &= ~(typename Graph::Packed(1) << PACKED_CTZ(nc)))
 					{
-						typename Graph::VertexID vnc = __builtin_ctzll(nc) + i * Graph::bits;
+						typename Graph::VertexID vnc = PACKED_CTZ(nc) + i * Graph::bits;
 						if(bounds_rev.count(PAIR(u, vnc)) && bounds_rev[PAIR(u, vnc)] != lbi) {continue;}
 						if(used.count(PAIR(u, vnc))) {continue;}
 						if(bounds_rev.count(PAIR(vnc, v)) && bounds_rev[PAIR(vnc, v)] != lbi) {continue;}
 						if(used.count(PAIR(vnc, v))) {continue;}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nu = graph.get_row(u)[j]; nu; nu &= ~(typename Graph::Packed(1) << __builtin_ctzll(nu)))
+							for(typename Graph::Packed nu = graph.get_row(u)[j]; nu; nu &= ~(typename Graph::Packed(1) << PACKED_CTZ(nu)))
 							{
-								typename Graph::VertexID vnu = __builtin_ctzll(nu) + j * Graph::bits;
+								typename Graph::VertexID vnu = PACKED_CTZ(nu) + j * Graph::bits;
 								if(u == vnu || vnc == vnu) {continue;}
 								if(graph.has_edge(vnc, vnu)) {continue;}
 								if(bounds_rev.count(PAIR(vnc, vnu)) && bounds_rev[PAIR(vnc, vnu)] != lbi) {continue;}
@@ -1002,9 +1002,9 @@ namespace Consumer
 						}
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << __builtin_ctzll(nv)))
+							for(typename Graph::Packed nv = graph.get_row(v)[j]; nv; nv &= ~(typename Graph::Packed(1) << PACKED_CTZ(nv)))
 							{
-								typename Graph::VertexID vnv = __builtin_ctzll(nv) + j * Graph::bits;
+								typename Graph::VertexID vnv = PACKED_CTZ(nv) + j * Graph::bits;
 								if(u == vnv || vnc == vnv) {continue;}
 								if(graph.has_edge(vnc, vnv)) {continue;}
 								if(bounds_rev.count(PAIR(vnc, vnv)) && bounds_rev[PAIR(vnc, vnv)] != lbi) {continue;}

@@ -57,10 +57,10 @@ namespace Finder
 				VertexID x;
 				for(size_t j = 0; j < graph.get_row_length(); j++)
 				{
-					for(Packed px = L.back().first[j]; px; px &= ~(Packed(1) << __builtin_ctzll(px)))
+					for(Packed px = L.back().first[j]; px; px &= ~(Packed(1) << PACKED_CTZ(px)))
 					{
-						x = __builtin_ctzll(px) + j * Packed_Bits;
-						L.back().first[j] &= ~(Packed(1) << __builtin_ctzll(px));
+						x = PACKED_CTZ(px) + j * Packed_Bits;
+						L.back().first[j] &= ~(Packed(1) << PACKED_CTZ(px));
 						L.back().second--;
 
 //						std::cout << "cur: " << +x << " (L[" << L.size() - 1 << "])\n";
@@ -87,7 +87,7 @@ namespace Finder
 					for(size_t j = 0; j < graph.get_row_length(); j++)
 					{
 						p[j] = val.first[j] & graph.get_row(x)[j];
-						count += __builtin_popcount(p[j]);
+						count += PACKED_POP(p[j]);
 					}
 
 					if(count != 0)
@@ -95,9 +95,9 @@ namespace Finder
 						VertexID y = ~0;
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(Packed py = p[j]; py; py &= ~(Packed(1) << __builtin_ctzll(py)))
+							for(Packed py = p[j]; py; py &= ~(Packed(1) << PACKED_CTZ(py)))
 							{
-								y = __builtin_ctzll(py) + j * Packed_Bits;
+								y = PACKED_CTZ(py) + j * Packed_Bits;
 								goto found_y;
 							}
 						}
@@ -110,18 +110,18 @@ namespace Finder
 						VertexID w = ~0;
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(Packed pw = S[j]; pw; pw &= ~(Packed(1) << __builtin_ctzll(pw)))
+							for(Packed pw = S[j]; pw; pw &= ~(Packed(1) << PACKED_CTZ(pw)))
 							{
-								w = __builtin_ctzll(pw) + j * Packed_Bits;
+								w = PACKED_CTZ(pw) + j * Packed_Bits;
 								goto found_w;
 							}
 						}
 						found_w:;
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
-							for(Packed pz = graph.get_row(w)[j] & ~graph.get_row(x)[j]; pz; pz &= ~(Packed(1) << __builtin_ctzll(pz)))
+							for(Packed pz = graph.get_row(w)[j] & ~graph.get_row(x)[j]; pz; pz &= ~(Packed(1) << PACKED_CTZ(pz)))
 							{
-								VertexID z = __builtin_ctzll(pz) + j * Packed_Bits;
+								VertexID z = PACKED_CTZ(pz) + j * Packed_Bits;
 								if(z == x) {continue;}
 								std::vector<VertexID> problem{z, w, x, y};
 								//std::cout << "found " << +z << ' ' << +w << ' ' << +x << ' ' << +y << '\n';

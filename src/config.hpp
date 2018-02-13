@@ -13,6 +13,10 @@ using VertexID = uint8_t;
 using Packed = uint64_t;
 /* Numer of bits in Packed */
 constexpr size_t Packed_Bits = sizeof(Packed) * 8;
+/* Function counting trailing zero bits in Packed */
+#define PACKED_CTZ __builtin_ctzll
+/* Function counting number of set bits in Packed */
+#define PACKED_POP __builtin_popcountll
 
 #define MINIMAL
 
@@ -27,13 +31,13 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define CHOICES_LOWER_BOUND No, Basic
 #define CHOICES_GRAPH Matrix
 #else
-#define CHOICES_MODE Edit
+#define CHOICES_MODE Edit, Delete
 #define CHOICES_RESTRICTION Redundant
 #define CHOICES_CONVERSION Skip
 #define CHOICES_EDITOR MT
 #define CHOICES_HEURISTIC
 #define CHOICES_FINDER Center_4, Center_Edits_4, Center_Edits_Sparse_4, Center_5, Center_Edits_5, Center_Edits_Sparse_5
-#define CHOICES_SELECTOR Least, Single
+#define CHOICES_SELECTOR Least, Single, Most
 #define CHOICES_LOWER_BOUND No, Basic
 #define CHOICES_GRAPH Matrix
 #endif
