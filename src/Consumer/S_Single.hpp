@@ -150,7 +150,7 @@ namespace Consumer
 				mark_change--; edit_change--;// edited/marked subgraph no longer in bound
 				edit_change++;// spending an edit
 				mark_change++; edit_change++;
-				if(mark_change == -1) {abort();}
+				if(mark_change == ~0U) {abort();}
 
 				/* compare */
 				//std::cout << "current best: " << +m.best.changes.first << ", " << +m.best.changes.second << ": " << +m.best.edge.front() << " - " << +m.best.edge.back() << '\n';

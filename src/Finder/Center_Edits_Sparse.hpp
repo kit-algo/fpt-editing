@@ -107,6 +107,7 @@ namespace Finder
 				VertexID vf = __builtin_ctzll(curf) + i * Packed_Bits;
 				if(offered.has_edge(u, vf)) {return false;}
 				path[length / 2 - 1] = vf;
+				Packed vf_mask = ~((Packed(2) << __builtin_ctzll(curf)) - 1);
 
 				auto inner = [&](size_t const j, Packed const curb)
 				{
@@ -120,14 +121,14 @@ namespace Finder
 
 				for(size_t j = i; j < graph.get_row_length(); j++)
 				{
-					for(Packed curb = (j == i? curf & ~(Packed(1) << __builtin_ctzll(curf)) : graph.get_row(u)[j]) & edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
 					{
 						if(inner(j, curb)) {return true;}
 					}
 				}
 				for(size_t j = i; j < graph.get_row_length(); j++)
 				{
-					for(Packed curb = (j == i? curf & ~(Packed(1) << __builtin_ctzll(curf)) : graph.get_row(u)[j]) & ~edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
+					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & ~edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << __builtin_ctzll(curb)))
 					{
 						if(inner(j, curb)) {return true;}
 					}
