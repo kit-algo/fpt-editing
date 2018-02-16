@@ -1,0 +1,101 @@
+
+EDITOR
+Centerpiece tieing the other components together and implemtenting the main structure for FPT Edge Editing algorithms
+
+- Editor
+	Lets the finder enumerate forbidden subgraphs and gives them to the consumers.
+	Fetches and handles the results from the consumers.
+	All edges of the selected forbidden subgraph are edited and recursivly solved in turn.
+
+- MT
+	Multithreaded variant of Editor. All threads monitor the size of a shared work queue.
+	If the size falls below a threshold, a thread noticing this gives the unhandled parts of its initial recursion to the queue.
+
+FINDER
+Component that finds forbidden subgraphs.
+What is considered a forbidden subgraph is defined by the components themselves; currently either P4/C4 or P5/C5 as indicated by the number following the algorithm name.
+
+- Center (Center_4, Center_5)
+	Tries each edge (for Px/Cx, x even) resp. vertex (x odd) as the center of a forbidden subgraph.
+	The center is expanded by simultaniously adding an edge to both sides while maintaining that the subgraph is a path (thus transforming a Py to P(y+2)) until the desired length is reached.
+	In the last expansion it is allowed to transform the path (Py) into a cycle (C(y+2)) instead.
+
+- Center_Edits
+	Same as Center, but whenever given the choice between edited and unedited edges the edited edges are tried first.
+	The goal is to help greedy lower bound algorithms by finding largely edited forbidden subgraphs first.
+
+- Center_Edits_Sparse
+	Same as Center_Edits, but only finds forbidden subgraphs that have no overlap in unedited edges.
+	This allows skipping parts where found forbidden subgraphs will not benefit greedy lower bound algorithms.
+	As consequence, Center_Edits_Sparse will only find some but not all forbidden subgraphs
+
+
+CONSUMERS
+Components that use the forbidden subgraphs produced by a finder, split into three groups:
+* Selectors, choosing a forbidden subgraph for editing
+* Lower bound calculators
+* Others, that do not help the editor but produce some other result or statistic
+An algorithms may be part of multiple groups
+
+- Selectors
+	- First
+		Chooses the first forbidden subgraph found
+
+	- Least
+		Chooses the forbidden subgraph with the least amount of unedited edges
+
+	- Most
+		Chooses the unedited edge participating in most forbidden subgraphs
+
+- Lower bound calculators
+	- No
+		pseudo calculator; returns 1 if at least one forbidden subgraph was found
+
+	- Basic
+		Calculates a lower bound by collecting non-overlapping forbidden subgraphs; greedy
+
+- Selectors & Lower bound calculators
+	- Single
+		Lower bound calculation is identical to Basic
+		Tests for each unedited edge participating in the lower bound whether editing or marking it increases the lower bound.
+		Selects the edge with the highest increase.
+		If no such edge exits, falls back to the forbidden subgraph with the least amount of unedited edges
+
+- Other
+(currently none)
+
+
+GRAPHS
+Component that stores a graph
+
+- Matrix
+	Represents the graph as an adjecenzy matrix
+
+
+OPTIONS
+These are not algorithm choices, but instead define which edges are considered editable
+
+- MODES
+	- Edit
+		Both inserting and deleting edges are allowed
+	- Delete
+		Edges may only be deleted, not inserted
+	- Insert
+		Edges may only be inserted, not deleted
+
+- RESTRICTIONS
+	- None
+		None of the other restrictions apply
+	- Undo
+		Editing an edge that is currently considered edited (thus reverting or undoing the edit) is not allowed
+	- Redundant
+		Editing an edge that would lead to an already explored situation is forbidden
+
+- CONVERSIONs
+How is the editing an edge converting a Path to a Cycle and vice versa handled?
+	- Normal
+		No special treatment
+	- Last
+		All other edges of the forbidden subgraph are handled first
+	- Skip
+		The edge will not be edited

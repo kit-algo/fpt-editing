@@ -185,7 +185,6 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 		{
 #ifdef STATS
 			std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << '\n';
-			std::cout << "recursions:\n";
 			auto const &stats = editor.stats();
 			std::map<std::string, std::ostringstream> output;
 			{
@@ -197,13 +196,14 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 				{
 					output[stat.first] << std::setw(l) << stat.first << ':';
 				}
+				output["k"] << std::setw(l) << "k" << ':';
 			}
 			for(size_t j = 0; j <= k; j++)
 			{
-				size_t m = std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)
+				size_t m = std::max(j, std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)
 				{
 					return a.second[j] < b.second[j];
-				})->second[j];
+				})->second[j]);
 				size_t l = 0;
 				do
 				{
@@ -215,7 +215,9 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 				{
 					output[stat.first] << " " << std::setw(l) << +stat.second[j];
 				}
+				output["k"] << " " << std::setw(l) << +j;
 			}
+			std::cout << output["k"].str() << '\n';
 			for(auto const &stat: stats)
 			{
 				std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << '\n';
