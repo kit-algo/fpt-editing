@@ -3,6 +3,7 @@
 
 #include <assert.h>
 
+#include <stdexcept>
 #include <vector>
 
 #include "../config.hpp"
@@ -25,7 +26,7 @@ namespace Graph
 	public:
 		Matrix(VertexID n) : n(n), row_length(small? 1 : (n + Packed_Bits - 1) / Packed_Bits), matrix(n * row_length, 0)
 		{
-			if(small && n > Packed_Bits) {throw "Too many Vertices";}
+			if(small && n > Packed_Bits) {throw std::range_error("Too many Vertices");}
 		}
 
 		VertexID size() const
@@ -137,7 +138,7 @@ namespace Graph
 
 		static size_t get_row_length(VertexID graph_size)
 		{
-			if(small && graph_size > Packed_Bits) {throw "Too many Vertices";}
+			if(small && graph_size > Packed_Bits) {throw std::range_error("Too many Vertices");}
 			return small? 1 : (graph_size + Packed_Bits - 1) / Packed_Bits;
 		}
 
@@ -187,4 +188,4 @@ namespace Graph
 	};
 }
 
-#endif // GRAPH_MATRIX_HPP
+#endif

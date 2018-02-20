@@ -1,6 +1,8 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -11,6 +13,7 @@
 #include <iostream>
 #include <map>
 #include <numeric>
+#include <stdexcept>
 #include <set>
 #include <sstream>
 #include <string>
@@ -35,14 +38,12 @@ void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std
 		int pipefd[2];
 		if(pipe2(pipefd, O_NONBLOCK))
 		{
-			std::cerr << "pipe error" << std::endl;
-			abort();
+			throw std::runtime_error(std::string("pipe error: ") + strerror(errno));
 		}
 		int pid = fork();
 		if(pid < 0)
 		{
-			std::cerr << "fork error" << std::endl;
-			abort();
+			throw std::runtime_error(std::string("fork error: ") + strerror(errno));
 		}
 		else if(pid > 0)
 		{
@@ -55,7 +56,7 @@ void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std
 				char buf[4096];
 				ssize_t r = read(pipefd[0], buf, 4095);
 				if(r <= 0) {break;}
-				std::cout << std::string(buf, r);
+				std::cout << std::string(buf, r) << std::flush;
 
 				p = poll(&pfd, 1, options.time_max_hard * 1000) > 0;
 			}
@@ -63,7 +64,15 @@ void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std
 			{
 				//timeout
 				kill(pid, SIGKILL);
-				std::cout << std::flush << filename << ": (exact) " << name() << ": Timeout" << std::endl;
+				if(options.stats_json)
+				{
+					std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"results\":{\"error\":\"Timeout\"}},\n";
+				}
+				else
+				{
+					std::cout << filename << ": (exact) " << name() << ": Timeout" << std::endl;
+				}
+				std::cout << std::flush;
 			}
 			wait(NULL);
 		}
@@ -75,8 +84,7 @@ void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std
 			ssize_t r = readlink("/proc/self/exe", buf, 4095);
 			if(r <= 0)
 			{
-				std::cerr << "readlink error" << std::endl;
-				abort();
+				throw std::runtime_error(std::string("readlink error: ") + strerror(errno));
 			}
 			buf[r] = '\0';
 			//construct arguments
@@ -104,10 +112,8 @@ void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std
 			close(pipefd[1]);
 
 			execv(buf, (char * const *) argv);
-			std::cerr << "execv error" << std::endl;
-			abort();
+			throw std::runtime_error(std::string("execv error: ") + strerror(errno));
 		}
-
 	}
 }
 
@@ -178,49 +184,56 @@ void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::stri
 			}
 			json << '}';
 #endif
-			json << "}},";
-			std::cout << json.str() << std::endl;
+			json << "}},\n";
+			std::cout << json.str();
 		}
 		else
 		{
 #ifdef STATS
-			std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << '\n';
 			auto const &stats = editor.stats();
-			std::map<std::string, std::ostringstream> output;
+			if(!stats.empty())
 			{
-				size_t l = std::max_element(stats.begin(), stats.end(), [](auto const &a, auto const &b)
+				// print stats table with aligned columns
+				std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << '\n';
+				std::map<std::string, std::ostringstream> output;
 				{
-					return a.first.length() < b.first.length();
-				})->first.length();
+					// header cloumn: find longest name
+					size_t l = std::max_element(stats.begin(), stats.end(), [](auto const &a, auto const &b)
+					{
+						return a.first.length() < b.first.length();
+					})->first.length();
+					for(auto const &stat: stats)
+					{
+						output[stat.first] << std::setw(l) << stat.first << ':';
+					}
+					output["k"] << std::setw(l) << "k" << ':';
+				}
+				for(size_t j = 0; j <= k; j++)
+				{
+					// data columns: find largest number
+					size_t m = std::max(j, std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)
+					{
+						return a.second[j] < b.second[j];
+					})->second[j]);
+					// figure out charakters needed to print it [ ceil(log_10(m)) ]
+					size_t l = 0;
+					do
+					{
+						m /= 10;
+						l++;
+					}
+					while(m > 0);
+					for(auto const &stat: stats)
+					{
+						output[stat.first] << " " << std::setw(l) << +stat.second[j];
+					}
+					output["k"] << " " << std::setw(l) << +j;
+				}
+				std::cout << output["k"].str() << '\n';
 				for(auto const &stat: stats)
 				{
-					output[stat.first] << std::setw(l) << stat.first << ':';
+					std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << '\n';
 				}
-				output["k"] << std::setw(l) << "k" << ':';
-			}
-			for(size_t j = 0; j <= k; j++)
-			{
-				size_t m = std::max(j, std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)
-				{
-					return a.second[j] < b.second[j];
-				})->second[j]);
-				size_t l = 0;
-				do
-				{
-					m /= 10;
-					l++;
-				}
-				while(m > 0);
-				for(auto const &stat: stats)
-				{
-					output[stat.first] << " " << std::setw(l) << +stat.second[j];
-				}
-				output["k"] << " " << std::setw(l) << +j;
-			}
-			std::cout << output["k"].str() << '\n';
-			for(auto const &stat: stats)
-			{
-				std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << '\n';
 			}
 #endif
 			std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved ? "yes" : "no") << " [" << time_passed << "s]" << std::endl;

@@ -15,8 +15,7 @@ uint64_t Graph::get_size(std::string const &filename)
 
 	if(!f)
 	{
-		std::cerr << "Error opening file: " << filename << std::endl;
-		throw f;
+		throw std::runtime_error(std::string("Error opening file: ") + filename);
 	}
 
 	while(std::getline(f, line))
@@ -25,8 +24,7 @@ uint64_t Graph::get_size(std::string const &filename)
 	}
 	if(!f)
 	{
-		std::cerr << "Premature end of file: " << filename << std::endl;
-		throw f;
+		throw std::runtime_error(std::string("Premature end of file: ") + filename);
 	}
 
 	uint64_t n;

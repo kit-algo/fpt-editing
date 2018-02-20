@@ -7,6 +7,7 @@
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <stdexcept>
 
 #include "../config.hpp"
 
@@ -25,8 +26,7 @@ namespace Graph
 
 		if(!f)
 		{
-			std::cerr << "Error opening file: " << filename << std::endl;
-			throw f;
+			throw std::runtime_error(std::string("Error opening file: ") + filename);
 		}
 
 		while(std::getline(f, line))
@@ -35,8 +35,7 @@ namespace Graph
 		}
 		if(!f)
 		{
-			std::cerr << "Premature end of file: " << filename << std::endl;
-			throw f;
+			throw std::runtime_error(std::string("Premature end of file: ") + filename);
 		}
 
 		uint64_t n, ignored, fmt = 0, vertexweights = 0;
@@ -55,8 +54,7 @@ namespace Graph
 
 		if(n > std::numeric_limits<VertexID>::max())
 		{
-			std::cerr << "graph has too many vertices: " << filename << std::endl;;
-			throw f;
+			throw std::range_error(std::string("Graph has too many vertices: ") + filename);
 		}
 
 		Graph g(n);
@@ -90,11 +88,10 @@ namespace Graph
 		std::ofstream f(filename);
 		if(!f)
 		{
-			std::cerr << "Error opening file: " << filename << std::endl;
-			throw f;
+			throw std::runtime_error(std::string("Error opening file: ") + filename);
 		}
 
-		f << +g.size() << " " << g.count_edges() << '\n';
+		f << +g.size() << " " << +g.count_edges() << '\n';
 		for(VertexID u = 0; u < g.size(); u++)
 		{
 			bool first = true;
@@ -116,8 +113,7 @@ namespace Graph
 		std::ofstream f(filename);
 		if(!f)
 		{
-			std::cerr << "Error opening file: " << filename << std::endl;
-			throw f;
+			throw std::runtime_error(std::string("Error opening file: ") + filename);
 		}
 		f << "graph {\n";
 		for(VertexID u = 0; u < g.size(); u++)
@@ -143,8 +139,7 @@ namespace Graph
 		std::ofstream f(filename);
 		if(!f)
 		{
-			std::cerr << "Error opening file " << filename << std::endl;
-			throw f;
+			throw std::runtime_error(std::string("Error opening file: ") + filename);
 		}
 
 		f << "graph {\n";
