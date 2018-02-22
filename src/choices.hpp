@@ -5,7 +5,7 @@
 
 /* List of all includes providing implementations for selectable components */
 
-#include "Editor/Editor.hpp"
+#include "Editor/ST.hpp"
 #include "Editor/MT.hpp"
 #include "Finder/Center.hpp"
 #include "Finder/Center_Edits.hpp"

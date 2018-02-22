@@ -1,3 +1,6 @@
+#ifndef RUN_HPP
+#define RUN_HPP
+
 #include <map>
 #include <set>
 #include <string>
@@ -14,20 +17,25 @@ struct CMDOptions {
 	size_t time_max = 0;
 	size_t time_max_hard = 0;
 	size_t threads = 1;
+	size_t repeats = 0;
+	size_t repeat_time = 0;
 	// output options
 	bool no_write = false;
 	bool stats_json = false;
-	// combinations
-	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::string>>>>>>>> combinations_edit;
-	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::string>>>>>>>> combinations_heur;
+	// misc
+	bool do_warmup = false;
+	// combinations: e/h - M - R - C - f - g - c...
+	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::set<std::string>>>>>>>> combinations_edit;
+	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::set<std::string>>>>>>>> combinations_heur;
 	// graphs
 	std::vector<std::string> filenames;
 };
 
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename E, template<typename, typename> typename F, template<bool> typename G, template<bool> typename GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename> typename... Con>
 struct Run
 {
-	static void run_watch(CMDOptions const &options, std::string const &filename);
 	static void run(CMDOptions const &options, std::string const &filename);
 	static constexpr std::string name();
 };
+
+#endif

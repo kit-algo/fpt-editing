@@ -6,6 +6,9 @@ Generates files for instanziating and selecting all combinations of components a
 if the preprocessor would support loops or proper recursion this would be unneeded (preprocessor libraries like P99 or BOOST_PP don't suffice)
 """
 
+from collections import Iterable
+from pathlib import Path
+import itertools
 import sys
 
 need = {}
@@ -26,41 +29,67 @@ for line in sys.stdin:
 collected = set()
 for gen, arguments in need.items():
 	for arg in arguments:
+		if arg.endswith('...'):
+			arg = arg[:-3]
 		if not arg in collected:
 			if not arg in lists:
 				print("no definition for", "CHOICES_" + arg, "found, needed because of", "LIST_CHOICES_" + gen, file = sys.stderr)
 				raise SystemExit
-			print("#define GENERATED_CHOICES_", arg, ' "', '", "'.join(lists[arg]), '"', sep = "")
+			print("#define GENERATED_CHOICES_", arg, " ", ', '.join('"' + e + '"' for e in lists[arg]), sep = "")
 			collected.add(arg)
 print()
 
-def combinations(filename, templatefile, template, filelist, includelist, remaining, generated):
-	if not remaining:
-		tf = open(templatefile, "r")
-		template_text = tf.read()
-		tf.close()
-		for g in generated:
-			print(template.format(*g))
-			fn = filename.format(*g)
-			filelist.write("\t" + fn.replace(".cpp", ".o") + " \\\n")
-			includelist.write("-include " + fn.replace(".cpp", ".d") + "\n")
-			with open(fn, "w") as of:
-				of.write(template_text.format(*g))
-	else:
-		if not lists[remaining[0]]:
-			return
-		if not generated:
-			combinations(filename, templatefile, template, filelist, includelist, remaining[1:], [[b] for b in lists[remaining[0]]])
-		else:
-			combinations(filename, templatefile, template, filelist, includelist, remaining[1:], [a + [b] for a in generated for b in lists[remaining[0]]])
+def build_combinations(components):
+	r = []
+	for i in range(len(components) + 1):
+		r += [x for x in itertools.combinations(components, i)]
+	return r
 
+class Formatter:
+	"""
+	formats an iterable into a string
+
+	uses format specifier <delimiter><glue><delimiter><text>
+	<delimiter> must be a single character
+	expands into <text><glue><text><glue>...<glue><text> with one occurence of <text> for each element in the iterable (like str.join)
+	occurences of <delimiter> within <text> are replaced with the current element of the iterable
+	"""
+	def __init__(self, data):
+		self.data = data
+
+	def __format__(self, format):
+		delim = format[0]
+		glue, content = format[1:].split(delim, 1)
+		content = content.replace(delim, "{0}")
+		return glue.join(content.format(x) for x in self.data)
+
+def format_args(args):
+	return [Formatter(x) if isinstance(x, Iterable) and not isinstance(x, (str, bytes)) else x for x in args]
+
+# read template files
+template_compare_text = open("src/generator_template_compare.tpp", "r").read()
+template_instantiation_text = open("src/generator_template_instantiation.tpp", "r").read()
+
+# prepare output
+bg = Path("build/generated")
+for f in bg.glob("run-*"):
+	f.unlink()
+filelist = open("build/generated/list.d", "w")
+includelist = open("build/generated/generated.d", "w")
+
+filelist.write("$(TARGET): \\\n")
+
+# generate
 for macro, arguments in need.items():
 	print("#define GENERATED_RUN_", macro, " \\", sep = "")
-	template = "RUN(" + ", ".join(["{}"] * len(arguments)) + ") \\"
-	filename = "build/generated/run-" + "-".join(["{}"] * len(arguments)) + ".cpp"
-	with open("build/generated/list.d", "w") as filelist:
-		with open("build/generated/generated.d", "w") as includelist:
-			filelist.write("$(TARGET): \\\n")
-			combinations(filename, "src/generator_template.tpp", template, filelist, includelist, arguments, [])
-			filelist.write("\n")
-	print("\n\n")
+	using = [build_combinations(lists[component[:-3]]) if component.endswith('...') else lists[component] for component in arguments]
+	for combination in itertools.product(*using):
+		print(template_compare_text.format(*format_args(combination)).replace('=(=', '{').replace('=)=', '}'), end = "")
+		filename = "build/generated/run-{0}-{1}-{2}-{3}-{4}-{5}-{6}-{7}-{8}".format(macro, *format_args(combination))
+		with open(filename + ".cpp", "a") as of:
+			of.write(template_instantiation_text.format(*format_args(combination)))
+		filelist.write("\t" + filename + ".o \\\n")
+		includelist.write("-include " + filename + ".d\n")
+	print()
+
+filelist.write("\n")

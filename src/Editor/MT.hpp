@@ -20,6 +20,7 @@
 
 #include "../config.hpp"
 
+#include "Editor.hpp"
 #include "../util.hpp"
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
@@ -31,7 +32,7 @@ namespace Editor
 	{
 	public:
 		static constexpr char const *name = "MT";
-		static constexpr bool valid = Options::has_tagged_consumer<Options::Tag::Selector, Consumer...>::value && Options::has_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value;
+		static_assert(Consumer_valid<Consumer...>::value, "Missing Selector and/or Lower_Bound");
 
 		static constexpr size_t selector = Options::get_tagged_consumer<Options::Tag::Selector, Consumer...>::value;
 		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value;
@@ -99,6 +100,7 @@ namespace Editor
 				workers.emplace_back(*this, finder, consumer);
 			}
 
+			available_work.clear();
 			available_work.push_back(std::make_unique<Work>(graph, Graph_Edits(graph.size()), k));
 			working = threads;
 			std::vector<std::thread> work_threads;

@@ -1,3 +1,6 @@
+#ifndef RUN_IMPL_HPP
+#define RUN_IMPL_HPP
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -21,245 +24,349 @@
 
 #include "config.hpp"
 
-#include "Consumer/Counter.hpp"
-
 #include "Run.hpp"
 #include "Options.hpp"
 #include "util.hpp"
 
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
-void Run<E, F, G, GE, M, R, C, Con...>::run_watch(CMDOptions const &options, std::string const &filename)
+#include "Editor/Editor.hpp"
+#include "Consumer/S_Single.hpp"
+
+/* Helper template to remove Consumers without effect */
+template<bool S, bool LB, typename... TCon>
+struct Minimize_impl;
+
+template<bool S, bool LB, typename... T>
+struct Minimize_impl<S, LB, std::tuple<T...>>
 {
-	if(!options.time_max_hard) {run(options, filename);}
-	else
-	{
-		// running with hard time limit
-		// run experiment in child, kill it time_max_hard seconds after last output
-		int pipefd[2];
-		if(pipe2(pipefd, O_NONBLOCK))
-		{
-			throw std::runtime_error(std::string("pipe error: ") + strerror(errno));
-		}
-		int pid = fork();
-		if(pid < 0)
-		{
-			throw std::runtime_error(std::string("fork error: ") + strerror(errno));
-		}
-		else if(pid > 0)
-		{
-			//parent
-			close(pipefd[1]);
-			struct pollfd pfd = {pipefd[0], POLLIN, 0};
-			int p = poll(&pfd, 1, options.time_max_hard * 1000) > 0;
-			while(p > 0)
-			{
-				char buf[4096];
-				ssize_t r = read(pipefd[0], buf, 4095);
-				if(r <= 0) {break;}
-				std::cout << std::string(buf, r) << std::flush;
+	using type = std::tuple<T...>;
+};
 
-				p = poll(&pfd, 1, options.time_max_hard * 1000) > 0;
-			}
-			if(p == 0)
-			{
-				//timeout
-				kill(pid, SIGKILL);
-				if(options.stats_json)
-				{
-					std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"results\":{\"error\":\"Timeout\"}},\n";
-				}
-				else
-				{
-					std::cout << filename << ": (exact) " << name() << ": Timeout" << std::endl;
-				}
-				std::cout << std::flush;
-			}
-			wait(NULL);
-		}
-		else
-		{
-			//child
-			//find binary
-			char buf[4096];
-			ssize_t r = readlink("/proc/self/exe", buf, 4095);
-			if(r <= 0)
-			{
-				throw std::runtime_error(std::string("readlink error: ") + strerror(errno));
-			}
-			buf[r] = '\0';
-			//construct arguments
-			std::string k = std::to_string(options.k_min);
-			std::string K = std::to_string(options.k_max);
-			std::string t = std::to_string(std::min(options.time_max, options.time_max_hard));
-			std::string j = std::to_string(options.threads);
-
-			std::string boolopts = "-_";
-			if(options.all_solutions) {boolopts.push_back('a');}
-			if(options.no_write) {boolopts.push_back('W');}
-			if(options.stats_json) {boolopts.push_back('J');}
-
-			char const *editheur = "-e"; //std::is_base_of<Editor::is_editor, E>::value? "-e" : "-h";
-			char const *argv[] = {buf,
-				"-k", k.data(), "-K", K.data(), "-t", t.data(), "-j", j.data(), boolopts.data(),
-				"-M", M::name, "-R", R::name, "-C", C::name,
-				editheur, E::name, "-f", F::name, "-s", E::Selector_type::name, "-b", E::Lower_Bound_type::name, "-g", G::name,
-				filename.data(), NULL
-			};
-
-			//redirect stdout
-			close(pipefd[0]);
-			dup2(pipefd[1], 1);
-			close(pipefd[1]);
-
-			execv(buf, (char * const *) argv);
-			throw std::runtime_error(std::string("execv error: ") + strerror(errno));
-		}
-	}
-}
-
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
-void Run<E, F, G, GE, M, R, C, Con...>::run(CMDOptions const &options, std::string const &filename)
+template<bool S, bool LB, typename... T, typename C, typename... Con>
+struct Minimize_impl<S, LB, std::tuple<T...>, C, Con...>
 {
-	G graph = Graph::readMetis<G>(filename);
-	Graph::writeDot(filename + ".gv", graph);
-	G g_orig = graph;
+private:
+	static constexpr bool is_selector = std::is_base_of<Options::Tag::Selector, C>::value;
+	static constexpr bool is_lower_bound = std::is_base_of<Options::Tag::Lower_Bound, C>::value;
+	static constexpr bool is_result = std::is_base_of<Options::Tag::Result, C>::value;
 
-	F finder(graph.size());
-	std::tuple<Con...> consumer{Con(graph.size())...};
-	std::tuple<Con &...> consumer_ref = Util::MakeTupleRef(consumer);
-	E editor(finder, graph, consumer_ref, options.threads);
+public:
+	using type = typename std::conditional<!S && is_selector,
+				typename std::conditional<!LB && is_lower_bound,
+					typename Minimize_impl<true, true, std::tuple<T..., C>, Con...>::type,
+					typename Minimize_impl<true, LB, std::tuple<T..., C>, Con...>::type
+				>::type,
+				typename std::conditional<!LB && is_lower_bound,
+					typename Minimize_impl<S, true, std::tuple<T..., C>, Con...>::type,
+					typename std::conditional<is_result,
+						typename Minimize_impl<S, LB, std::tuple<T..., C>, Con...>::type,
+						typename Minimize_impl<S, LB, std::tuple<T...>, Con...>::type
+					>::type
+				>::type
+	>::type;
+};
 
-	// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
-	Consumer::Counter<G, GE, M, R, C> counter(graph.size());
-	Finder::Feeder<F, G, GE, typename E::Lower_Bound_type, decltype(counter)> feeder(finder, std::get<E::lb>(consumer), counter);
-	feeder.feed(0, graph, GE(graph.size()));
-	size_t bound = std::get<E::lb>(consumer).result(0, graph, GE(graph.size()), Options::Tag::Lower_Bound());
+/* Helper template to remove Consumers without effect
+ * i.e. Consumers tagged as Selector or Lower_Bound beyond the first unless they are also tagged Result
+ */
+template<typename... Con>
+struct Minimize
+{
+	using type = typename Minimize_impl<false, false, std::tuple<>, Con...>::type;
+};
 
-	//finder.recalculate();
-	for(size_t k = std::max(bound, options.k_min); !options.k_max || k <= options.k_max; k++)
-	{
-		std::chrono::steady_clock::time_point t1, t2;
-		size_t writecount = 0;
-		auto writegraph = [&](G const &graph, GE const &edited) -> bool
-		{
-			if(!options.no_write)
-			{
-				std::ostringstream fname;
-				fname << filename << ".e." << name() << ".k" << k << ".w" << writecount;
-				Graph::writeMetis(fname.str(), graph);
-				Graph::writeDot(fname.str() + ".gv", graph);
-				Graph::writeMetis(fname.str() + ".edits", edited);
-				Graph::writeDot(fname.str() + ".edits.gv", edited);
-				Graph::writeDotCombined(fname.str() + ".combined.gv", graph, edited, g_orig);
-			}
-			writecount++;
-			return options.all_solutions;
-		};
-
-		t1 = std::chrono::steady_clock::now();
-		bool solved = editor.edit(k, writegraph);
-		t2 = std::chrono::steady_clock::now();
-		double time_passed = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count();
-
-		if(options.stats_json)
-		{
-			std::ostringstream json;
-			json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"k\":" << k << ",";
-			json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed;
-#ifdef STATS
-			json << ",\"counters\":{";
-			auto const stats = editor.stats();
-			bool first_stat = true;
-			for(auto stat : stats)
-			{
-				json << (first_stat? "" : ",") << "\"" << stat.first << "\":[";
-				first_stat = false;
-				bool first_value = true;
-				for(auto value : stat.second)
-				{
-					json << (first_value? "" : ",") << +value;
-					first_value = false;
-				}
-				json << ']';
-			}
-			json << '}';
-#endif
-			json << "}},\n";
-			std::cout << json.str();
-		}
-		else
-		{
-#ifdef STATS
-			auto const &stats = editor.stats();
-			if(!stats.empty())
-			{
-				// print stats table with aligned columns
-				std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << '\n';
-				std::map<std::string, std::ostringstream> output;
-				{
-					// header cloumn: find longest name
-					size_t l = std::max_element(stats.begin(), stats.end(), [](auto const &a, auto const &b)
-					{
-						return a.first.length() < b.first.length();
-					})->first.length();
-					for(auto const &stat: stats)
-					{
-						output[stat.first] << std::setw(l) << stat.first << ':';
-					}
-					output["k"] << std::setw(l) << "k" << ':';
-				}
-				for(size_t j = 0; j <= k; j++)
-				{
-					// data columns: find largest number
-					size_t m = std::max(j, std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)
-					{
-						return a.second[j] < b.second[j];
-					})->second[j]);
-					// figure out charakters needed to print it [ ceil(log_10(m)) ]
-					size_t l = 0;
-					do
-					{
-						m /= 10;
-						l++;
-					}
-					while(m > 0);
-					for(auto const &stat: stats)
-					{
-						output[stat.first] << " " << std::setw(l) << +stat.second[j];
-					}
-					output["k"] << " " << std::setw(l) << +j;
-				}
-				std::cout << output["k"].str() << '\n';
-				for(auto const &stat: stats)
-				{
-					std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << '\n';
-				}
-			}
-#endif
-			std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved ? "yes" : "no") << " [" << time_passed << "s]" << std::endl;
-			if(solved && options.all_solutions)
-			{
-				std::cout << writecount << " solutions" << std::endl;
-			}
-		}
-		if(solved || (options.time_max && time_passed >= options.time_max)) {break;}
-	}
-}
-
+/* Helper template to create a name from the individual components */
 template<typename C, typename... Con>
 struct Namer
 {
 	static constexpr std::string name() {return (std::string(C::name) + ... + (std::string("-") + Con::name));}
 };
 
+/* Helper template to create a name from the individual components */
 template<typename C>
 struct Namer<C>
 {
 	static constexpr std::string name() {return C::name;}
 };
 
-template<typename E, typename F, typename G, typename GE, typename M, typename R, typename C, typename... Con>
-constexpr std::string Run<E, F, G, GE, M, R, C, Con...>::name()
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, typename TCon>
+struct Run_impl;
+
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename> typename... Con>
+struct Run_impl<_E, _F, _G, _GE, small, M, R, C, std::tuple<Con<_G<small>, _GE<small>, M, R, C>...>>
 {
-	return Namer<E, M, R, C, F, Con..., G>::name();
+private:
+	using G = _G<small>;
+	using GE = _GE<small>;
+	using F = _F<G, GE>;
+	static constexpr bool valid = Editor::Consumer_valid<Con<G, GE, M, R, C>...>::value;
+
+public:
+	template<bool v = valid>
+	static typename std::enable_if<!v, void>::type run_watch(CMDOptions const &options, std::string const &filename)
+	{
+		if(options.stats_json)
+		{
+			std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"results\":{\"error\":\"Missing components\"}},\n";
+		}
+		else
+		{
+			std::cout << filename << ": (exact) " << name() << ": Missing Components" << std::endl;
+		}
+		std::cout << std::flush;
+	}
+
+	template<bool v = valid>
+	static typename std::enable_if<v, void>::type run_watch(CMDOptions const &options, std::string const &filename)
+	{
+		if(!options.time_max_hard) {run_nowatch(options, filename);}
+		else
+		{
+			// running with hard time limit
+			// run experiment in child, kill it time_max_hard seconds after last output
+			int pipefd[2];
+			if(pipe2(pipefd, O_NONBLOCK))
+			{
+				throw std::runtime_error(std::string("pipe error: ") + strerror(errno));
+			}
+			int pid = fork();
+			if(pid < 0)
+			{
+				throw std::runtime_error(std::string("fork error: ") + strerror(errno));
+			}
+			else if(pid > 0)
+			{
+				// parent
+				close(pipefd[1]);
+				struct pollfd pfd = {pipefd[0], POLLIN, 0};
+				int p = poll(&pfd, 1, options.time_max_hard * 1000) > 0;
+				while(p > 0)
+				{
+					char buf[4096];
+					ssize_t r = read(pipefd[0], buf, 4095);
+					if(r <= 0) {break;}
+					std::cout << std::string(buf, r) << std::flush;
+
+					p = poll(&pfd, 1, options.time_max_hard * 1000) > 0;
+				}
+				if(p == 0)
+				{
+					// timeout
+					kill(pid, SIGKILL);
+					if(options.stats_json)
+					{
+						std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"results\":{\"error\":\"Timeout\"}},\n";
+					}
+					else
+					{
+						std::cout << filename << ": (exact) " << name() << ": Timeout" << std::endl;
+					}
+					std::cout << std::flush;
+				}
+				wait(NULL);
+			}
+			else
+			{
+				// child
+				// redirect stdout
+				close(pipefd[0]);
+				dup2(pipefd[1], 1);
+				close(pipefd[1]);
+
+				run_nowatch(options, filename);
+			}
+		}
+	}
+
+	static void run_nowatch(CMDOptions const &options, std::string const &filename)
+	{
+		using E = _E<F, G, GE, M, R, C, Con<G, GE, M, R, C>...>;
+
+		G graph = Graph::readMetis<G>(filename);
+		Graph::writeDot(filename + ".gv", graph);
+		G g_orig = graph;
+		GE edited(graph.size());
+
+		F finder(graph.size());
+		std::tuple<Con<G, GE, M, R, C>...> consumer{Con<G, GE, M, R, C>(graph.size())...};
+		std::tuple<Con<G, GE, M, R, C> &...> consumer_ref = Util::MakeTupleRef(consumer);
+		E editor(finder, graph, consumer_ref, options.threads);
+
+		// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
+		Finder::Feeder<F, G, GE, typename E::Lower_Bound_type> feeder(finder, std::get<E::lb>(consumer));
+		feeder.feed(0, graph, edited);
+		size_t bound = std::get<E::lb>(consumer).result(0, graph, edited, Options::Tag::Lower_Bound());
+
+		// warmup
+		if(options.do_warmup)
+		{
+			/* CPUs are weird...
+			 * executing dry runs or even NOPs(!) for a few seconds reduces the running time significantly
+			 */
+			std::chrono::steady_clock::duration repeat_total_time(0);
+			do
+			{
+				std::chrono::steady_clock::time_point t1, t2;
+				auto writegraph = [](G const &, GE const &) -> bool
+				{
+					return true;
+				};
+				t1 = std::chrono::steady_clock::now();
+				editor.edit(bound, writegraph);
+				t2 = std::chrono::steady_clock::now();
+				auto time_passed = t2 - t1;
+				repeat_total_time += time_passed;
+			} while(std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < 5);
+		}
+
+		// actual experiment
+		for(size_t k = std::max(bound, options.k_min); !options.k_max || k <= options.k_max; k++)
+		{
+			bool repeat_solved = false;
+			size_t repeat_n = 0;
+			double repeat_max_time = 0;
+			std::chrono::steady_clock::duration repeat_total_time(0);
+			do
+			{
+				std::chrono::steady_clock::time_point t1, t2;
+				size_t writecount = 0;
+				auto writegraph = [&](G const &graph, GE const &edited) -> bool
+				{
+					if(!options.no_write)
+					{
+						std::ostringstream fname;
+						fname << filename << ".e." << name() << ".k" << k << ".w" << writecount;
+						Graph::writeMetis(fname.str(), graph);
+						Graph::writeDot(fname.str() + ".gv", graph);
+						Graph::writeMetis(fname.str() + ".edits", edited);
+						Graph::writeDot(fname.str() + ".edits.gv", edited);
+						Graph::writeDotCombined(fname.str() + ".combined.gv", graph, edited, g_orig);
+					}
+					writecount++;
+					return options.all_solutions;
+				};
+
+				graph = g_orig;
+				edited.clear();
+				t1 = std::chrono::steady_clock::now();
+				bool solved = editor.edit(k, writegraph);
+				t2 = std::chrono::steady_clock::now();
+				auto time_passed = t2 - t1;
+				double time_passed_print = std::chrono::duration_cast<std::chrono::duration<double>>(time_passed).count();
+				repeat_max_time = std::max(repeat_max_time, time_passed_print);
+				repeat_solved |= solved;
+
+				if(options.stats_json)
+				{
+					std::ostringstream json;
+					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"k\":" << k << ",";
+					json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed_print;
+#ifdef STATS
+					json << ",\"counters\":{";
+					auto const stats = editor.stats();
+					bool first_stat = true;
+					for(auto stat : stats)
+					{
+						json << (first_stat? "" : ",") << "\"" << stat.first << "\":[";
+						first_stat = false;
+						bool first_value = true;
+						for(auto value : stat.second)
+						{
+							json << (first_value? "" : ",") << +value;
+							first_value = false;
+						}
+						json << ']';
+					}
+					json << '}';
+#endif
+					json << "}},\n";
+					std::cout << json.str();
+				}
+				else
+				{
+#ifdef STATS
+					auto const &stats = editor.stats();
+					if(!stats.empty())
+					{
+						// print stats table with aligned columns
+						std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << '\n';
+						std::map<std::string, std::ostringstream> output;
+						{
+							// header cloumn: find longest name
+							size_t l = std::max_element(stats.begin(), stats.end(), [](auto const &a, auto const &b)
+							{
+								return a.first.length() < b.first.length();
+							})->first.length();
+							for(auto const &stat: stats)
+							{
+								output[stat.first] << std::setw(l) << stat.first << ':';
+							}
+							output["k"] << std::setw(l) << "k" << ':';
+						}
+						for(size_t j = 0; j <= k; j++)
+						{
+							// data columns: find largest number
+							size_t m = std::max(j, std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)
+							{
+								return a.second[j] < b.second[j];
+							})->second[j]);
+							// figure out charakters needed to print it [ ceil(log_10(m)) ]
+							size_t l = 0;
+							do
+							{
+								m /= 10;
+								l++;
+							}
+							while(m > 0);
+							for(auto const &stat: stats)
+							{
+								output[stat.first] << " " << std::setw(l) << +stat.second[j];
+							}
+							output["k"] << " " << std::setw(l) << +j;
+						}
+						std::cout << output["k"].str() << '\n';
+						for(auto const &stat: stats)
+						{
+							std::cout << output[stat.first].str() << ", total: " << +std::accumulate(stat.second.begin(), stat.second.end(), 0) << '\n';
+						}
+					}
+#endif
+					std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]" << std::endl;
+					if(solved && options.all_solutions)
+					{
+						std::cout << writecount << " solutions" << std::endl;
+					}
+				}
+				repeat_n++;
+				repeat_total_time += time_passed;
+			} while(repeat_n < options.repeats || std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < options.repeat_time);
+			if(repeat_solved || (options.time_max && repeat_max_time >= options.time_max)) {break;}
+		}
+	}
+
+	static constexpr std::string name()
+	{
+		/* Editor must be valid to be able to access Editor::name */
+		using E = _E<F, G, GE, M, R, C, Consumer::Single<G, GE, M, R, C>>;
+		return Namer<E, M, R, C, F, Con<G, GE, M, R, C>..., G>::name();
+	}
+};
+
+
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename> typename... Con>
+void Run<_E, _F, _G, _GE, small, M, R, C, Con...>::run(CMDOptions const &options, std::string const &filename)
+{
+	using G = _G<small>;
+	using GE = _GE<small>;
+
+	Run_impl<_E, _F, _G, _GE, small, M, R, C, typename Minimize<Con<G, GE, M, R, C>...>::type>::run_watch(options, filename);
 }
+
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename> typename... Con>
+constexpr std::string Run<_E, _F, _G, _GE, small, M, R, C, Con...>::name()
+{
+	using G = _G<small>;
+	using GE = _GE<small>;
+	return Run_impl<_E, _F, _G, _GE, small, M, R, C, typename Minimize<Con<G, GE, M, R, C>...>::type>::name();
+}
+
+#endif

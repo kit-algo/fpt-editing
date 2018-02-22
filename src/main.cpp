@@ -16,62 +16,23 @@
 #include "choices.hpp"
 #include "../build/choices.i" // provides GENERATED_* macros, generated during build process
 
-#define STR2(x) #x
-#define STR(x) STR2(x)
-
 void run(CMDOptions const &options)
 {
-#define RUN_G(VAR, NS, CLASS, FINDER, SELECTOR, LOWER_BOUND, GRAPH, GRAPH_EDITS, MODE, RESTRICTION, CONVERSION) \
-			else if(VAR == STR(CLASS) && fi == STR(FINDER) && se == STR(SELECTOR) && lb == STR(LOWER_BOUND) && gr == STR(GRAPH) && mo == STR(MODE) && re == STR(RESTRICTION) && co == STR(CONVERSION)) \
-			{ \
-				using M = Options::Modes::MODE; \
-				using R = Options::Restrictions::RESTRICTION; \
-				using C = Options::Conversions::CONVERSION; \
-				if(gs <= Packed_Bits) \
-				{ \
-					using G = Graph::GRAPH<true>; \
-					using GE = Graph::GRAPH_EDITS<true>; \
-					using F = Finder::FINDER<G, GE>; \
-					using S = Consumer::SELECTOR<G, GE, M, R, C>; \
-					using B = Consumer::LOWER_BOUND<G, GE, M, R, C>; \
-					using E = NS::CLASS<F, G, GE, M, R, C, S, B>; \
-					Run<E, F, G, GE, M, R, C, S, B>::run_watch(options, filename); \
-				} \
-				else \
-				{ \
-					using G = Graph::GRAPH<false>; \
-					using GE = Graph::GRAPH_EDITS<false>; \
-					using F = Finder::FINDER<G, GE>; \
-					using S = Consumer::SELECTOR<G, GE, M, R, C>; \
-					using B = Consumer::LOWER_BOUND<G, GE, M, R, C>; \
-					using E = NS::CLASS<F, G, GE, M, R, C, S, B>; \
-					Run<E, F, G, GE, M, R, C, S, B>::run_watch(options, filename); \
-				} \
-			}
-
-	for(auto const &filename: options.filenames)
+	for(auto const &filename : options.filenames)
 	{
-		size_t gs = Graph::get_size(filename);
-
-#define RUN(EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH, MODE, RESTRICTION, CONVERSION) RUN_G(ed, Editor, EDITOR, FINDER, SELECTOR, LOWER_BOUND, GRAPH, Matrix, MODE, RESTRICTION, CONVERSION)
-
-		for(auto const &x: options.combinations_edit) for(auto const &ox: x.second) for(auto const &oy: ox.second) for(auto const &oz: oy.second) for(auto const &y: oz.second) for(auto const &z: y.second) for(auto const &zz: z.second) for(auto const &gr: zz.second)
-		{{{
-			auto const &ed = x.first;
-			auto const &mo = ox.first;
-			auto const &re = oy.first;
-			auto const &co = oz.first;
-			auto const &fi = y.first;
-			auto const &se = z.first;
-			auto const &lb = zz.first;
-
-			if(false) {;}
+		size_t graph_size = Graph::get_size(filename);
+		for(auto const &e: options.combinations_edit) for(auto const &m: e.second) for(auto const &r: m.second) for(auto const &c: r.second) for(auto const &f: c.second) for(auto const &g: f.second) for(auto const &consumers: g.second)
+		{{
+			auto const &editor = e.first;
+			auto const &mode = m.first;
+			auto const &restriction = r.first;
+			auto const &conversion = c.first;
+			auto const &finder = f.first;
+			auto const &graph = g.first;
+			if(false) {;} // macro starts with "else if"
 			GENERATED_RUN_EDITOR
-		}}}
-#undef RUN
-#undef RUN_G
+		}}
 	}
-	return;
 }
 
 int main(int argc, char *argv[])
@@ -89,9 +50,13 @@ int main(int argc, char *argv[])
 		{"time", required_argument, NULL, 't'},
 		{"time-hard", required_argument, NULL, 'T'},
 		{"threads", required_argument, NULL, 'j'},
+		{"repeat", required_argument, NULL, 'n'},
+		{"repeat-time", required_argument, NULL, 'N'},
 		// output
 		{"no-write", no_argument, NULL, 'W'},
 		{"json", no_argument, NULL, 'J'},
+		// misc
+		{"warmup", no_argument, NULL, 'D'},
 
 		// combinations
 		{"{", no_argument, NULL, '{'},
@@ -103,13 +68,12 @@ int main(int argc, char *argv[])
 		{"editor", required_argument, NULL, 'e'},
 		{"heuristic", required_argument, NULL, 'h'},
 		{"finder", required_argument, NULL, 'f'},
-		{"selector", required_argument, NULL, 's'},
-		{"lower_bound", required_argument, NULL, 'b'},
+		{"consumer", required_argument, NULL, 'c'},
 		{"graph", required_argument, NULL, 'g'},
 
 		{NULL, 0, NULL, 0}
 	};
-	char const *shortopts = "?k:K:at:T:j:WSJ{}M:R:C:e:h:f:s:b:g:_";
+	char const *shortopts = "?k:K:at:T:j:n:N:WSJD{}M:R:C:e:h:f:c:g:_";
 
 	CMDOptions options;
 	bool usage = false;
@@ -132,8 +96,7 @@ int main(int argc, char *argv[])
 		{"editors", {'e', {GENERATED_CHOICES_EDITOR}}},
 		{"heuristics", {'h', {GENERATED_CHOICES_HEURISTIC}}},
 		{"finders", {'f', {GENERATED_CHOICES_FINDER}}},
-		{"selectors", {'s', {GENERATED_CHOICES_SELECTOR}}},
-		{"bounds", {'b', {GENERATED_CHOICES_LOWER_BOUND}}},
+		{"consumers", {'c', {GENERATED_CHOICES_CONSUMER_SELECTOR, GENERATED_CHOICES_CONSUMER_BOUND, GENERATED_CHOICES_CONSUMER_RESULT}}},
 		{"graphs", {'g', {GENERATED_CHOICES_GRAPH}}}
 	};
 
@@ -185,11 +148,20 @@ int main(int argc, char *argv[])
 		case 'j':
 			options.threads = std::stoull(optarg);
 			break;
+		case 'n':
+			options.repeats = std::stoull(optarg);
+			break;
+		case 'N':
+			options.repeat_time = std::stoull(optarg);
+			break;
 		case 'W':
 			options.no_write = true;
 			break;
 		case 'J':
 			options.stats_json = true;
+			break;
+		case 'D':
+			options.do_warmup = true;
 			break;
 		case '{':
 			for(auto &category: choices)
@@ -203,11 +175,14 @@ int main(int argc, char *argv[])
 				std::cerr << "missmatched braces" << std::endl;
 				return 1;
 			}
-			for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &s: choices["selectors"].selected) for(auto const &b: choices["bounds"].selected) for(auto const &g: choices["graphs"].selected)
-			{{
-				for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][s][b].insert(g);}
-				for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][s][b].insert(g);}
-			}}
+			{
+				std::set<std::string> consumers(choices["consumers"].selected.begin(), choices["consumers"].selected.end());
+				for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
+				{{
+					for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
+					for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
+				}}
+			}
 			for(auto &category: choices)
 			{
 				category.second.selected.resize(category.second.stack.back());
@@ -232,11 +207,8 @@ int main(int argc, char *argv[])
 		case 'f':
 			select("finders", optarg);
 			break;
-		case 's':
-			select("selectors", optarg);
-			break;
-		case 'b':
-			select("bounds", optarg);
+		case 'c':
+			select("consumers", optarg);
 			break;
 		case 'g':
 			select("graphs", optarg);
@@ -260,10 +232,13 @@ int main(int argc, char *argv[])
 			<< "  -k --kmin <number> / -K --kmax <number>: Minimum/Maximum number of edits to try\n"
 			<< "  -t --time <number> / -T --time-hard <number>: Time limit in seconds; -t allows the current experimant to end, -T aborts it\n"
 			<< "  -j --threads <number>: Number of threads to use, if editor supports multithreading\n"
+			<< "  -n --repeats <number>: Repeat each experiment n times\n"
+			<< "  -N --repeat-time <number>: Repeat each experiment for N seconds\n"
+			<< "  -D --warmup: Spend some time before each set of experiments in dry-runs\n"
 			<< "  -a --all: Find all solutions, not just the first one\n"
 			<< "  -W --no-write: Do not write solutions to disk\n"
 			<< "  -J --json: Output results as JSON fragment\n\n"
-			<< "  -e --editor / -h --heuristic / -f --finder / -s --selector / -b --bound / -g --graph / -M --mode / -C --conversion / -R --restriction:\n"
+			<< "  -e --editor / -h --heuristic / -f --finder / -c --consumer / -g --graph / -M --mode / -C --conversion / -R --restriction:\n"
 			//<< "    Select an algorithm\n"
 			<< "    All options take the name of an algorithm as argument; use \"list\" to show available ones, \"all\" to select all\n"
 			<< "  You can group algorithm choices with -{ --{ / -} --}\n"
@@ -283,7 +258,7 @@ int main(int argc, char *argv[])
 		{
 			if(category.second.selected.empty())
 			{
-				// having either editors or heuritcs is OK
+				// having either editors or heuristics is OK
 				if(category.first == "editors" && !choices["heuristics"].selected.empty()) {continue;}
 				if(category.first == "heuristics" && !choices["editors"].selected.empty()) {continue;}
 				category.second.list = true;
@@ -304,10 +279,11 @@ int main(int argc, char *argv[])
 	// errors on comand line, terminate
 	if(usage) {return 1;}
 
-	for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &s: choices["selectors"].selected) for(auto const &b: choices["bounds"].selected) for(auto const &g: choices["graphs"].selected)
+	std::set<std::string> consumers(choices["consumers"].selected.begin(), choices["consumers"].selected.end());
+	for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
 	{{
-		for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][s][b].insert(g);}
-		for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][s][b].insert(g);}
+		for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
+		for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
 	}}
 
 	for(; optind < argc; optind++)
@@ -315,7 +291,7 @@ int main(int argc, char *argv[])
 		options.filenames.push_back(argv[optind]);
 	}
 
-	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "/" << options.time_max_hard << "s, j: " << options.threads << ". " /*<< _ << " combinations on "*/ << options.filenames.size() << " files" << std::endl;
+	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "/" << options.time_max_hard << "s, n/N: " << options.repeats << "/" << options.repeat_time << "s, j: " << options.threads << ". " /*<< _ << " combinations on "*/ << options.filenames.size() << " files" << std::endl;
 
 	run(options);
 
