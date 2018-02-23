@@ -6,6 +6,8 @@ COMMON := -std=c++17 -pedantic -W -Wall -Wextra -march=native -fopenmp
 CPPFLAGS :=
 LDFLAGS := -lpthread
 
+############################################################
+
 TARGET := graphedit
 
 SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp"))

@@ -21,6 +21,15 @@ namespace Finder
 		 */
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder);
+
+		/** Searches for forbidden subgraphs in graph
+		 * optional, currently only used by Consumer::Single
+		 * same as find, but limits search to an area around the vertices u and v
+		 * calls feeder.callback_near(graph, edits, subgraph.begin(), subgraph.end()) for each forbidden subgraph found
+		 * if feeder.callback_near returns true, no consumer wants additional forbidden subgraphs and this function should return
+		 */
+		template<typename Feeder>
+		void find_near(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v, Feeder &feeder);
 	};
 
 	/* for reference */
@@ -35,6 +44,13 @@ namespace Finder
 		void feed(Graph const &graph, Graph_Edits const &edited);
 		/** Provides each consumer with the found forbidden subgraph, returns true iff no Consumer want further forbidden subgraphs */
 		bool callback(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end);
+
+		/* as above, for find_near */
+		/** Prepares consumers for a new run of the Finder and starts it */
+		void feed_near(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v);
+		/** Provides each consumer with the found forbidden subgraph, returns true iff no Consumer want further forbidden subgraphs */
+		bool callback_near(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end);
+
 	};
 }
 
