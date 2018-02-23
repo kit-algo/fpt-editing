@@ -35,7 +35,7 @@ namespace Finder
 		}
 
 		template<typename Feeder>
-		void find_near(Graph const &graph, Graph_Edits const &edited, VertexID uu, VertexID vv, Feeder &feeder)
+		void find_near(Graph const &graph, Graph_Edits const &edited, VertexID uu, VertexID vv, Feeder &feeder, Graph_Edits const *)
 		{
 			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
 			/* only search for forbidden subgraphs near u-v
