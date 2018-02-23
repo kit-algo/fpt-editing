@@ -29,6 +29,9 @@ struct CMDOptions {
 	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::set<std::string>>>>>>>> combinations_heur;
 	// graphs
 	std::vector<std::string> filenames;
+	// show current experiment in cmdline args
+	int argc = 0;
+	char **argv = NULL;
 };
 
 template<template<typename, typename, typename, typename, typename, typename, typename...> typename E, template<typename, typename> typename F, template<bool> typename G, template<bool> typename GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename> typename... Con>

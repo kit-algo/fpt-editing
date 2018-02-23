@@ -177,11 +177,14 @@ int main(int argc, char *argv[])
 			}
 			{
 				std::set<std::string> consumers(choices["consumers"].selected.begin(), choices["consumers"].selected.end());
-				for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
-				{{
-					for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
-					for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
-				}}
+				if(!consumers.empty())
+				{
+					for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
+					{{
+						for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
+						for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
+					}}
+				}
 			}
 			for(auto &category: choices)
 			{
@@ -280,11 +283,14 @@ int main(int argc, char *argv[])
 	if(usage) {return 1;}
 
 	std::set<std::string> consumers(choices["consumers"].selected.begin(), choices["consumers"].selected.end());
-	for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
-	{{
-		for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
-		for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
-	}}
+	if(!consumers.empty())
+	{
+		for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
+		{{
+			for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
+			for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
+		}}
+	}
 
 	for(; optind < argc; optind++)
 	{
@@ -293,6 +299,8 @@ int main(int argc, char *argv[])
 
 	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "/" << options.time_max_hard << "s, n/N: " << options.repeats << "/" << options.repeat_time << "s, j: " << options.threads << ". " /*<< _ << " combinations on "*/ << options.filenames.size() << " files" << std::endl;
 
+	options.argc = argc;
+	options.argv = argv;
 	run(options);
 
 	return 0;

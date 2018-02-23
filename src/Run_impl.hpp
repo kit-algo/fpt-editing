@@ -110,7 +110,7 @@ public:
 		}
 		else
 		{
-			std::cout << filename << ": (exact) " << name() << ": Missing Components" << std::endl;
+			std::cout << filename << ": (exact) " << name() << ": Missing Components\n";
 		}
 		std::cout << std::flush;
 	}
@@ -118,62 +118,62 @@ public:
 	template<bool v = valid>
 	static typename std::enable_if<v, void>::type run_watch(CMDOptions const &options, std::string const &filename)
 	{
-		if(!options.time_max_hard) {run_nowatch(options, filename);}
+		int pipefd[2];
+		if(pipe2(pipefd, O_NONBLOCK))
+		{
+			throw std::runtime_error(std::string("pipe error: ") + strerror(errno));
+		}
+		int pid = fork();
+		if(pid < 0)
+		{
+			throw std::runtime_error(std::string("fork error: ") + strerror(errno));
+		}
+		else if(pid > 0)
+		{
+			// parent
+			close(pipefd[1]);
+			struct pollfd pfd = {pipefd[0], POLLIN, 0};
+			int p = poll(&pfd, 1, options.time_max_hard? options.time_max_hard * 1000 : -1) > 0;
+			while(p > 0)
+			{
+				char buf[4096];
+				ssize_t r = read(pipefd[0], buf, 4095);
+				if(r <= 0) {break;}
+				buf[r] = '\0';
+				std::cout << buf << std::flush;
+
+				p = poll(&pfd, 1, options.time_max_hard? options.time_max_hard * 1000 : -1) > 0;
+			}
+			if(p == 0)
+			{
+				// timeout (time_max_hard expired)
+				kill(pid, SIGKILL);
+				if(options.stats_json)
+				{
+					std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"results\":{\"error\":\"Timeout\"}},\n";
+				}
+				else
+				{
+					std::cout << filename << ": (exact) " << name() << ": Timeout\n";
+				}
+				std::cout << std::flush;
+			}
+			wait(NULL);
+		}
 		else
 		{
-			// running with hard time limit
-			// run experiment in child, kill it time_max_hard seconds after last output
-			int pipefd[2];
-			if(pipe2(pipefd, O_NONBLOCK))
-			{
-				throw std::runtime_error(std::string("pipe error: ") + strerror(errno));
-			}
-			int pid = fork();
-			if(pid < 0)
-			{
-				throw std::runtime_error(std::string("fork error: ") + strerror(errno));
-			}
-			else if(pid > 0)
-			{
-				// parent
-				close(pipefd[1]);
-				struct pollfd pfd = {pipefd[0], POLLIN, 0};
-				int p = poll(&pfd, 1, options.time_max_hard * 1000) > 0;
-				while(p > 0)
-				{
-					char buf[4096];
-					ssize_t r = read(pipefd[0], buf, 4095);
-					if(r <= 0) {break;}
-					std::cout << std::string(buf, r) << std::flush;
+			// child
+			// redirect stdout
+			close(pipefd[0]);
+			dup2(pipefd[1], 1);
+			close(pipefd[1]);
 
-					p = poll(&pfd, 1, options.time_max_hard * 1000) > 0;
-				}
-				if(p == 0)
-				{
-					// timeout
-					kill(pid, SIGKILL);
-					if(options.stats_json)
-					{
-						std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"results\":{\"error\":\"Timeout\"}},\n";
-					}
-					else
-					{
-						std::cout << filename << ": (exact) " << name() << ": Timeout" << std::endl;
-					}
-					std::cout << std::flush;
-				}
-				wait(NULL);
-			}
-			else
-			{
-				// child
-				// redirect stdout
-				close(pipefd[0]);
-				dup2(pipefd[1], 1);
-				close(pipefd[1]);
+			// show current experiment in cmdline args
+			std::string n = name() + ' ' + filename;
+			strncpy(options.argv[1], n.c_str(), options.argv[options.argc - 1] + strlen(options.argv[options.argc - 1]) - options.argv[1]);
 
-				run_nowatch(options, filename);
-			}
+			run_nowatch(options, filename);
+			exit(0);
 		}
 	}
 
@@ -279,7 +279,7 @@ public:
 					json << '}';
 #endif
 					json << "}},\n";
-					std::cout << json.str();
+					std::cout << json.str() << std::flush;
 				}
 				else
 				{
@@ -288,7 +288,7 @@ public:
 					if(!stats.empty())
 					{
 						// print stats table with aligned columns
-						std::cout << std::endl << filename << ": (exact) " << name() << ", k = " << k << '\n';
+						std::cout << '\n' << filename << ": (exact) " << name() << ", k = " << k << '\n';
 						std::map<std::string, std::ostringstream> output;
 						{
 							// header cloumn: find longest name
@@ -330,11 +330,12 @@ public:
 						}
 					}
 #endif
-					std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]" << std::endl;
+					std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]\n";
 					if(solved && options.all_solutions)
 					{
-						std::cout << writecount << " solutions" << std::endl;
+						std::cout << writecount << " solutions\n";
 					}
+					std::cout << std::flush;
 				}
 				repeat_n++;
 				repeat_total_time += time_passed;
