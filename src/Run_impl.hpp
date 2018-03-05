@@ -150,11 +150,11 @@ public:
 				kill(pid, SIGKILL);
 				if(options.stats_json)
 				{
-					std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"results\":{\"error\":\"Timeout\"}},\n";
+					std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"results\":{\"error\":\"Timeout\"}},\n";
 				}
 				else
 				{
-					std::cout << filename << ": (exact) " << name() << ": Timeout\n";
+					std::cout << filename << ": (exact) " << name() << ", " << options.threads << " threads: Timeout\n";
 				}
 				std::cout << std::flush;
 			}
@@ -258,7 +258,7 @@ public:
 				if(options.stats_json)
 				{
 					std::ostringstream json;
-					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"k\":" << k << ",";
+					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"k\":" << +k << ",";
 					json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed_print;
 #ifdef STATS
 					json << ",\"counters\":{";
@@ -288,7 +288,7 @@ public:
 					if(!stats.empty())
 					{
 						// print stats table with aligned columns
-						std::cout << '\n' << filename << ": (exact) " << name() << ", k = " << k << '\n';
+						std::cout << '\n' << filename << ": (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << '\n';
 						std::map<std::string, std::ostringstream> output;
 						{
 							// header cloumn: find longest name
@@ -330,7 +330,7 @@ public:
 						}
 					}
 #endif
-					std::cout << filename << ": (exact) " << name() << ", k = " << k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]\n";
+					std::cout << filename << ": (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]\n";
 					if(solved && options.all_solutions)
 					{
 						std::cout << writecount << " solutions\n";

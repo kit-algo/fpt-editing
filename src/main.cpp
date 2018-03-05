@@ -5,6 +5,7 @@
 #include <map>
 #include <numeric>
 #include <set>
+#include <stack>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,7 @@ int main(int argc, char *argv[])
 
 		// combinations
 		{"{", no_argument, NULL, '{'},
+		{",", no_argument, NULL, ','},
 		{"}", no_argument, NULL, '}'},
 		// algorithm choices
 		{"mode", required_argument, NULL, 'M'},
@@ -73,7 +75,7 @@ int main(int argc, char *argv[])
 
 		{NULL, 0, NULL, 0}
 	};
-	char const *shortopts = "?k:K:at:T:j:n:N:WSJD{}M:R:C:e:h:f:c:g:_";
+	char const *shortopts = "?k:K:at:T:j:n:N:WSJD{,}M:R:C:e:h:f:c:g:_";
 
 	CMDOptions options;
 	bool usage = false;
@@ -81,15 +83,12 @@ int main(int argc, char *argv[])
 	struct Category
 	{
 		std::set<std::string> const available;
-		std::vector<std::string> selected;
-		std::vector<size_t> stack;
-		bool list = false;
 		char const option;
 
 		Category(char const option, std::set<std::string> const &available): available(available), option(option) {;}
 		Category() : option('?') {;}
 	};
-	std::map<std::string, Category> choices{
+	std::map<std::string, Category> const choices{
 		{"modes", {'M', {GENERATED_CHOICES_MODE}}},
 		{"restrictions", {'R', {GENERATED_CHOICES_RESTRICTION}}},
 		{"conversions", {'C', {GENERATED_CHOICES_CONVERSION}}},
@@ -100,23 +99,66 @@ int main(int argc, char *argv[])
 		{"graphs", {'g', {GENERATED_CHOICES_GRAPH}}}
 	};
 
-	auto select = [&choices, &usage](std::string const &type, decltype(optarg) const arg) {
-		auto &category = choices[type];
+	std::map<std::string, bool> list;
+
+	struct Selection
+	{
+		std::vector<std::vector<Selection>> groups;
+		std::map<std::string, std::set<std::string>> selection;
+
+		// recursily flatten groups into a single vector of selections, similar to how a shell handles {,}
+		std::vector<Selection> flatten() const
+		{
+			std::vector<Selection> r{*this};
+			if(!groups.empty())
+			{
+				for(auto const &g: groups)
+				{
+					std::vector<Selection> next_r;
+					for(auto const &subselection: g)
+					{
+						auto children = subselection.flatten();
+						next_r.reserve(next_r.size() + children.size() * r.size());
+						for(auto const &child: children)
+						{
+							for(auto const &r_elem: r)
+							{
+								next_r.push_back(child);
+								for(auto const &sel: r_elem.selection)
+								{
+									next_r.back().selection[sel.first].insert(sel.second.begin(), sel.second.end());
+								}
+							}
+						}
+					}
+					std::swap(r, next_r);
+				}
+			}
+			return r;
+		}
+	};
+
+	Selection selection;
+	std::stack<std::reference_wrapper<Selection>> selection_stack;
+	selection_stack.push(selection);
+
+	auto select = [&](std::string const &type, decltype(optarg) const arg) {
+		auto &category = choices.at(type);
 		if(!strncmp(arg, "list", 5))
 		{
-			category.list = true;
+			list[type] = true;
 		}
 		else if(!strncmp(arg, "all", 4))
 		{
-			category.selected.insert(category.selected.end(), category.available.begin(), category.available.end());
+			selection_stack.top().get().selection[type].insert(category.available.begin(), category.available.end());
 		}
 		else if(category.available.count(optarg))
 		{
-			category.selected.push_back(optarg);
+			selection_stack.top().get().selection[type].insert(optarg);
 		}
 		else
 		{
-			category.list = true;
+			list[type] = true;
 			usage = true;
 		}
 	};
@@ -164,33 +206,18 @@ int main(int argc, char *argv[])
 			options.do_warmup = true;
 			break;
 		case '{':
-			for(auto &category: choices)
-			{
-				category.second.stack.push_back(category.second.selected.size());
-			}
+			selection_stack.top().get().groups.push_back({Selection()});
+			selection_stack.push(selection_stack.top().get().groups.back().back());
+			break;
+		case ',':
+			if(selection_stack.empty()) {std::cerr << "'-,' option without preceeding '-{'" << std::endl; return 1;}
+			selection_stack.pop();
+			selection_stack.top().get().groups.back().emplace_back();
+			selection_stack.push(selection_stack.top().get().groups.back().back());
 			break;
 		case '}':
-			if(choices.begin()->second.stack.empty())
-			{
-				std::cerr << "missmatched braces" << std::endl;
-				return 1;
-			}
-			{
-				std::set<std::string> consumers(choices["consumers"].selected.begin(), choices["consumers"].selected.end());
-				if(!consumers.empty())
-				{
-					for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
-					{{
-						for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
-						for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
-					}}
-				}
-			}
-			for(auto &category: choices)
-			{
-				category.second.selected.resize(category.second.stack.back());
-				category.second.stack.pop_back();
-			}
+			if(selection_stack.empty()) {std::cerr << "'-}' option without preceeding '-{'" << std::endl; return 1;}
+			selection_stack.pop();
 			break;
 		case 'R':
 			select("restrictions", optarg);
@@ -221,7 +248,7 @@ int main(int argc, char *argv[])
 			break;
 		}
 	}
-	if(!choices.begin()->second.stack.empty())
+	if(selection_stack.size() != 1)
 	{
 		std::cerr << "missing closing braces" << std::endl;
 		return 1;
@@ -244,34 +271,72 @@ int main(int argc, char *argv[])
 			<< "  -e --editor / -h --heuristic / -f --finder / -c --consumer / -g --graph / -M --mode / -C --conversion / -R --restriction:\n"
 			//<< "    Select an algorithm\n"
 			<< "    All options take the name of an algorithm as argument; use \"list\" to show available ones, \"all\" to select all\n"
-			<< "  You can group algorithm choices with -{ --{ / -} --}\n"
+			<< "  You can group algorithm choices with -{ --{ / -, --, / -} --} in a shell-like manner\n"
 			<< "Graphs need to be in METIS format.\n"
 		;
 		std::cerr << std::endl;
 	}
-	if(!usage && options.threads < 1)
+	if(options.threads < 1)
 	{
 		std::cerr << "Can't run without threads [-j < 1]" << std::endl;
 		usage = true;
 	}
-	// if no combinations were specified yet (use of -{, -} ), force showing options for categories with no selection
-	if(options.combinations_edit.empty() && options.combinations_heur.empty())
+
+	size_t combination_count = 0;
+	bool no_groups = true;
+	for(auto const &combination: selection.flatten())
 	{
-		for(auto &category: choices)
+		no_groups = false;
+		// test if all components were specified, exempting editors and heuristics as having only either of them is fine
+		if(std::all_of(choices.begin(), choices.end(), [&](auto const &choice) {return choice.first == "editors" || choice.first == "heuristics" || combination.selection.count(choice.first) > 0;}))
 		{
-			if(category.second.selected.empty())
+			for(auto const &m: combination.selection.at("modes")) for(auto const &r: combination.selection.at("restrictions")) for(auto const &c: combination.selection.at("conversions")) for(auto const &f: combination.selection.at("finders")) for(auto const &g: combination.selection.at("graphs"))
+			{{
+				size_t old_count = combination_count;
+				if(combination.selection.count("editors")) for(auto const &e: combination.selection.at("editors"))
+				{{
+					options.combinations_edit[e][m][r][c][f][g].insert(combination.selection.at("consumers"));
+					combination_count++;
+				}}
+				if(combination.selection.count("heuristics")) for(auto const &h: combination.selection.at("heuristics"))
+				{{
+					options.combinations_heur[h][m][r][c][f][g].insert(combination.selection.at("consumers"));
+					combination_count++;
+				}}
+
+				if(combination_count == old_count)
+				{
+					// missing both editors and heuristics
+					list["editors"] = true;
+					list["heuristics"] = true;
+				}
+			}}
+		}
+		else
+		{
+			// missing selections in this group
+			for(auto const &category : choices)
 			{
-				// having either editors or heuristics is OK
-				if(category.first == "editors" && !choices["heuristics"].selected.empty()) {continue;}
-				if(category.first == "heuristics" && !choices["editors"].selected.empty()) {continue;}
-				category.second.list = true;
+				if(combination.selection.count(category.first) == 0)
+				{
+					// having either editors or heuristics is fine
+					if(category.first == "editors" && combination.selection.count("heuristics") != 0) {continue;}
+					else if(category.first == "heuristics" && combination.selection.count("editors") != 0) {continue;}
+					list[category.first] = true;
+				}
 			}
 		}
+	}
+
+	// no components were given, show list for all
+	if(no_groups)
+	{
+		for(auto &category: choices) {list[category.first] = true;}
 	}
 	// list options for categories where requested or an invalid selection was made
 	for(auto const &category: choices)
 	{
-		if(category.second.list)
+		if(list.count(category.first))
 		{
 			std::cerr << "Available " << category.first << " [-" << category.second.option << "]:";
 			for(auto const &choice: category.second.available) {std::cerr << ' ' << choice;}
@@ -282,22 +347,12 @@ int main(int argc, char *argv[])
 	// errors on comand line, terminate
 	if(usage) {return 1;}
 
-	std::set<std::string> consumers(choices["consumers"].selected.begin(), choices["consumers"].selected.end());
-	if(!consumers.empty())
-	{
-		for(auto const &m: choices["modes"].selected) for(auto const &r: choices["restrictions"].selected) for(auto const &c: choices["conversions"].selected) for(auto const &f: choices["finders"].selected) for(auto const &g: choices["graphs"].selected)
-		{{
-			for(auto const &e: choices["editors"].selected) {options.combinations_edit[e][m][r][c][f][g].insert(consumers);}
-			for(auto const &h: choices["heuristics"].selected) {options.combinations_heur[h][m][r][c][f][g].insert(consumers);}
-		}}
-	}
-
 	for(; optind < argc; optind++)
 	{
 		options.filenames.push_back(argv[optind]);
 	}
 
-	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "/" << options.time_max_hard << "s, n/N: " << options.repeats << "/" << options.repeat_time << "s, j: " << options.threads << ". " /*<< _ << " combinations on "*/ << options.filenames.size() << " files" << std::endl;
+	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "/" << options.time_max_hard << "s, n/N: " << options.repeats << "/" << options.repeat_time << "s, j: " << options.threads << ". " << combination_count << " combinations on " << options.filenames.size() << " files" << std::endl;
 
 	options.argc = argc;
 	options.argv = argv;
