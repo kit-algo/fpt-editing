@@ -10,7 +10,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
 	class Counter : Options::Tag::Result
 	{
 	public:
@@ -19,7 +19,6 @@ namespace Consumer
 	private:
 		size_t paths = 0;
 		size_t cycles = 0;
-		size_t length = 0;
 
 	public:
 		Counter(VertexID) {;}
@@ -28,7 +27,6 @@ namespace Consumer
 		{
 			paths = 0;
 			cycles = 0;
-			length = 1;
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
@@ -37,7 +35,6 @@ namespace Consumer
 			for(auto it = b; it != e; it++) {std::cout << ' ' << +*it;}
 			std::cout << '\n';*/
 
-			if(length) {length = std::distance(b, e);}
 			if(graph.has_edge(*b, *(e - 1))) {cycles++;}
 			else {paths++;}
 			return false;

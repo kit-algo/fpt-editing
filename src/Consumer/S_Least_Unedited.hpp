@@ -9,7 +9,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
 	class Least : Options::Tag::Selector
 	{
 	public:

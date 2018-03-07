@@ -10,7 +10,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
 	class Basic : Options::Tag::Lower_Bound
 	{
 	public:

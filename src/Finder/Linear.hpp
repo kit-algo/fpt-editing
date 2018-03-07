@@ -13,13 +13,14 @@
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits, size_t length>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t _length>
 	class Linear
 	{
-		static_assert(length == 4, "Can only detect P4/C4");
+		static_assert(_length == 4, "Can only detect P4/C4");
 
 	public:
 		static constexpr char const *name = "Linear";
+		static constexpr size_t length = _length;
 
 	public:
 		Linear(VertexID) {;}
@@ -144,10 +145,10 @@ namespace Finder
 		}
 	};
 
-	template<typename Graph, typename Graph_Edits>
-	class Linear_4 : public Linear<Graph, Graph_Edits, 4>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Linear_4 : public Linear<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>
 	{
-	private: using Parent = Linear<Graph, Graph_Edits, 4>;
+	private: using Parent = Linear<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>;
 	public:
 		static constexpr char const *name = "Linear_4";
 		Linear_4(VertexID graph_size) : Parent(graph_size) {;}

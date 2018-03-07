@@ -7,11 +7,13 @@
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
 	class Finder
 	{
 	public:
 		static constexpr char const *name = "Finder Interface";
+		/** Number of vertices in Px/Cx found by this Finder */
+		static constexpr size_t length;
 
 		Finder(VertexID graph_size);
 

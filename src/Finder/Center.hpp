@@ -9,13 +9,14 @@
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits, size_t length>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t _length>
 	class Center
 	{
-		static_assert(length > 3, "Can only detect path/cycles with at least 4 vertices");
+		static_assert(_length > 3, "Can only detect path/cycles with at least 4 vertices");
 
 	public:
 		static constexpr char const *name = "Center";
+		static constexpr size_t length = _length;
 
 	private:
 		std::vector<Packed> forbidden;
@@ -302,19 +303,19 @@ namespace Finder
 		};
 	};
 
-	template<typename Graph, typename Graph_Edits>
-	class Center_4 : public Center<Graph, Graph_Edits, 4>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_4 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>
 	{
-	private: using Parent = Center<Graph, Graph_Edits, 4>;
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>;
 	public:
 		static constexpr char const *name = "Center_4";
 		Center_4(VertexID graph_size) : Parent(graph_size) {;}
 	};
 
-	template<typename Graph, typename Graph_Edits>
-	class Center_5 : public Center<Graph, Graph_Edits, 5>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_5 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5>
 	{
-	private: using Parent = Center<Graph, Graph_Edits, 5>;
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5>;
 	public:
 		static constexpr char const *name = "Center_5";
 		Center_5(VertexID graph_size) : Parent(graph_size) {;}

@@ -9,7 +9,8 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	/** length is Finder::length, in case a Consumer uses a Finder */
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
 	class Consumer
 	{
 	public:

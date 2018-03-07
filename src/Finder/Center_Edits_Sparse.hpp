@@ -11,13 +11,14 @@
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits, size_t length>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t _length>
 	class Center_Edits_Sparse
 	{
-		static_assert(length > 3, "Can only detect path/cycles with at least 4 vertices");
+		static_assert(_length > 3, "Can only detect path/cycles with at least 4 vertices");
 
 	public:
 		static constexpr char const *name = "Center_Edits_Sparse";
+		static constexpr size_t length = _length;
 
 	private:
 		std::vector<Packed> forbidden;
@@ -284,8 +285,8 @@ namespace Finder
 						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
 						if(vf == vb) {return false;}
 						path[lb + 1] = vb;
-						if(for_all_edges_unordered<Options::Modes::Edit, Options::Restrictions::Redundant, Options::Conversions::Skip>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {return offered.has_edge(*uit, *vit);})) {return false;}
-						for_all_edges_unordered<Options::Modes::Edit, Options::Restrictions::Redundant, Options::Conversions::Skip>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {offered.set_edge(*uit, *vit); return false;});
+						if(for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {return offered.has_edge(*uit, *vit);})) {return false;}
+						for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {offered.set_edge(*uit, *vit); return false;});
 						return feeder.callback(graph, edited, path.cbegin(), path.cend());
 					};
 
@@ -350,7 +351,7 @@ namespace Finder
 						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
 						if(vf == vb) {return false;}
 						path[lb + 1] = vb;
-						for_all_edges_unordered<Options::Modes::Edit, Options::Restrictions::Redundant, Options::Conversions::Skip>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {offered.set_edge(*uit, *vit); return false;});
+						for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {offered.set_edge(*uit, *vit); return false;});
 						return feeder.callback_near(graph, edited, path.cbegin(), path.cend());
 					};
 
@@ -390,19 +391,19 @@ namespace Finder
 		};
 	};
 
-	template<typename Graph, typename Graph_Edits>
-	class Center_Edits_Sparse_4 : public Center_Edits_Sparse<Graph, Graph_Edits, 4>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_Edits_Sparse_4 : public Center_Edits_Sparse<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>
 	{
-	private: using Parent = Center_Edits_Sparse<Graph, Graph_Edits, 4>;
+	private: using Parent = Center_Edits_Sparse<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>;
 	public:
 		static constexpr char const *name = "Center_Edits_Sparse_4";
 		Center_Edits_Sparse_4(VertexID graph_size) : Parent(graph_size) {;}
 	};
 
-	template<typename Graph, typename Graph_Edits>
-	class Center_Edits_Sparse_5 : public Center_Edits_Sparse<Graph, Graph_Edits, 5>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_Edits_Sparse_5 : public Center_Edits_Sparse<Graph, Graph_Edits, Mode, Restriction, Conversion, 5>
 	{
-	private: using Parent = Center_Edits_Sparse<Graph, Graph_Edits, 5>;
+	private: using Parent = Center_Edits_Sparse<Graph, Graph_Edits, Mode, Restriction, Conversion, 5>;
 	public:
 		static constexpr char const *name = "Center_Edits_Sparse_5";
 		Center_Edits_Sparse_5(VertexID graph_size) : Parent(graph_size) {;}

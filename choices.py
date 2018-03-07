@@ -72,8 +72,8 @@ template_instantiation_text = open("src/generator_template_instantiation.tpp", "
 
 # prepare output
 bg = Path("build/generated")
-for f in bg.glob("run-*"):
-	f.unlink()
+#for f in bg.glob("run-*"):
+#	f.unlink()
 filelist = open("build/generated/list.d", "w")
 includelist = open("build/generated/generated.d", "w")
 
@@ -86,8 +86,9 @@ for macro, arguments in need.items():
 	for combination in itertools.product(*using):
 		print(template_compare_text.format(*format_args(combination)).replace('=(=', '{').replace('=)=', '}'), end = "")
 		filename = "build/generated/run-{0}-{1}-{2}-{3}-{4}-{5}-{6}-{7}-{8}".format(macro, *format_args(combination))
-		with open(filename + ".cpp", "a") as of:
-			of.write(template_instantiation_text.format(*format_args(combination)))
+		if not Path(filename + ".cpp").is_file():
+			with open(filename + ".cpp", "w") as of:
+				of.write(template_instantiation_text.format(*format_args(combination)))
 		filelist.write("\t" + filename + ".o \\\n")
 		includelist.write("-include " + filename + ".d\n")
 	print()

@@ -23,7 +23,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
 	class Single : Options::Tag::Selector, Options::Tag::Lower_Bound
 	{
 	public:
@@ -50,7 +50,7 @@ namespace Consumer
 				std::vector<VertexID> edge;
 			} best;
 
-			Finder::Center_Edits_Sparse_4<Graph, Graph_Edits> finder;
+			Finder::Center_Edits_Sparse<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
 			M(VertexID graph_size) : used(graph_size), new_use(graph_size), finder(graph_size) {;}
 		} m;
