@@ -32,6 +32,14 @@ void run(CMDOptions const &options)
 			auto const &graph = g.first;
 			if(false) {;} // macro starts with "else if"
 			GENERATED_RUN_EDITOR
+			else
+			{
+				std::stringstream name;
+				name << editor << '-' << mode << '-' << restriction << '-' << conversion << '-' << finder;
+				for(auto const &c: consumers) {name << '-' << c;}
+				name << '-' << graph;
+				std::cerr << name.str() << " is an invalid combination" << std::endl;
+			}
 		}}
 	}
 }

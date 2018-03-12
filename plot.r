@@ -6,7 +6,7 @@ library(scales)
 
 loadjson = function(file)
 {
-	# load experiment results from JSON file created by ./combine-json
+	# load experiment results from JSON file created by ./eval2json
 	# note: jsonlite and/or R leaks memory here; on larger data sets using loaddb() is strongly recommended
 
 	# get experiments
