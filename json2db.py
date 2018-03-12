@@ -11,7 +11,7 @@ def json2db(jsonfile, dbfile):
 	db = sqlite3.connect(dbfile)
 	db.executescript('CREATE TABLE algo(id integer primary key autoincrement, name text);'
 		+ 'CREATE TABLE graph (id integer primary key autoincrement, name text);'
-		+ 'CREATE TABLE experiment(id integer primary key autoincrement, algo integer, graph integer, threads integer, k integer, time double, solved bool, foreign key (algo) references algo(id), foreign key (graph) references graph(id));'
+		+ 'CREATE TABLE experiment(id integer primary key autoincrement, exact bool, algo integer, graph integer, threads integer, k integer, time double, solved bool, foreign key (algo) references algo(id), foreign key (graph) references graph(id));'
 		+ 'CREATE TABLE stat_names(id integer primary key autoincrement, name text);'
 		+ 'CREATE TABLE stats(id integer primary key autoincrement, experiment integer, stat integer, k integer, value integer, foreign key (experiment) references experiment(id), foreign key (stat) references stat_names(id));'
 	)
@@ -34,10 +34,11 @@ def json2db(jsonfile, dbfile):
 
 	for experiment in data:
 		if not 'k' in experiment or not 'time' in experiment['results'] or not 'solved' in experiment['results']: continue
-		query = 'INSERT INTO experiment (algo, graph, k, time, solved) VALUES (' \
+		query = 'INSERT INTO experiment (exact, algo, graph, threads, k, time, solved) VALUES (' \
+			+ ('1' if experiment['type'] == 'exact' else '0') + ', ' \
 			+ '(SELECT id FROM algo WHERE name = "' + experiment['algo'] + '"), ' \
 			+ '(SELECT id FROM graph WHERE name = "' + experiment['graph'] + '"), ' \
-			+ str(experiment['k']) + ', ' + str(experiment['results']['time']) + ', ' + ('1' if experiment['results']['solved'] == 'true' else '0') + ');'
+			+ str(experiment['threads']) + ', ' + str(experiment['k']) + ', ' + str(experiment['results']['time']) + ', ' + ('1' if experiment['results']['solved'] == 'true' else '0') + ');'
 		db.execute(query)
 		if "counters" in experiment["results"]:
 			expid = db.execute('SELECT * FROM sqlite_sequence WHERE name = "experiment";').fetchone()[1]

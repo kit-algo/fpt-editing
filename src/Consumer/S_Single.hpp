@@ -18,8 +18,6 @@
 
 #include "../Finder/Finder.hpp"
 #include "../Finder/Center.hpp"
-#include "../Finder/Center_Edits.hpp"
-#include "../Finder/Center_Edits_Sparse.hpp"
 
 namespace Consumer
 {
@@ -50,7 +48,7 @@ namespace Consumer
 				std::vector<VertexID> edge;
 			} best;
 
-			Finder::Center_Edits_Sparse<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
+			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
 			M(VertexID graph_size) : used(graph_size), new_use(graph_size), finder(graph_size) {;}
 		} m;

@@ -117,6 +117,7 @@ plot.calls = function(data)
 	p = p + labs(x = "k", y = "Recursive calls", color = l)
 
 #	p = p + geom_boxplot(aes(y = results$totals$calls, group = interaction(group, algo, k)), alpha = 0, outlier.alpha = 1)
+#	p = p + geom_errorbar(aes(y = results$totals$calls, group = interaction(group, algo, k)), stat = "boxplot", position = "dodge")
 	p = p + stat_summary(aes(y = results$totals$calls, group = interaction(group, algo)), fun.y = mean, geom = "line")
 	p = p + stat_summary(aes(y = results$totals$calls, group = interaction(group, algo)), fun.y = mean, geom = "point", size = 0.75)
 

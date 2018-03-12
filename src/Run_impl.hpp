@@ -119,7 +119,7 @@ public:
 	static typename std::enable_if<v, void>::type run_watch(CMDOptions const &options, std::string const &filename)
 	{
 		int pipefd[2];
-		if(pipe2(pipefd, O_NONBLOCK))
+		if(pipe(pipefd))
 		{
 			throw std::runtime_error(std::string("pipe error: ") + strerror(errno));
 		}
@@ -132,6 +132,7 @@ public:
 		{
 			// parent
 			close(pipefd[1]);
+			//fcntl(pipefd[0], O_NONBLOCK)//ioctl?
 			struct pollfd pfd = {pipefd[0], POLLIN, 0};
 			int p = poll(&pfd, 1, options.time_max_hard? options.time_max_hard * 1000 : -1) > 0;
 			while(p > 0)
@@ -159,6 +160,7 @@ public:
 				std::cout << std::flush;
 			}
 			wait(NULL);
+			close(pipefd[0]);
 		}
 		else
 		{

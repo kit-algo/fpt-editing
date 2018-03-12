@@ -210,14 +210,14 @@ int main(int argc, char *argv[])
 			selection_stack.push(selection_stack.top().get().groups.back().back());
 			break;
 		case ',':
-			if(selection_stack.empty()) {std::cerr << "'-,' option without preceeding '-{'" << std::endl; return 1;}
 			selection_stack.pop();
+			if(selection_stack.empty()) {std::cerr << "'-,' option without preceeding '-{'" << std::endl; return 1;}
 			selection_stack.top().get().groups.back().emplace_back();
 			selection_stack.push(selection_stack.top().get().groups.back().back());
 			break;
 		case '}':
-			if(selection_stack.empty()) {std::cerr << "'-}' option without preceeding '-{'" << std::endl; return 1;}
 			selection_stack.pop();
+			if(selection_stack.empty()) {std::cerr << "'-}' option without preceeding '-{'" << std::endl; return 1;}
 			break;
 		case 'R':
 			select("restrictions", optarg);
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
 		options.filenames.push_back(argv[optind]);
 	}
 
-	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "/" << options.time_max_hard << "s, n/N: " << options.repeats << "/" << options.repeat_time << "s, j: " << options.threads << ". " << combination_count << " combinations on " << options.filenames.size() << " files" << std::endl;
+	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "s/" << options.time_max_hard << "s, n/N: " << options.repeats << "x/" << options.repeat_time << "s, j: " << options.threads << ". " << combination_count << " combinations on " << options.filenames.size() << " files" << std::endl;
 
 	options.argc = argc;
 	options.argv = argv;
