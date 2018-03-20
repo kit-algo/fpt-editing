@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
 		{"json", no_argument, NULL, 'J'},
 		// misc
 		{"warmup", no_argument, NULL, 'D'},
+		{"execute-only", required_argument, NULL, 'X'},
 
 		// combinations
 		{"{", no_argument, NULL, '{'},
@@ -84,10 +85,11 @@ int main(int argc, char *argv[])
 
 		{NULL, 0, NULL, 0}
 	};
-	char const *shortopts = "?k:K:at:T:j:n:N:WSJD{,}M:R:C:e:h:f:c:g:_";
+	char const *shortopts = "?k:K:at:T:j:n:N:WSJDX:{,}M:R:C:e:h:f:c:g:_";
 
 	CMDOptions options;
 	bool usage = false;
+	size_t execute_only = 0;
 
 	struct Category
 	{
@@ -214,6 +216,9 @@ int main(int argc, char *argv[])
 		case 'D':
 			options.do_warmup = true;
 			break;
+		case 'X':
+			execute_only = std::stoull(optarg);
+			break;
 		case '{':
 			selection_stack.top().get().groups.push_back({Selection()});
 			selection_stack.push(selection_stack.top().get().groups.back().back());
@@ -304,13 +309,15 @@ int main(int argc, char *argv[])
 				size_t old_count = combination_count;
 				if(combination.selection.count("editors")) for(auto const &e: combination.selection.at("editors"))
 				{{
-					options.combinations_edit[e][m][r][c][f][g].insert(combination.selection.at("consumers"));
 					combination_count++;
+					if(execute_only && execute_only != combination_count) {continue;}
+					options.combinations_edit[e][m][r][c][f][g].insert(combination.selection.at("consumers"));
 				}}
 				if(combination.selection.count("heuristics")) for(auto const &h: combination.selection.at("heuristics"))
 				{{
-					options.combinations_heur[h][m][r][c][f][g].insert(combination.selection.at("consumers"));
 					combination_count++;
+					if(execute_only && execute_only != combination_count) {continue;}
+					options.combinations_heur[h][m][r][c][f][g].insert(combination.selection.at("consumers"));
 				}}
 
 				if(combination_count == old_count)

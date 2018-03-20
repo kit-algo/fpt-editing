@@ -1,0 +1,21 @@
+#!/bin/sh
+
+./graphedit -WDJ -T 10800 -n 10 -N 10 -e MT -j 32 -g Matrix -M Edit -f Center_4 -{ -C Normal -R all -c No -c First -, -R Redundant -{ -C Normal -c Basic -c First -, -C Skip -{ -c Basic -{ -c First -, -c Least -} -, -f all -c Single -} -} -} data/{karate,lesmis,grass_web.metis,dolphins,football,jazz}.graph > output/p4c4.eval
+./eval2json output/p4c4.eval > output/p4c4.json
+./json2db output/p4c4.json output/p4c4.sqlite
+
+
+
+# for bwCluster, if executed in top directory of this repository
+#
+# ./scripts/bwCluster_generate_workset eval4
+# answer questions with:
+#   binary: graphedit
+#   arguments: -WDJ -T 10800 -n 1 -e MT -g Matrix -M Edit -f Center_4 -{ -C Normal -R all -c No -c First -, -R Redundant -{ -C Normal -c Basic -c First -, -C Skip -{ -c Basic -{ -c First -, -c Least -} -, -f all -c Single -} -} -}
+#   graphs: data/karate.graph data/lesmis.graph data/grass_web.metis.graph data/dolphins.graph data/football.graph data/jazz.graph
+#
+# call
+# ./scripts/bwCluster_run
+#   combinations * graphs * repetitions times (with arguments and graphs as above: 36 * repetitions)
+# ./eval2json eval4/results/*.eval > eval4/results/combined.json
+# ./json2db eval4/results/combined.json eval4/results/combined.sqlite

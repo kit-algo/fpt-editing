@@ -1,0 +1,97 @@
+#!/bin/sh
+
+# Use this script to generate a workset from a graphedit command line
+# The workset consists of a set of individual tasks that can be run independetly of each other
+# calling bwCluster_run with the workset as argument will run the next tast in this workset
+# bwCluster_run is threadsafe as long as moving/renaming files is an atomic operation (which should be the case)
+
+# Usage: ./bwCluster_generate_workset <workset_name>
+
+OLD_DIR="$(pwd)"
+
+if [ $# -ne 1 ] ; then
+	echo "Usage: ${0} <workset_name>"
+	return 1
+elif [ -d "${1}" ] ; then
+	echo "Workset '${1}' already exits"
+	return 1
+fi
+
+mkdir "${1}"
+cd "${1}"
+
+args_check=1
+while [ $args_check -ne 0 ] ; do
+	read -p "Specify the location of the graphedit binary: " CMD
+	args_check=0
+	if [ -x ../${CMD} -a ! -d ../{CMD} ] ; then
+		args_check=0
+	else
+		echo "Can't find '${CMD}'"
+		args_check=1
+	fi
+done
+ln -s "../${CMD}" graphedit
+
+args_check=1
+while [ $args_check -ne 0 ] ; do
+	read -p "Specify the options to graphedit to run on each node. Omit -j and input graphs. " CMDARGS
+	test_output=$(./graphedit ${CMDARGS} 2>&1)
+	# k: 0-0, t/T: 0s/0s, n/N: 0x/0s, j: 1. 1 combinations on 0 files
+	args_check=$?
+	if [ ${args_check} -eq 0 ] ; then
+		args_check=1
+		echo "${test_output}"
+		read -p "Does that look right? (yes/no) " CHECK
+		case ${CHECK} in
+			Y*|y*)
+				args_check=0
+				COMBINATIONS=$(echo "${test_output}" | sed -r 's/^.*\. ([0-9]+) combinations.*$/\1/')
+				;;
+		esac
+	else
+		echo "Arguments seem to be invalid"
+	fi
+done
+
+echo exec ./graphedit "${CMDARGS}" '"$@"' > cmdline
+
+args_check=1
+while [ $args_check -ne 0 ] ; do
+	read -p "How many repetitions per experiment? " REPEAT
+	seq "${REPEAT}" > /dev/null
+	args_check=$?
+done
+
+args_check=1
+while [ $args_check -ne 0 ] ; do
+	args_check=0
+	read -p "Specify graph files: " FILES
+	for f in ${FILES} ; do
+		if [ \( ! -r "../${f}" \) -o -d "../${f}" ] ; then
+			echo "Cant read '${f}'"
+			args_check=1
+		fi
+	done
+done
+
+mkdir graphs results work_available work_executing work_done work_failed
+
+for f in ${FILES} ; do
+	ln -s -t graphs "../../${f}"
+done
+
+cd graphs
+for g in * ; do
+	for c in $(seq "${COMBINATIONS}") ; do
+		for rep in $(seq "${REPEAT}") ; do
+			touch "../work_available/${g}.${c}.${rep}"
+		done
+	done
+done
+cd ..
+
+cd "${OLD_DIR}"
+
+echo
+echo "Workset '${1}' generated"

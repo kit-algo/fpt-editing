@@ -216,7 +216,7 @@ public:
 				t2 = std::chrono::steady_clock::now();
 				auto time_passed = t2 - t1;
 				repeat_total_time += time_passed;
-			} while(std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < 5);
+			} while(std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < 10);
 		}
 
 		// actual experiment
