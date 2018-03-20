@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 		std::vector<std::vector<Selection>> groups;
 		std::map<std::string, std::set<std::string>> selection;
 
-		// recursily flatten groups into a single vector of selections, similar to how a shell handles {,}
+		// recursively flatten groups into a single vector of selections, similar to how a shell handles {,}
 		std::vector<Selection> flatten() const
 		{
 			std::vector<Selection> r{*this};
@@ -362,6 +362,11 @@ int main(int argc, char *argv[])
 	}
 
 	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "s/" << options.time_max_hard << "s, n/N: " << options.repeats << "x/" << options.repeat_time << "s, j: " << options.threads << ". " << combination_count << " combinations on " << options.filenames.size() << " files" << std::endl;
+
+	// if the hard limit is stricter, overwrite soft limit with hard limit,
+	// since the child will be killed before reaching the soft limit.
+	if(options.time_max == 0) {options.time_max = options.time_max_hard;}
+	else if(options.time_max_hard > 0) {options.time_max = std::min(options.time_max, options.time_max_hard);}
 
 	options.argc = argc;
 	options.argv = argv;

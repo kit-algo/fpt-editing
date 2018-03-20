@@ -173,16 +173,6 @@ public:
 			std::string n = name() + ' ' + filename;
 			strncpy(options.argv[1], n.c_str(), options.argv[options.argc - 1] + strlen(options.argv[options.argc - 1]) - options.argv[1]);
 
-			//
-			if(options.time_max == 0)
-			{
-				options.time_max = options.time_max_hard;
-			}
-			else if(options.time_max_hard > 0)
-			{
-				options.time_max = std::min(options.time_max, options.time_max_hard);
-			}
-
 			run_nowatch(options, filename);
 			exit(0);
 		}
