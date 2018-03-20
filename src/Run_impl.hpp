@@ -132,7 +132,6 @@ public:
 		{
 			// parent
 			close(pipefd[1]);
-			//fcntl(pipefd[0], O_NONBLOCK)//ioctl?
 			struct pollfd pfd = {pipefd[0], POLLIN, 0};
 			int p = poll(&pfd, 1, options.time_max_hard? options.time_max_hard * 1000 : -1) > 0;
 			while(p > 0)
@@ -173,6 +172,16 @@ public:
 			// show current experiment in cmdline args
 			std::string n = name() + ' ' + filename;
 			strncpy(options.argv[1], n.c_str(), options.argv[options.argc - 1] + strlen(options.argv[options.argc - 1]) - options.argv[1]);
+
+			//
+			if(options.time_max == 0)
+			{
+				options.time_max = options.time_max_hard;
+			}
+			else if(options.time_max_hard > 0)
+			{
+				options.time_max = std::min(options.time_max, options.time_max_hard);
+			}
 
 			run_nowatch(options, filename);
 			exit(0);

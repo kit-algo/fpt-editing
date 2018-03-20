@@ -1,3 +1,9 @@
 #!/bin/sh
 
+# Converts the JSON fragments produced by graphedit into valid JSON
+# by wrapping them in an array and removing the trailing comma
+
+# Usage: like cat, specifiy input file(s), redirect to output file
+# ./eval2json input... > output
+
 echo '[' ; cat "$@" | head -c -2 ; echo ; echo ']'

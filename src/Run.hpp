@@ -29,7 +29,7 @@ struct CMDOptions {
 	std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::map<std::string, std::set<std::set<std::string>>>>>>>> combinations_heur;
 	// graphs
 	std::vector<std::string> filenames;
-	// show current experiment in cmdline args
+	// used to show current experiment in child's cmdline
 	int argc = 0;
 	char **argv = NULL;
 };

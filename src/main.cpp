@@ -34,6 +34,7 @@ void run(CMDOptions const &options)
 			GENERATED_RUN_EDITOR
 			else
 			{
+				// accepted combination with no matching template instanziation
 				std::stringstream name;
 				name << editor << '-' << mode << '-' << restriction << '-' << conversion << '-' << finder;
 				for(auto const &c: consumers) {name << '-' << c;}

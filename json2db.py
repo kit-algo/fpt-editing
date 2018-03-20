@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+# creates a database from the data of a json file produced by eval2json
+
+# Usage: ./json2db.py input.json output.sqlite
+
 import sqlite3
 import json
 import sys
@@ -32,6 +36,7 @@ def json2db(jsonfile, dbfile):
 	valuetexts = ['("' + graph + '")' for graph in keys]
 	db.execute('INSERT INTO graph (name) VALUES ' + ', '.join(valuetexts) + ';')
 
+	# insert data
 	for experiment in data:
 		if not 'k' in experiment or not 'time' in experiment['results'] or not 'solved' in experiment['results']: continue
 		query = 'INSERT INTO experiment (exact, algo, graph, threads, k, time, solved) VALUES (' \
