@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 """
 Generates files for instanziating and selecting all combinations of components available to the user
