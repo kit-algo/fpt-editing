@@ -20,28 +20,34 @@ fi
 mkdir "${1}"
 cd "${1}"
 
+# get binary
 args_check=1
 while [ $args_check -ne 0 ] ; do
 	read -p "Specify the location of the graphedit binary: " CMD
 	args_check=0
-	if [ -x ../${CMD} -a ! -d ../{CMD} ] ; then
+	IS_ABSOLUTE="${CMD##/*}" # if the path starts with / result is the empty string, otherwise unchanged
+	if [ ${#IS_ABSOLUTE} -eq 0 -a -x "${CMD}" -a ! -d "${CMD}" ] ; then
 		args_check=0
+		ln -s "${CMD}" graphedit
+	elif [ ${#IS_ABSOLUTE} -ne 0 -a -x "${OLD_DIR}/${CMD}" -a ! -d "${OLD_DIR}/${CMD}" ] ; then
+		args_check=0
+		ln -s "${OLD_DIR}/${CMD}" graphedit
 	else
 		echo "Can't find '${CMD}'"
 		args_check=1
 	fi
 done
-ln -s "../${CMD}" graphedit
 
+# get arguments
 args_check=1
 while [ $args_check -ne 0 ] ; do
 	read -p "Specify the options to graphedit to run on each node. Omit -j and input graphs. " CMDARGS
 	test_output=$(./graphedit ${CMDARGS} 2>&1)
-	# k: 0-0, t/T: 0s/0s, n/N: 0x/0s, j: 1. 1 combinations on 0 files
 	args_check=$?
+	# k: 0-0, t/T: 0s/0s, n/N: 0x/0s, j: 1. 1 combinations on 0 files
+	echo "${test_output}"
 	if [ ${args_check} -eq 0 ] ; then
 		args_check=1
-		echo "${test_output}"
 		read -p "Does that look right? (yes/no) " CHECK
 		case ${CHECK} in
 			Y*|y*)
@@ -53,9 +59,9 @@ while [ $args_check -ne 0 ] ; do
 		echo "Arguments seem to be invalid"
 	fi
 done
-
 echo exec ./graphedit "${CMDARGS}" '"$@"' > cmdline
 
+# get repetitions
 args_check=1
 while [ $args_check -ne 0 ] ; do
 	read -p "How many repetitions per experiment? " REPEAT
@@ -63,12 +69,19 @@ while [ $args_check -ne 0 ] ; do
 	args_check=$?
 done
 
+# get graphs
 args_check=1
 while [ $args_check -ne 0 ] ; do
 	args_check=0
 	read -p "Specify graph files: " FILES
+	# test if graphs are accessable
 	for f in ${FILES} ; do
-		if [ \( ! -r "../${f}" \) -o -d "../${f}" ] ; then
+		IS_ABSOLUTE="${f##/*}" # if the path starts with / result is the empty string, otherwise unchanged
+		if [ ${#IS_ABSOLUTE} -eq 0 -a -r "${f}" -a ! -d "${f}" ] ; then
+			args_check=0
+		elif [ ${#IS_ABSOLUTE} -ne 0 -a -r "${OLD_DIR}/${f}" -a ! -d "${OLD_DIR}/${f}" ] ; then
+			args_check=0
+		else
 			echo "Cant read '${f}'"
 			args_check=1
 		fi
@@ -77,21 +90,25 @@ done
 
 mkdir graphs results work_available work_executing work_done work_failed
 
-for f in ${FILES} ; do
-	ln -s -t graphs "../../${f}"
-done
-
+# create graph symlinks and work indicators
 cd graphs
-for g in * ; do
+for f in ${FILES} ; do
+	graphbase="${f##*/}"
+	IS_ABSOLUTE="${f##/*}" # if the path starts with / result is the empty string, otherwise unchanged
+	if [ ${#IS_ABSOLUTE} -eq 0 ] ; then
+		ln -s "${f}" "${graphbase}"
+	elif [ ${#IS_ABSOLUTE} -ne 0 ] ; then
+		ln -s "${OLD_DIR}/${f}" "${graphbase}"
+	fi
 	for c in $(seq "${COMBINATIONS}") ; do
 		for rep in $(seq "${REPEAT}") ; do
-			touch "../work_available/${g}.${c}.${rep}"
+			touch "../work_available/${graphbase}.${c}.${rep}"
 		done
 	done
 done
 cd ..
 
+# cleanup
 cd "${OLD_DIR}"
-
 echo
 echo "Workset '${1}' generated"

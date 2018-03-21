@@ -46,7 +46,7 @@ repetition="${work##*.}"
 if [ "${#SLURM_JOB_CPUS_PER_NODE}" -ne 0 ] ; then
 	threads="-j ${SLURM_JOB_CPUS_PER_NODE%%(*}"
 fi
-sh cmdline "${threads}" -X "${combination}" "graphs/${graph}" > "results/${work}.eval"
+sh cmdline ${threads} -X "${combination}" "graphs/${graph}" > "results/${work}.eval"
 if [ "$?" -eq 0 ] ; then
 	mv "work_executing/${work}" "work_done/${work}"
 else

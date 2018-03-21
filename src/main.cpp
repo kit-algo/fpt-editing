@@ -369,6 +369,7 @@ int main(int argc, char *argv[])
 	}
 
 	std::cerr << "k: " << options.k_min << '-' << options.k_max << ", t/T: " << options.time_max << "s/" << options.time_max_hard << "s, n/N: " << options.repeats << "x/" << options.repeat_time << "s, j: " << options.threads << ". " << combination_count << " combinations on " << options.filenames.size() << " files" << std::endl;
+	if(combination_count > 0) {std::cerr << "only using combination " << combination_count << std::endl;}
 
 	// if the hard limit is stricter, overwrite soft limit with hard limit,
 	// since the child will be killed before reaching the soft limit.
