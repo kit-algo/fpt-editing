@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Should statistics be gathered */
+/* Should statistics be gathered? */
 #define STATS
 
 /* Type used for vertex identifiers */
@@ -19,7 +19,12 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define PACKED_POP __builtin_popcountll
 
 #define MINIMAL
-
+/* Which components are to be compiled?
+ * The first set should be a complete list of every component available,
+ * the second a reasonable subset aimed at faster compilation.
+ * Consumers MUST be listed in every category (…_SELECTOR, …_BOUND, …_RESULT) in which they can be used,
+ * Experiments involving a consumer used for a category it is not mentioned in may fail to start, producing an error.
+ */
 #ifndef MINIMAL
 #define CHOICES_MODE Edit, Delete, Insert
 #define CHOICES_RESTRICTION None, Undo, Redundant
@@ -44,6 +49,10 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define CHOICES_GRAPH Matrix
 #endif
 
+/* Macros used by choices.py defining which components can be combined and in which order
+ * If zero or more choices from a category are allowed, postfix it with ``...''
+ * Currently, the code can only handle multiple consumers
+ */
 #define LIST_CHOICES_EDITOR EDITOR, FINDER, GRAPH, MODE, RESTRICTION, CONVERSION, CONSUMER_SELECTOR, CONSUMER_BOUND, CONSUMER_RESULT...
 #define LIST_CHOICES_HEURISTIC HEURISTIC, FINDER, GRAPH, MODE, RESTRICTION, CONVERSION, CONSUMER_SELECTOR, CONSUMER_BOUND, CONSUMER_RESULT...
 

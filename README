@@ -1,17 +1,19 @@
 graphedit -- a framework for evaluating FPT Edge Editing algorithms
 
+graphedit is a framework for evaluating algorithms and strategies (called components) used for solving the F-free edge editing problem. F is a set of forbidden subgraphs. If a graph dosen't contain any of them the graph is considered to be F-free. graphedit tries to find F-free graphs close to the input graph by editing (inserting and removing) as few edges as possible. Currently all implemented components are for F = {P~x~, C~x~}, i.e. paths and cycles containing x vertices are forbidden.
+
 [TOC]
 
 ### BUILDING
 
 * edit the top part of ``Makefile`` to adjust compilation flags as needed
-* edit ``src/config.hpp`` to select the algorithms that will be available -- compiling everything will take a while
+* edit ``src/config.hpp`` to select the algorithms that will be available -- compiling everything will take a while (expect 2 hours on a modern machine)
 * make
 
 ### USING
 
 Specify the combination of algorithms that shall be used and the graph files to run them on. Optionally limit the number of edits that should be tried and limit the running time. Except for Consumers, selecting multiple algorithms for the same component will run multiple experiments. You can create groups with the ``-{``, ``-,`` and ``-}`` options, which work similar to ``{``, ``,`` and ``}`` of most shells.
-Try ``graphedit --help``.
+Try ``graphedit --help``. Graphs files must be in METIS format.
 
 For a description of the individual components and the currently available algorithms for these components see [COMPONENTS](COMPONENTS).
 
@@ -60,9 +62,9 @@ To facilitate further processing of the results adding ``-J`` or ``--json`` will
 },
 ```
 
-If the graph can be solved, the solution will be written in the same directory as the graph. The filename is derived from the original name and indicates the algorithm choices and number of edits. Writing solutions to disk can be disabled with ``-W`` or ``--no-write``.
+If the graph can be solved, the solution will be written in the same directory as the graph. The filename is derived from the original name and indicates the algorithm choices and number of edits. The set of currently edited or marked edges is also written. Both graphs are written in METIS and DOT format. In addition a graph in DOT format is written, highlighting changes made and edges marked. Writing solutions to disk can be disabled with ``-W`` or ``--no-write``.
 
-We recommend redirecting the output to a file when outputting JSON. JSON fragments can be assebles into a valid JSON object by using the helper scrip ``./eval2json input_file(s) > output_file``. The JSON file can then be converted into a sqlite database by ``json2db.py json_file sqlite_file``.
+We recommend redirecting the output to a file when outputting JSON. JSON fragments can be assembled into a valid JSON object by using the helper scrip ``./eval2json input_file(s) > output_file``. The JSON file can then be converted into a sqlite database by ``json2db.py json_file sqlite_file``.
 ``plot.r`` provides R functions for loading JSON and database files and creating various plots from their data. We recommend using the database as R has some serious problems loading larger JSON files.
 
 
