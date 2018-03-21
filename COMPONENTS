@@ -61,7 +61,7 @@ An algorithm may be part of multiple groups
 Component that stores a graph
 
 - Matrix
-	Represents the graph as an adjecenzy matrix
+	Represents the graph as an adjacency matrix
 
 
 ### OPTIONS

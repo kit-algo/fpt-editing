@@ -1,6 +1,6 @@
 graphedit -- a framework for evaluating FPT Edge Editing algorithms
 
-graphedit is a framework for evaluating algorithms and strategies (called components) used for solving the F-free edge editing problem. F is a set of forbidden subgraphs. If a graph dosen't contain any of them the graph is considered to be F-free. graphedit tries to find F-free graphs close to the input graph by editing (inserting and removing) as few edges as possible. Currently all implemented components are for F = {P~x~, C~x~}, i.e. paths and cycles containing x vertices are forbidden.
+graphedit is a framework for evaluating algorithms and strategies (called components) used for solving the F-free edge editing problem. F is a set of forbidden subgraphs. If a graph doesn't contain any of them the graph is considered to be F-free. graphedit tries to find F-free graphs close to the input graph by editing (inserting and removing) as few edges as possible. Currently all implemented components are for F = {P~x~, C~x~}, i.e. paths and cycles containing x vertices are forbidden.
 
 [TOC]
 
@@ -29,7 +29,7 @@ fallbacks:    0  554  279  370 1693 1431  550 293 184 146 131 102 102  96  91  7
    stolen:    0    0    0    0    0    0    0   0   0   0   0   0   0   0   0   0   0  0  0  2  5  1, total: 8
 data/karate.graph: (exact) MT-Edit-Redundant-Skip-Center_4-Least-Basic-Matrix, 4 threads, k = 21: yes [0.155779s]
 ```
-The first and last line mention the graph and algorithms used and the number of number of allowed edits. The last line additionally says whether the graph could be solved and the time needed. The numbers in the table indicate how often each event occured while there were how many edits remaining. The events shown may differ between different editors. Currently there are:
+The first and last line mention the graph and algorithms used and the number of number of allowed edits. The last line additionally says whether the graph could be solved and the time needed. The numbers in the table indicate how often each event occurred while there were how many edits remaining. The events shown may differ between different editors. Currently there are:
  * calls: number of recursive calls (should be equal to prunes + fallbacks + single)
  * prunes: how often was the lower bound higher than the number of edits remaining
  * single: how often did the selection algorithm produce a single edge to edits
@@ -70,9 +70,9 @@ We recommend redirecting the output to a file when outputting JSON. JSON fragmen
 
 ### HACKING
 
-In the main source directory ``src/`` contains the files for configuration (``config.hpp``), comand line parsing (``main.cpp``), setting up the individual experiments (``Run_impl.hpp``), templates used by the build system (``*.tpp``) and some general utility. Components are in subdirectories named after their type. The interface each component should adhere to can be found in ``src/Interfaces/``.
+In the main source directory ``src/`` contains the files for configuration (``config.hpp``), command line parsing (``main.cpp``), setting up the individual experiments (``Run_impl.hpp``), templates used by the build system (``*.tpp``) and some general utility. Components are in subdirectories named after their type. The interface each component should adhere to can be found in ``src/Interfaces/``.
 
-The code relies on templates instead of inheritance/polymorphism as we observed a 35% increase in running time using the latter. However, when simply adding components, the interface and the existing components should serve as sufficient example on how the templates are intended to be used. The more messy ones (implementation of ``Finder::Feeder`` and ``Run_impl``) shoudln't need to be touched.
+The code relies on templates instead of inheritance/polymorphism as we observed a 35% increase in running time using the latter. However, when simply adding components, the interface and the existing components should serve as sufficient example on how the templates are intended to be used. The more messy ones (implementation of ``Finder::Feeder`` and ``Run_impl``) shouldn't need to be touched.
 Don't forget to add a new component to ``src/choices.hpp`` and ``src/config.hpp``; not adding them will lead to build failures or the build process ignoring the new components.
 
 - Conventions

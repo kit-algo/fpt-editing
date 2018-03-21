@@ -6,6 +6,7 @@
 # editor garbage
 .*.swp
 *.pro*
+*.kdev4
 
 # tex output
 doc/**/*.aux
