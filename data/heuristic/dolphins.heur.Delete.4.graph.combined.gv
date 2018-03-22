@@ -1,0 +1,161 @@
+graph {
+	0 -- 10
+	0 -- 14 [color=red]
+	0 -- 15 [color=red]
+	0 -- 40 [color=red]
+	0 -- 42
+	0 -- 47
+	1 -- 17 [color=red]
+	1 -- 19 [color=red]
+	1 -- 26
+	1 -- 27
+	1 -- 28 [color=red]
+	1 -- 36 [color=red]
+	1 -- 41 [color=red]
+	1 -- 54 [color=red]
+	2 -- 10
+	2 -- 42
+	2 -- 44 [color=red]
+	2 -- 61 [color=red]
+	3 -- 8 [color=red]
+	3 -- 14 [color=red]
+	3 -- 59 [color=red]
+	4 -- 51
+	5 -- 9
+	5 -- 13
+	5 -- 56 [color=red]
+	5 -- 57
+	6 -- 9 [color=red]
+	6 -- 13
+	6 -- 17 [color=red]
+	6 -- 54
+	6 -- 56 [color=red]
+	6 -- 57
+	7 -- 19
+	7 -- 27 [color=red]
+	7 -- 30
+	7 -- 40 [color=red]
+	7 -- 54 [color=red]
+	8 -- 20
+	8 -- 28
+	8 -- 37 [color=red]
+	8 -- 45 [color=red]
+	8 -- 59 [color=red]
+	9 -- 13
+	9 -- 17
+	9 -- 32 [color=red]
+	9 -- 41
+	9 -- 57
+	10 -- 29 [color=red]
+	10 -- 42
+	10 -- 47
+	11 -- 51
+	12 -- 33 [color=red]
+	13 -- 17
+	13 -- 32 [color=red]
+	13 -- 41
+	13 -- 54
+	13 -- 57
+	14 -- 16
+	14 -- 24 [color=red]
+	14 -- 33
+	14 -- 34
+	14 -- 37
+	14 -- 38
+	14 -- 40
+	14 -- 43
+	14 -- 50
+	14 -- 52
+	15 -- 18 [color=red]
+	15 -- 24 [color=red]
+	15 -- 40 [color=red]
+	15 -- 45 [color=red]
+	15 -- 55 [color=red]
+	15 -- 59 [color=red]
+	16 -- 20 [color=red]
+	16 -- 33
+	16 -- 37 [color=red]
+	16 -- 38
+	16 -- 50
+	17 -- 22 [color=red]
+	17 -- 25 [color=red]
+	17 -- 27 [color=red]
+	17 -- 31 [color=red]
+	17 -- 57
+	18 -- 20 [color=red]
+	18 -- 21
+	18 -- 24
+	18 -- 29
+	18 -- 45
+	18 -- 51
+	19 -- 30
+	19 -- 54 [color=red]
+	20 -- 28
+	20 -- 36 [color=red]
+	20 -- 38 [color=red]
+	20 -- 44
+	20 -- 47 [color=red]
+	20 -- 50 [color=red]
+	21 -- 29
+	21 -- 33 [color=red]
+	21 -- 37 [color=red]
+	21 -- 45
+	21 -- 51
+	23 -- 36 [color=red]
+	23 -- 45
+	23 -- 51
+	24 -- 29
+	24 -- 45
+	24 -- 51
+	25 -- 26
+	25 -- 27
+	26 -- 27
+	28 -- 30 [color=red]
+	28 -- 47 [color=red]
+	29 -- 35 [color=red]
+	29 -- 43 [color=red]
+	29 -- 45
+	29 -- 51
+	29 -- 52 [color=red]
+	30 -- 42 [color=red]
+	30 -- 47 [color=red]
+	32 -- 60 [color=red]
+	33 -- 34
+	33 -- 37
+	33 -- 38
+	33 -- 40
+	33 -- 43
+	33 -- 50
+	34 -- 37
+	34 -- 44 [color=red]
+	34 -- 49 [color=red]
+	36 -- 37 [color=red]
+	36 -- 39
+	36 -- 40 [color=red]
+	36 -- 59
+	37 -- 40
+	37 -- 43
+	37 -- 45 [color=red]
+	37 -- 61 [color=red]
+	38 -- 43 [color=red]
+	38 -- 44 [color=red]
+	38 -- 52 [color=red]
+	38 -- 58 [color=red]
+	39 -- 57 [color=red]
+	40 -- 52 [color=red]
+	41 -- 54 [color=red]
+	41 -- 57
+	42 -- 47
+	42 -- 50 [color=red]
+	43 -- 46 [color=red]
+	43 -- 53 [color=red]
+	45 -- 50 [color=red]
+	45 -- 51
+	45 -- 59 [color=red]
+	46 -- 49
+	48 -- 57
+	50 -- 51 [color=red]
+	51 -- 55
+	53 -- 61
+	54 -- 57
+}

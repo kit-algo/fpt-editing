@@ -4,10 +4,10 @@ library(ggplot2)
 library(tikzDevice)
 library(scales)
 
-loadjson = function(file)
+load.json = function(file)
 {
 	# load experiment results from JSON file created by ./eval2json
-	# note: jsonlite and/or R leaks memory here; on larger data sets using loaddb() is strongly recommended
+	# note: jsonlite and/or R leaks memory here; on larger data sets using load.db() is strongly recommended
 
 	# get experiments
 	data = fromJSON(file)
@@ -27,7 +27,7 @@ loadjson = function(file)
 	data
 }
 
-loaddb = function(file)
+load.db = function(file)
 {
 	# load experiment results from sqlite file created by ./json2db.py
 	# note: does not load individual (i.e. per k) stat counters, only their total
@@ -68,9 +68,18 @@ loaddb = function(file)
 	data
 }
 
+###########
+# plot functions
+#
+# general behaviour common to all plot functions:
+# - if the data contains more than one set of experiments, automatically produces a legend mentioning the variant inputs
+#     usually these are group, algorithm and threads
+#   otherwise no legend is created
 
 plot.times = function(data)
 {
+	# plots the running time of the experiments
+
 	data = droplevels(data)
 
 	# construct label, omit non-varying factors
@@ -98,6 +107,8 @@ plot.times = function(data)
 
 plot.calls = function(data)
 {
+	# plots the number of recursive calls of the experiments
+
 	data = droplevels(data)
 
 	# construct label, omit non-varying factors
@@ -124,8 +135,10 @@ plot.calls = function(data)
 	p
 }
 
-plot.mt.speedup = function(data, strip_lb = FALSE)
+plot.mt.efficiency = function(data, strip_lb = FALSE)
 {
+	# plots the efficiency of the multithreaded approach
+
 	# filter for highest k in each group present in all thread counts
 	data = data[as.logical(ave(data$k, data$group, data$algo, data$threads, FUN = function(x) x == max(x))),]
 	data = data[as.logical(ave(data$k, data$group, data$algo, FUN = function(x) x == min(x))),]
@@ -161,6 +174,27 @@ plot.mt.speedup = function(data, strip_lb = FALSE)
 	p
 }
 
+######################################################
+# other functions
+#
+# - for summary table in a paper the result of summary.table(filter.best(data)) might be useful
+
+filter.best = function(data)
+{
+	# filter the best results of each group, i.e. highest k with shortest time
+
+	data = data[as.logical(ave(data$k, data$group, FUN = function(x) x == max(x))),]
+	data = data[as.logical(ave(data$results$time, data$group, FUN = function(x) x == min(x))),]
+
+	data
+}
+
+summary.table = function(data)
+{
+	# reduce the data to only include the columns needed for a summary table
+
+	data.frame(group = data$group, k = data$k, solved = data$results$solved, time = data$results$time, threads = data$threads)
+}
 
 ######################################################
 # TODO
