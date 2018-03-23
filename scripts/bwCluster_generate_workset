@@ -102,7 +102,8 @@ for f in ${FILES} ; do
 	fi
 	for c in $(seq "${COMBINATIONS}") ; do
 		for rep in $(seq "${REPEAT}") ; do
-			touch "../work_available/${graphbase}.${c}.${rep}"
+			# mv appears to not be atomic. workaround: use mkdir instead
+			mkdir "../work_available/${graphbase}.${c}.${rep}"
 		done
 	done
 done

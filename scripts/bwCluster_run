@@ -22,12 +22,15 @@ fi
 
 for w in work_available/* ; do
 	w="${w#work_available/}"
-	mv "work_available/${w}" "work_executing/${w}"
+	#mv "work_available/${w}" "work_executing/${w}" # mv is not as atomic as I thought
+	mkdir "work_executing/${w}"
 	if [ "$?" -eq 0 ] ; then
 		work="${w}"
+		rmdir "work_available/${w}"
 		break
 	fi
 done
+# we now own "work_available/${w}", latter moves on it are safe
 
 if [ "${#work}" -eq 0 ] ; then
 	echo "no work found"
