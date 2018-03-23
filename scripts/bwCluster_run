@@ -22,6 +22,10 @@ fi
 
 for w in work_available/* ; do
 	w="${w#work_available/}"
+	if [ "${w}" == "*" ] ; then
+		# got pattern, directory is empty
+		break
+	fi
 	#mv "work_available/${w}" "work_executing/${w}" # mv is not as atomic as I thought
 	mkdir "work_executing/${w}"
 	if [ "$?" -eq 0 ] ; then
@@ -35,7 +39,7 @@ done
 if [ "${#work}" -eq 0 ] ; then
 	echo "no work found"
 	cd "${OLD_DIR}"
-	return 1
+	exit 1
 fi
 
 # $work is graph.combination.repetition
