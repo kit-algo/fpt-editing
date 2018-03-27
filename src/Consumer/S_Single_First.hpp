@@ -1,5 +1,5 @@
-#ifndef SELECTOR_SINGLE_EDITS_SPARSE_HPP
-#define SELECTOR_SINGLE_EDITS_SPARSE_HPP
+#ifndef SELECTOR_SINGLE_FIRST_HPP
+#define SELECTOR_SINGLE_FIRST_HPP
 
 #include <algorithm>
 #include <set>
@@ -17,15 +17,15 @@
 #include "../Options.hpp"
 
 #include "../Finder/Finder.hpp"
-#include "../Finder/Center_Edits_Sparse.hpp"
+#include "../Finder/Center.hpp"
 
 namespace Consumer
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
-	class Single_Edits_Sparse : Options::Tag::Selector, Options::Tag::Lower_Bound
+	class Single_First : Options::Tag::Selector, Options::Tag::Lower_Bound
 	{
 	public:
-		static constexpr char const *name = "Single_Edits_Sparse";
+		static constexpr char const *name = "Single_First";
 
 	private:
 		// feeder contains references to this which turn to dangling pointers with default {copy,move} {constructor,assignment}.
@@ -48,29 +48,29 @@ namespace Consumer
 				std::vector<VertexID> edge;
 			} best;
 
-			Finder::Center_Edits_Sparse<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
+			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
 			M(VertexID graph_size) : used(graph_size), new_use(graph_size), finder(graph_size) {;}
 		} m;
 
-		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single_Edits_Sparse> feeder;
+		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single_First> feeder;
 
 	public:
 		// manual {copy,move} {constructor,assignment} implementations due to feeder
-		Single_Edits_Sparse(Single_Edits_Sparse const &o) : m(o.m), feeder(this->m.finder, *this) {;}
-		Single_Edits_Sparse(Single_Edits_Sparse &&o) : m(std::move(o.m)), feeder(this->m.finder, *this) {;}
-		Single_Edits_Sparse &operator =(Single_Edits_Sparse const &o)
+		Single_First(Single_First const &o) : m(o.m), feeder(this->m.finder, *this) {;}
+		Single_First(Single_First &&o) : m(std::move(o.m)), feeder(this->m.finder, *this) {;}
+		Single_First &operator =(Single_First const &o)
 		{
 			m = o.m;
 			feeder = decltype(feeder)(this->m.finder, *this);
 		}
-		Single_Edits_Sparse &operator =(Single_Edits_Sparse &&o)
+		Single_First &operator =(Single_First &&o)
 		{
 			m = std::move(o.m);
 			feeder = decltype(feeder)(this->m.finder, *this);
 		}
 
-		Single_Edits_Sparse(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
+		Single_First(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
 		void prepare()
 		{
@@ -143,35 +143,12 @@ namespace Consumer
 				if(mark_change == ~0U) {abort();}
 
 				/* compare */
-				//std::cout << "current best: " << +m.best.changes.first << ", " << +m.best.changes.second << ": " << +m.best.edge.front() << " - " << +m.best.edge.back() << '\n';
 				auto const changes = std::minmax(mark_change, edit_change);
-				size_t space = k - m.bounds.size();
-				space++;
-				// both branches cut: return
-				if(space < changes.first)
+				if(changes.first > 0)
 				{
 					m.best = {changes, {u, v}};
-//					std::cout << "cut: " << +changes.first << ", " << +changes.second << ": " << +u << " - " << +v << '\n';
 					return true;
 				}
-				// one branch cut: maximize other branch
-				else if(space < changes.second)
-				{
-					if(m.best.changes.second <= space) {;}
-					else if(space < m.best.changes.second && m.best.changes.first < changes.first) {;}
-					else {return false;}
-				}
-				// no branch cut: maximize lower value
-				else if(m.best.changes.second <= space)
-				{
-					if(m.best.changes.first < changes.first) {;}
-					//     equal lower value: maximize higher value
-					else if(m.best.changes.first == changes.first && m.best.changes.second < changes.second) {;}
-					else {return false;}
-				}
-				else {return false;}
-				m.best = {changes, {u, v}};
-//				std::cout << "new best: " << +changes.first << ", " << +changes.second << ": " << +u << " - " << +v << '\n';
 				return false;
 			};
 

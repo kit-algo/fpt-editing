@@ -14,6 +14,8 @@
 #include "Consumer/S_Least_Unedited.hpp"
 #include "Consumer/S_Single.hpp"
 #include "Consumer/S_Single_Edits_Sparse.hpp"
+#include "Consumer/S_Single_First.hpp"
+#include "Consumer/S_Single_First_Edits_Sparse.hpp"
 #include "Consumer/S_Most_Forbidden.hpp"
 #include "Consumer/LB_No.hpp"
 #include "Consumer/LB_Basic.hpp"

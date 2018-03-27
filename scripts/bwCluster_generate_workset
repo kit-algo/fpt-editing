@@ -1,9 +1,7 @@
 #!/bin/sh
 
 # Use this script to generate a workset from a graphedit command line
-# The workset consists of a set of individual tasks that can be run independetly of each other
-# calling bwCluster_run with the workset as argument will run the next tast in this workset
-# bwCluster_run is threadsafe as long as moving/renaming files is an atomic operation (which should be the case)
+# The workset consists of a set of individual jobs that can be run independetly of each other
 
 # Usage: ./bwCluster_generate_workset <workset_name>
 
@@ -25,7 +23,8 @@ cd "${WORK_DIR}"
 aborted ()
 {
 	trap - EXIT INT
-	cd "${OLD_PWD}"
+	echo
+	cd "${OLD_DIR}"
 	rm -r "${WORK_DIR}"
 	exit 1
 }
@@ -172,7 +171,7 @@ done
 JOB_COUNT=$(( ((graph_count * COMBINATIONS * REPEAT + TASKS_PER_NODE - 1) / TASKS_PER_NODE + NODES_PER_JOB - 1) / NODES_PER_JOB ))
 echo "Will create ${JOB_COUNT} jobs."
 
-mkdir graphs results work
+mkdir graphs results jobs tasks
 
 # create graph symlinks and work indicators
 cd graphs
@@ -187,7 +186,7 @@ for f in ${FILES} ; do
 done
 cd ..
 
-cd work
+cd jobs
 g=1
 gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')"
 c=1
@@ -196,13 +195,20 @@ for j in $(seq ${JOB_COUNT}) ; do
 # graph, combination, repeat
 	#MPI_PROGS=""
 	for t in $(seq $(( TASKS_PER_NODE * NODES_PER_JOB )) ) ; do
-		MPI_PROGS="${MPI_PROGS} ${MPI_PROGS:+:} ./graphedit ${CMDARGS} -j ${THREADS_PER_TASK} -X ${c} graphs/${gg##*/}"
+		echo -e "#!/bin/sh\n\nexec sh -c '../cmdline -j ${THREADS_PER_TASK} -X ${c} graphs/${gg##*/}' > results/task.${j}.${t}.eval" >> ../tasks/task.${j}.${t}.sh
+		chmod +x ../tasks/task.${j}.${t}.sh
+		MPI_PROGS="${MPI_PROGS} ${MPI_PROGS:+:} ../tasks/task.${j}.${t}.sh"
 		r=$((r + 1))
 		if [ "${r}" -gt "${REPEAT}" ] ; then r=1 ; c=$((c + 1)) ; fi
 		if [ "${c}" -gt "${COMBINATIONS}" ] ; then c=1 ; g=$((g + 1)) ; gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')" ; fi
 		if [ "${g}" -gt "${graph_count}" ] ; then break ; fi
 	done
 
+#######################################
+# job script
+# all variables that should be evaluated when submitting the job need to be escaped, e.g. "\${variable}"
+# unescaped varibles will be evaluated when creating the job script
+#######################################
 	# done assembling program arguments for one job, create job script
 	cat - > job.${j}.sh <<EOF
 #!/bin/bash
@@ -219,7 +225,6 @@ export KMP_AFFINITY=compact,1,0
 #KMP_AFFINITY Description: https://software.intel.com/en-us/node/524790#KMP_AFFINITY_ENVIRONMENT_VARIABLE
 
 module load \${MODULE}
-TASK_COUNT=\$((\${MOAB_PROCCOUNT}/\${MOAB_NODECOUNT}))
 echo "Executable \${EXECUTABLE} running on \${MOAB_PROCCOUNT} cores with \${OMP_NUM_THREADS} threads"
 mpi_options="--bind-to core --map-by core:PE=$((${CORES_PER_NODE}/${TASKS_PER_NODE})) -report-bindings"
 
@@ -227,6 +232,9 @@ mpi_progs="${MPI_PROGS}"
 
 exec mpirun -n \${MOAB_PROCCOUNT} \${mpi_options} \${mpi_progs}
 EOF
+
+#######################################
+
 	unset MPI_PROGS
 done
 cd ..
@@ -236,3 +244,4 @@ trap - EXIT INT
 cd "${OLD_DIR}"
 echo
 echo "Workset '${WORK_DIR}' generated"
+echo "Scripts for msub can be found in '${WORK_DIR}/jobs'"
