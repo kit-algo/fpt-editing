@@ -19,3 +19,5 @@
 #   combinations * graphs * repetitions times (with arguments and graphs as above: 36 * repetitions)
 # ./eval2json eval4/results/*.eval > eval4/results/combined.json
 # ./json2db eval4/results/combined.json eval4/results/combined.sqlite
+
+# -WDJ -T 10800 -n 1 -e MT -g Matrix -M Edit -f Center_4 -C Skip -{ -R all -c No -c First -, -R Redundant -{ -c Basic -{ -c First -, -c Least -} -, -f all -c Single -} -}

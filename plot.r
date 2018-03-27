@@ -68,7 +68,7 @@ load.db = function(file)
 	data
 }
 
-###########
+######################################################
 # plot functions
 #
 # general behaviour common to all plot functions:
@@ -88,6 +88,7 @@ plot.times = function(data)
 	if(nlevels(data$algo) > 1) {l = c(l, "Algorithm"); if(is.null(data$label)) {data$label = data$algo} else {data$label = paste(data$label, data$algo, sep = " / ")}}
 	if(min(data$threads) != max(data$threads)) {l = c(l, "Threads"); if(is.null(data$label)) {data$label = data$threads} else {data$label = paste(data$label, data$threads, sep = " / ")}}
 	l = paste(l, collapse = " / ")
+	if(is.null(data$label)) {data$label = ""}
 	data$label = as.factor(data$label)
 
 	# no color needed if only plotting a single group
@@ -118,6 +119,7 @@ plot.calls = function(data)
 	# threads should not make a difference in the number of recursive calls
 	#if(min(data$threads) != max(data$threads)) {l = c(l, "Threads"); if(is.null(data$label)) {data$label = data$threads} else {data$label = paste(data$label, data$threads, sep = " / ")}}
 	l = paste(l, collapse = " / ")
+	if(is.null(data$label)) {data$label = ""}
 	data$label = as.factor(data$label)
 
 	# no color needed if only plotting a single group
@@ -135,7 +137,7 @@ plot.calls = function(data)
 	p
 }
 
-plot.mt.efficiency = function(data, strip_lb = FALSE)
+plot.mt.efficiency = function(data)
 {
 	# plots the efficiency of the multithreaded approach
 
@@ -152,6 +154,8 @@ plot.mt.efficiency = function(data, strip_lb = FALSE)
 	# threads are the x axis in this plot
 	#if(min(data$threads) != max(data$threads)) {l = c(l, "Threads"); if(length(as.logical(data$label)) == 0) {data$label = data$threads} else {data$label = paste(data$label, data$threads, sep = " / ")}}
 	l = paste(l, collapse = " / ")
+	if(is.null(data$label)) {data$label = ""}
+	data$label = as.factor(data$label)
 
 	# in each group, set results$reftime to mean(results$time) with threads == 1
 	refgroups = subset(data, threads == 1)
@@ -172,6 +176,69 @@ plot.mt.efficiency = function(data, strip_lb = FALSE)
 	p = p + stat_summary(aes(y = results$reftime / (results$time * threads), group = interaction(group, algo)), fun.y = mean, geom = "point", size = 0.75, position = position_dodge(0.75))
 
 	p
+}
+
+######################################################
+# plot generators
+#
+# produces multiple plots in the directory `dir'
+
+plot.all = function(data, dir)
+{
+	# create individual plots for every experiment with each of the above plot functions
+	# dir is the directory to which to write the plots
+
+	# see plot.eval at the end of this file for examples on how to change ggsave's output format and size
+	
+	data = droplevels(data)
+
+	t = theme_get()
+	# reduce fontsize of title 
+	theme_update(plot.title = element_text(size = rel(.6)))
+
+	# mangle some names
+	# adjust as needed
+	#   grass_web.metis -> grassweb
+	levels(data$group) = gsub("grass_web\\.metis", "grassweb", levels(data$group))
+	#   graphs/foo.graph -> foo
+	levels(data$group) = gsub("^graphs/", "", levels(data$group))
+	levels(data$group) = gsub("\\.graph$", "", levels(data$group))
+
+	# make underscores latex-safe
+	# commented due to pdf output
+#	levels(data$group) = gsub("_", "\\\\_", levels(data$group))
+#	levels(data$algo) = gsub("_", "\\\\_", levels(data$algo))
+
+	# for each group
+	for(l in levels(data$group))
+	{
+		sub_group = subset(data, group == l)
+		file_group = gsub("/", "_", l)
+		# for each algorithm
+		for(a in levels(sub_group$algo))
+		{
+			sub_algo = subset(sub_group, algo == a)
+			file_algo = gsub("/", "_", a)
+
+			# no data for this combination, skip
+			if(nrow(sub_algo) == 0) {next}
+
+			# did any experiment solve the graph?
+			s = any(sub_algo$results$solved)
+
+			# progess indicator
+			print(paste(l, a, s))
+
+			ggsave(paste(file_group, file_algo, s, "times.pdf", sep = "."), plot = plot.times(sub_algo) + ggtitle(paste("Graph:", l, "Algorithm:", a, "Solved:", s)), device = pdf, path = dir)
+			ggsave(paste(file_group, file_algo, s, "calls.pdf", sep = "."), plot = plot.calls(sub_algo) + ggtitle(paste("Graph:", l, "Algorithm:", a, "Solved:", s)), device = pdf, path = dir)
+			ggsave(paste(file_group, file_algo, s, "mt.efficiency.pdf", sep = "."), plot = plot.mt.efficiency(sub_algo) + ggtitle(paste("Graph:", l, "Algorithm:", a, "Solved:", s)), device = pdf, path = dir)
+			# plot.times with repositioned legend (see figure 3.3.a)
+			ggsave(paste(file_group, file_algo, s, "mt.times.pdf", sep = "."), plot = plot.times(sub_algo) + theme(legend.position = c(0.11, 0.65), legend.background = element_rect(fill = "grey92", size = 1, linetype = "solid")) + ggtitle(paste("Graph:", l, "Algorithm:", a, "Solved:", s)), device = pdf, path = dir)
+		}
+	}
+
+	# cleanup -- restore theme
+	theme_set(t)
 }
 
 ######################################################
@@ -197,180 +264,135 @@ summary.table = function(data)
 }
 
 ######################################################
-# TODO
+# onwards to uncharted err... untested territories
 
-plot.syn = function(data, strip_lb = FALSE)
+plot.syn = function(data)
 {
-#	data = subset(data, k >= max(data$k) - 10)
+	# plots for synthetic graphs
+
 	data = droplevels(data)
 
+	# get graph size and number of edits targeted from file name
 	data$n = as.factor(as.integer(gsub("^.*components\\.([0-9]+)\\..*$", "\\1", data$group)))
-	data$tk = as.factor(1.25 * as.integer(gsub("^.*\\.([0-9]+)\\.graph$", "\\1", data$group)))
-	
-#	l = vector()
-#	if(nlevels(data$group) > 1) {l = c(l, "Graph"); data$label = data$group}
-#	if(nlevels(data$algo) > 1) {l = c(l, "Algorithm"); if(length(as.logical(data$label)) == 0) {data$label = data$algo} else {data$label = paste(data$label, data$algo, sep = " / ")}}
-#	if(min(data$results$solved) != max(data$results$solved)) {l = c(l, "Solved"); if(length(as.logical(data$label)) == 0) {data$label = data$results$solved} else {data$label = paste(data$label, data$results$solved, sep = " / ")}}
-#	l = paste(l, collapse = " / ")
+	data$targetk = as.factor(1.25 * as.integer(gsub("^.*\\.([0-9]+)\\.graph$", "\\1", data$group)))
 
-#	if(strip_lb)
-#	{
-#		levels(data$label) = gsub("LB\\\\_", "", levels(data$label))
-#		data$lt = ifelse(grepl("LB", data$algo), "dashed", "solid")
-#	}
-#	else
-#	{
-#		data$lt = ifelse(grepl("LB", data$algo), "solid", "solid")
-#	}
-
-	#p = ggplot(data, aes(x = k, group = interaction(k, group, algo, results$solved), color = interaction(group, algo, results$solved, sep = ' / ')))
-#	if(l == "") {p = ggplot(data, aes(x = k, group = interaction(k, group, algo, results$solved)))}
-#	else {p = ggplot(data, aes(x = k, group = interaction(k, group, algo, results$solved), color = label))}
-#	if(l == "") {p = ggplot(data, aes(x = k, group = interaction(group, algo)))}
-#	else {
-	p = ggplot(data, aes(x = k, shape = n, color = tk))
-#	p = p + scale_y_log10(labels = comma) + scale_x_continuous(breaks = seq(min(data$k), max(data$k), 5), labels = function(i) {i}, minor_breaks = seq(min(data$k), max(data$k)))
-	p = p + scale_y_log10(labels = comma)
-	p = p + labs(x = "k", y = "Time [s]", shape = "Vertices", color = "Edits targeted")
-#	p = p + geom_boxplot(aes(y = results$time), alpha = 0, outlier.alpha = 1)
-	p = p + geom_point(aes(y = results$time))
-	p = p + geom_point(aes(y = results$time), data = subset(data, !results$solved), color = "black", stroke = 2.5, show.legend = FALSE)
-	p = p + geom_point(aes(y = results$time))
-	p
-}
-
-
-plot.totals = function(data, no.scale = F, no.nudge = F)
-{
-	data = droplevels(data)
+	# construct label, omit non-varying factors
 	l = vector()
 	if(nlevels(data$group) > 1) {l = c(l, "Graph"); data$label = data$group}
-	if(nlevels(data$algo) > 1) {l = c(l, "Algorithm"); if(length(as.logical(data$label)) == 0) {data$label = data$algo} else {data$label = paste(data$label, data$algo, sep = " / ")}}
-	if(min(data$results$solved) != max(data$results$solved)) {l = c(l, "Solved"); if(length(as.logical(data$label)) == 0) {data$label = data$results$solved} else {data$label = paste(data$label, data$results$solved, sep = " / ")}}
-	l = c(l, "Stat"); if(length(as.logical(data$label)) == 0) {data$label = ""} else {data$label = paste(data$label, "", sep = " / ")}
+	if(nlevels(data$algo) > 1) {l = c(l, "Algorithm"); if(is.null(data$label)) {data$label = data$algo} else {data$label = paste(data$label, data$algo, sep = " / ")}}
+	if(min(data$threads) != max(data$threads)) {l = c(l, "Threads"); if(is.null(data$label)) {data$label = data$threads} else {data$label = paste(data$label, data$threads, sep = " / ")}}
 	l = paste(l, collapse = " / ")
+	if(is.null(data$label)) {data$label = ""}
+	data$label = as.factor(data$label)
 
-	colors = list(calls = "black", pruned = "red", Paths = "green", Cycles = "blue")
+	# no color needed if only plotting a single group
+	if(l == "") {p = ggplot(data, aes(x = k, group = interaction(group, algo, threads, targetk), shape = n, color = targetk))}
+	else {p = ggplot(data, aes(x = k, group = interaction(group, algo, threads, targetk), shape = n, color = targetk))}
 
-#	p = ggplot(data, aes(x = k, group = interaction(k, group, algo, results$solved), color = interaction(algo, results$solved)))
-	p = ggplot(data, aes(x = k, group = interaction(k, group, algo, results$solved)))
-	if(!no.scale) {p = p + scale_y_log10(labels = comma)}
-	p = p + scale_x_continuous(breaks = seq(min(data$k), max(data$k), 5), labels = function(i) {i}, minor_breaks = seq(min(data$k), max(data$k)))
-	p = p + labs(x = "k", y = "Count", color = l)
-	for(i in rev(names(data$results$totals)))
-	{
-#		if(no.nudge) {p = p + geom_boxplot(aes_string(y = paste0("results$totals$", i)), color = colors[[i]], alpha = 0, outlier.alpha = 1)}
-#		else {p = p + geom_boxplot(aes_string(y = paste0("results$totals$", i)), color = colors[[i]], alpha = 0, outlier.alpha = 1, position = position_nudge(pos[[i]], 0))}
-		p = p + geom_boxplot(aes_string(y = paste0("results$totals$", i), color = "sub('$', i, label)"), alpha = 0, outlier.alpha = 1)
-	}
+	p = p + scale_y_log10(labels = comma)
+	p = p + labs(x = "k", y = "Time [s]", shape = "Vertices", color = "Edits targeted")
+
+	# first actual plot for a proper legend
+	p = p + geom_point(aes(y = results$time))
+	# then overdraw highlight for unsolved graphs
+	p = p + geom_point(aes(y = results$time), data = subset(data, !results$solved), color = "black", stroke = 2.5, show.legend = FALSE)
+	# and redraw the first plot on top of the highlight
+	p = p + geom_point(aes(y = results$time))
+
 	p
 }
 
-plot.all = function(data, dir)
+
+plot.totals = function(data, no.log.scale = F)
 {
-	t = theme_get()
-	theme_update(plot.title = element_text(size = rel(.6)))
-	unlink(dir, recursive = T)
-	dir.create(dir)
-	for(l in levels(data$group))
+	# function to plot summary counters
+	# i doubt this one is useful
+	# expect this one to need work
+
+	data = droplevels(data)
+
+	# construct label, omit non-varying factors
+	l = vector()
+	if(nlevels(data$group) > 1) {l = c(l, "Graph"); data$label = data$group}
+	if(nlevels(data$algo) > 1) {l = c(l, "Algorithm"); if(is.null(data$label)) {data$label = data$algo} else {data$label = paste(data$label, data$algo, sep = " / ")}}
+	if(min(data$threads) != max(data$threads)) {l = c(l, "Threads"); if(is.null(data$label)) {data$label = data$threads} else {data$label = paste(data$label, data$threads, sep = " / ")}}
+	l = c(l, "Stat"); if(is.null(data$label)) {data$label = ""} else {data$label = paste(data$label, "", sep = " / ")}
+	l = paste(l, collapse = " / ")
+	if(is.null(data$label)) {data$label = ""}
+	data$label = as.factor(data$label)
+
+	colors = list(calls = "black", pruned = "red", fallbacks = "green", single = "blue", skipped = "yellow")
+
+	# no color needed if only plotting a single group
+	if(l == "") {p = ggplot(data, aes(x = k, group = interaction(group, algo, threads, k)))}
+	else {p = ggplot(data, aes(x = k, group = interaction(group, algo, threads, k), color = label))}
+
+	if(!no.log.scale) {p = p + scale_y_log10(labels = comma)}
+	p = p + labs(x = "k", y = "Count", color = l)
+
+	for(i in rev(names(data$results$totals)))
 	{
-		pl = paste0(dir, "/", gsub("/", "_", l))
-		dir.create(pl)
-		sub = subset(data, group == l)
-		for(a in levels(sub$algo))
-		{
-			pa = paste0(pl, "/", a)
-			dir.create(pa)
-			suba = subset(sub, algo == a)
-#			for(s in c(F, T))
-#			{
-#				subs = subset(suba, results$solved == s)
-				s = any(suba$results$solved)
-				subs = suba
-				if(nrow(subs) == 0) {next}
-				print(paste(l, a, s, "times"))
-				ggsave(paste(gsub("/", "_", l), a, s, "times.pdf", sep = "."), plot = plot.times(subs) + ggtitle(paste("graph:", l, "algo:", a, "solved:", s)), device = "pdf", path = pa)
-#				print(paste(l, s, "times"))
-#				ggsave(paste(gsub("/", "_", l), s, "times.pdf", sep = "."), plot = plot.times(subs) + ggtitle(paste("graph:", l, "solved:", s)), device = "pdf", path = pl)
-#				print(paste(l, a, s, "totals"))
-#				if(class(try(ggsave(paste(gsub("/", "_", l), a, s, "totals.pdf", sep = "."), plot = plot.totals(subs) + ggtitle(paste("graph:", l, "algo:", a, "solved:", s)), device = "pdf", path = pa)
-#				)) == "try-error") {if(class(try(ggsave(paste(gsub("/", "_", l), a, s, "totals.pdf", sep = "."), plot = plot.totals(subs, T) + ggtitle(paste("graph:", l, "algo:", a, "solved:", s)), device = "pdf", path = pa)
-#				)) == "try-error") {if(class(try(ggsave(paste(gsub("/", "_", l), a, s, "totals.pdf", sep = "."), plot = plot.totals(subs, F, T) + ggtitle(paste("graph:", l, "algo:", a, "solved:", s)), device = "pdf", path = pa)
-#				)) == "try-error") {if(class(try(ggsave(paste(gsub("/", "_", l), a, s, "totals.pdf", sep = "."), plot = plot.totals(subs, T, T) + ggtitle(paste("graph:", l, "algo:", a, "solved:", s)), device = "pdf", path = pa)
-#				)) == "try-error") {print("failed")}}}}
-#				for(i in max(subs$k):max(subs$k))
-#				{
-#					subk = subset(subs, k == i)
-#					if(nrow(subk) == 0) {next}
-#					print(paste(l, a, s, "counters", i))
-#					if(class(try(ggsave(paste(gsub("/", "_", l), a, s, i, "counters.pdf", sep = "."), plot = plot.counters(subk) + ggtitle(paste("graph:", l, "algo:", a, "solved:", s, "k:", i)), device = "pdf", path = pa)
-#					)) == "try-error") {if(class(try(ggsave(paste(gsub("/", "_", l), a, s, i, "counters.pdf", sep = "."), plot = plot.counters(subk, T) + ggtitle(paste("graph:", l, "algo:", a, "solved:", s, "k:", i)), device = "pdf", path = pa)
-#					)) == "try-error") {print("failed")}}
-#				}
-#			}
-		}
+		p = p + geom_boxplot(aes_string(y = paste0("results$totals$", i), color = "sub('$', i, label)"), alpha = 0, outlier.alpha = 1)
 	}
-	theme_set(t)
+
+	p
 }
 
 plot.eval = function(data, dir)
 {
+	# example function to create multiple plots and write them to disk
+	# dir is the directory to which the plots shall be placed
+
+	# adjust as needed
+
+	data = droplevels(data)
+	
 	t = theme_get()
+	# remove legend, instead describe it in the figure caption
 	theme_update(legend.position="none")
 
-#	unlink(dir, recursive = T)
-#	dir.create(dir)
-
+	# mangle some names
+	# adjust as needed
+	#   grass_web.metis -> grassweb
 	levels(data$group) = gsub("grass_web\\.metis", "grassweb", levels(data$group))
-
-	levels(data$group) = gsub("^data/", "", levels(data$group))
+	#   graphs/foo.graph -> foo
+	levels(data$group) = gsub("^graphs/", "", levels(data$group))
 	levels(data$group) = gsub("\\.graph$", "", levels(data$group))
-	levels(data$group) = gsub("_", "\\\\_", levels(data$group))
 
+	# make underscores latex-safe
+	levels(data$group) = gsub("_", "\\\\_", levels(data$group))
 	levels(data$algo) = gsub("_", "\\\\_", levels(data$algo))
 
+	# for each group of graphs
 	for(l in levels(data$group))
 	{
+		# progress indicator
 		print(l)
+
+		# .tex output
+		# use via \input{file}
+		# subset
 		sub = subset(data, group == l & algo %in% c("Basic-Center\\_Matrix-Matrix", "Redundant-Center\\_Matrix-Matrix", "LB\\_Basic-Center\\_Matrix-Matrix", "LB\\_Redundant-Center\\_Matrix-Matrix"))
-			ggsave(paste(gsub("/", "_", l), "basic.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 8, height = 2)
-			ggsave(paste(gsub("/", "_", l), "basic.calls.tex", sep = "."), plot = plot.calls(sub), device = tikz, path = dir, width = 8, height = 2)
+		# and create figures
+		#  any "/" in the group name are replaced (no accidental directory creation fails)
+		#  width and height are inces by default, 8 and 4 inches wide appear to be good values for spanning a full resp. half a page's width
+		ggsave(paste(gsub("/", "_", l), "basic.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 8, height = 2)
+		ggsave(paste(gsub("/", "_", l), "basic.calls.tex", sep = "."), plot = plot.calls(sub), device = tikz, path = dir, width = 8, height = 2)
+
+		# .pdf output
 		sub = subset(data, group == l & algo %in% c("Basic-Center\\_Matrix-Matrix", "Redundant-Center\\_Matrix-Matrix"))
-			ggsave(paste(gsub("/", "_", l), "basic.nolb.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 4, height = 3)
-			ggsave(paste(gsub("/", "_", l), "basic.nolb.calls.tex", sep = "."), plot = plot.calls(sub), device = tikz, path = dir, width = 4, height = 3)
+		ggsave(paste(gsub("/", "_", l), "basic.nolb.times.pdf", sep = "."), plot = plot.times(sub), device = pdf, path = dir, width = 4, height = 3)
+		ggsave(paste(gsub("/", "_", l), "basic.nolb.calls.pdf", sep = "."), plot = plot.calls(sub), device = pdf, path = dir, width = 4, height = 3)
+
+		# some more plots...
 		sub = subset(data, group == l & algo %in% c("LB\\_Basic-Center\\_Matrix-Matrix", "LB\\_Redundant-Center\\_Matrix-Matrix"))
-			ggsave(paste(gsub("/", "_", l), "basic.lb.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 4, height = 3)
-			ggsave(paste(gsub("/", "_", l), "basic.lb.calls.tex", sep = "."), plot = plot.calls(sub), device = tikz, path = dir, width = 4, height = 3)
+		ggsave(paste(gsub("/", "_", l), "basic.lb.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 4, height = 3)
+		ggsave(paste(gsub("/", "_", l), "basic.lb.calls.tex", sep = "."), plot = plot.calls(sub), device = tikz, path = dir, width = 4, height = 3)
 		sub = subset(data, group == l & algo %in% c("LB\\_Redundant-Center\\_Matrix-Matrix", "Redundant-H\\_Triangle\\_LB\\_Center\\_Matrix2-Matrix", "Redundant-LB\\_Center\\_Matrix-Matrix", "S\\_Redundant-S\\_LB\\_Center\\_Matrix-Matrix"))
-			ggsave(paste(gsub("/", "_", l), "subgraph.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 4, height = 3)
-			ggsave(paste(gsub("/", "_", l), "subgraph.calls.tex", sep = "."), plot = plot.calls(sub), device = tikz, path = dir, width = 4, height = 3)
+		ggsave(paste(gsub("/", "_", l), "subgraph.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 4, height = 3)
+		ggsave(paste(gsub("/", "_", l), "subgraph.calls.tex", sep = "."), plot = plot.calls(sub), device = tikz, path = dir, width = 4, height = 3)
 	}
-	theme_set(t)
-}
-
-plot.eval.mt = function(data, dir)
-{
-	t = theme_get()
-#	theme_update(legend.position="none")
 	
-
-#	unlink(dir, recursive = T)
-#	dir.create(dir)
-
-	levels(data$group) = gsub("grass_web\\.metis", "grassweb", levels(data$group))
-
-	levels(data$group) = gsub("^data/", "", levels(data$group))
-	levels(data$group) = gsub("\\.graph$", "", levels(data$group))
-	levels(data$group) = gsub("_", "\\\\_", levels(data$group))
-
-	levels(data$algo) = gsub("_", "\\\\_", levels(data$algo))
-
-	for(l in levels(data$group))
-	{
-		print(l)
-		sub = subset(data, group == l)
-#			ggsave(paste(gsub("/", "_", l), "mt.times.tex", sep = "."), plot = plot.times(sub), device = tikz, path = dir, width = 4, height = 3)
-			ggsave(paste(gsub("/", "_", l), "mt.times.tex", sep = "."), plot = plot.times(sub) + theme(legend.position = c(0.11, 0.65), legend.background = element_rect(fill = "grey92", size = 1, linetype = "solid")), device = tikz, path = dir, width = 4, height = 3)
-	}
+	# cleanup -- restore theme
 	theme_set(t)
 }
