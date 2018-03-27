@@ -8,17 +8,30 @@
 # Usage: ./bwCluster_generate_workset <workset_name>
 
 OLD_DIR="$(pwd)"
+WORK_DIR="${1}"
+
 
 if [ $# -ne 1 ] ; then
 	echo "Usage: ${0} <workset_name>"
-	return 1
-elif [ -d "${1}" ] ; then
-	echo "Workset '${1}' already exits"
-	return 1
+	exit 1
+elif [ -d "${WORK_DIR}" ] ; then
+	echo "Workset '${WORK_DIR}' already exits"
+	exit 1
 fi
 
-mkdir "${1}"
-cd "${1}"
+mkdir "${WORK_DIR}"
+cd "${WORK_DIR}"
+
+aborted ()
+{
+	trap - EXIT INT
+	cd "${OLD_PWD}"
+	rm -r "${WORK_DIR}"
+	exit 1
+}
+
+trap aborted EXIT INT
+
 
 # get binary
 args_check=1
@@ -52,7 +65,7 @@ while [ $args_check -ne 0 ] ; do
 		case ${CHECK} in
 			Y*|y*)
 				args_check=0
-				COMBINATIONS=$(echo "${test_output}" | sed -r 's/^.*\. ([0-9]+) combinations.*$/\1/')
+				COMBINATIONS=$(echo "${test_output}" | grep "combinations on" | sed -r 's/^.*\. ([0-9]+) combinations on.*$/\1/')
 				;;
 		esac
 	else
@@ -61,26 +74,21 @@ while [ $args_check -ne 0 ] ; do
 done
 echo exec ./graphedit "${CMDARGS}" '"$@"' > cmdline
 
-# get repetitions
-args_check=1
-while [ $args_check -ne 0 ] ; do
-	read -p "How many repetitions per experiment? " REPEAT
-	seq "${REPEAT}" > /dev/null
-	args_check=$?
-done
-
 # get graphs
 args_check=1
 while [ $args_check -ne 0 ] ; do
 	args_check=0
+	graph_count=0
 	read -p "Specify graph files: " FILES
 	# test if graphs are accessable
 	for f in ${FILES} ; do
 		IS_ABSOLUTE="${f##/*}" # if the path starts with / result is the empty string, otherwise unchanged
 		if [ ${#IS_ABSOLUTE} -eq 0 -a -r "${f}" -a ! -d "${f}" ] ; then
 			args_check=0
+			graph_count=$((graph_count + 1))
 		elif [ ${#IS_ABSOLUTE} -ne 0 -a -r "${OLD_DIR}/${f}" -a ! -d "${OLD_DIR}/${f}" ] ; then
 			args_check=0
+			graph_count=$((graph_count + 1))
 		else
 			echo "Cant read '${f}'"
 			args_check=1
@@ -88,7 +96,83 @@ while [ $args_check -ne 0 ] ; do
 	done
 done
 
-mkdir graphs results work_available work_executing work_done work_failed
+args_check2=1
+while [ $args_check2 -ne 0 ] ; do
+	# get repetitions
+	args_check=1
+	while [ $args_check -ne 0 ] ; do
+		read -p "How many repetitions per experiment? " REPEAT
+		i=$(seq "${REPEAT}" | tail -n 1)
+		args_check=$([ "${i}" -eq "${REPEAT}" ] ; echo "$?")
+	done
+
+	# get threads per task
+	args_check=1
+	while [ $args_check -ne 0 ] ; do
+		read -p "How many threads per task? " THREADS_PER_TASK
+		i=$(seq "${THREADS_PER_TASK}" | tail -n 1)
+		args_check=$([ "${i}" -eq "${THREADS_PER_TASK}" ] ; echo "$?")
+	done
+
+	# get tasks per node
+	args_check=1
+	while [ $args_check -ne 0 ] ; do
+		read -p "How many tasks per node? " TASKS_PER_NODE
+		i=$(seq "${TASKS_PER_NODE}" | tail -n 1)
+		args_check=$([ "${i}" -eq "${TASKS_PER_NODE}" ] ; echo "$?")
+	done
+
+	# get cores per node
+	args_check=1
+	while [ $args_check -ne 0 ] ; do
+		read -p "How many cores per node? " CORES_PER_NODE
+		i=$(seq "${CORES_PER_NODE}" | tail -n 1)
+		args_check=$([ "${i}" -eq "${CORES_PER_NODE}" ] ; echo "$?")
+	done
+
+	# check for consistency
+	WARN=""
+	if [ "${TASKS_PER_NODE}" -gt "${REPEAT}" ] || [ "$(( REPEAT - REPEAT / TASKS_PER_NODE * TASKS_PER_NODE ))" -ne 0 ] ; then
+		WARN="${WARN} Nodes will run mixed experiments."
+	fi
+	if [ "$(( CORES_PER_NODE - (CORES_PER_NODE / (THREADS_PER_TASK * TASKS_PER_NODE)) * THREADS_PER_TASK * TASKS_PER_NODE ))" -ne 0 ] ; then
+		WARN="${WARN} Uneven allocation."
+	fi
+	if [ "$((THREADS_PER_TASK * TASKS_PER_NODE))" -gt "${CORES_PER_NODE}" ] ; then
+		WARN="${WARN} Allocating more threads than available."
+	fi
+
+	args_check2=1
+	if [ -z "${WARN}" ] ; then
+		args_check2=0
+	else
+		echo "Warnings: ${WARN}"
+		read -p "Continue anyways? (yes/no) " CHECK
+		case ${CHECK} in
+			Y*|y*)
+				args_check2=0
+				;;
+		esac
+	fi
+done
+
+# get nodes per job
+args_check=1
+while [ $args_check -ne 0 ] ; do
+	read -p "How many nodes per job? " NODES_PER_JOB
+	i=$(seq "${NODES_PER_JOB}" | tail -n 1)
+	args_check=$([ "${i}" -eq "${NODES_PER_JOB}" ] ; echo "$?")
+done
+
+# we run graph_count * COMBINATIONS * REPEAT experiments
+# TASKS_PER_NODE fit on each node
+# -> we need (graph_count * COMBINATIONS * REPEAT) / TASKS_PER_NODE nodes
+# -> we need (graph_count * COMBINATIONS * REPEAT) / TASKS_PER_NODE / NODES_PER_JOB jobs
+# in both cases: round up
+JOB_COUNT=$(( ((graph_count * COMBINATIONS * REPEAT + TASKS_PER_NODE - 1) / TASKS_PER_NODE + NODES_PER_JOB - 1) / NODES_PER_JOB ))
+echo "Will create ${JOB_COUNT} jobs."
+
+mkdir graphs results work
 
 # create graph symlinks and work indicators
 cd graphs
@@ -100,16 +184,55 @@ for f in ${FILES} ; do
 	elif [ ${#IS_ABSOLUTE} -ne 0 ] ; then
 		ln -s "${OLD_DIR}/${f}" "${graphbase}"
 	fi
-	for c in $(seq "${COMBINATIONS}") ; do
-		for rep in $(seq "${REPEAT}") ; do
-			# mv appears to not be atomic. workaround: use mkdir instead
-			mkdir "../work_available/${graphbase}.${c}.${rep}"
-		done
+done
+cd ..
+
+cd work
+g=1
+gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')"
+c=1
+r=1
+for j in $(seq ${JOB_COUNT}) ; do
+# graph, combination, repeat
+	#MPI_PROGS=""
+	for t in $(seq $(( TASKS_PER_NODE * NODES_PER_JOB )) ) ; do
+		MPI_PROGS="${MPI_PROGS} ${MPI_PROGS:+:} ./graphedit ${CMDARGS} -j ${THREADS_PER_TASK} -X ${c} graphs/${gg##*/}"
+		r=$((r + 1))
+		if [ "${r}" -gt "${REPEAT}" ] ; then r=1 ; c=$((c + 1)) ; fi
+		if [ "${c}" -gt "${COMBINATIONS}" ] ; then c=1 ; g=$((g + 1)) ; gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')" ; fi
+		if [ "${g}" -gt "${graph_count}" ] ; then break ; fi
 	done
+
+	# done assembling program arguments for one job, create job script
+	cat - > job.${j}.sh <<EOF
+#!/bin/bash
+#MSUB -l nodes=${NODES_PER_JOB}:ppn=${CORES_PER_NODE}
+#MSUB -l walltime=1:00:00
+#MSUB -l mem=600mb
+#MSUB -N Single_Threaded_28_Shared
+#MSUB -v MODULE="devel/python/3.5.2 compiler/gnu/7.1 mpi/openmpi/3.0-gnu-7.1"
+#MSUB -v EXECUTABLE="$(pwd)/job.${j}.sh"
+
+#Usually you should set
+export KMP_AFFINITY=compact,1,0
+#export KMP_AFFINITY=verbose,compact,1,0 prints messages concerning the supported affinity
+#KMP_AFFINITY Description: https://software.intel.com/en-us/node/524790#KMP_AFFINITY_ENVIRONMENT_VARIABLE
+
+module load \${MODULE}
+TASK_COUNT=\$((\${MOAB_PROCCOUNT}/\${MOAB_NODECOUNT}))
+echo "Executable \${EXECUTABLE} running on \${MOAB_PROCCOUNT} cores with \${OMP_NUM_THREADS} threads"
+mpi_options="--bind-to core --map-by core:PE=$((${CORES_PER_NODE}/${TASKS_PER_NODE})) -report-bindings"
+
+mpi_progs="${MPI_PROGS}"
+
+exec mpirun -n \${MOAB_PROCCOUNT} \${mpi_options} \${mpi_progs}
+EOF
+	unset MPI_PROGS
 done
 cd ..
 
 # cleanup
+trap - EXIT INT
 cd "${OLD_DIR}"
 echo
-echo "Workset '${1}' generated"
+echo "Workset '${WORK_DIR}' generated"
