@@ -84,6 +84,14 @@ for macro, arguments in need.items():
 	print("#define GENERATED_RUN_", macro, " \\", sep = "")
 	using = [build_combinations(lists[component[:-3]]) if component.endswith('...') else lists[component] for component in arguments]
 	for combination in itertools.product(*using):
+		#run-EDITOR-MT-Center_4-Matrix-Delete-None-Last-First-Basic.cpp
+		if ("Single" in combination[6] or "Single" in combination[7]) and not combination[6] == combination[7]:
+			continue
+		if "Single" in combination[6] and (not combination[4] == "Redundant" or not combination[5] == "Skip"):
+			continue
+		if not combination[4] == "Redundant" and (not combination[5] == "Normal" or not combination[6] == "First" or not combination[7] == "No"):
+			continue
+
 		print(template_compare_text.format(*format_args(combination)).replace('=(=', '{').replace('=)=', '}'), end = "")
 		filename = "build/generated/run-{0}-{1}-{2}-{3}-{4}-{5}-{6}-{7}-{8}".format(macro, *format_args(combination))
 		if not Path(filename + ".cpp").is_file():
