@@ -18,7 +18,7 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 /* Function counting number of set bits in Packed */
 #define PACKED_POP __builtin_popcountll
 
-#define MINIMAL
+//#define MINIMAL
 /* Which components are to be compiled?
  * The first set should be a complete list of every component available,
  * the second a reasonable subset aimed at faster compilation.
@@ -31,7 +31,7 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define CHOICES_CONVERSION Normal, Last, Skip
 #define CHOICES_EDITOR ST, MT
 #define CHOICES_HEURISTIC
-#define CHOICES_FINDER Center_4, Center_Edits_4, Center_Edits_Sparse_4, Center_5, Center_Edits_5, Center_Edits_Sparse_5
+#define CHOICES_FINDER Center_4, Center_Edits_Sparse_4, Center_5, Center_Edits_Sparse_5
 #define CHOICES_CONSUMER_SELECTOR First, Least, /*Most,*/ Single, Single_Edits_Sparse, Single_First, Single_First_Edits_Sparse
 #define CHOICES_CONSUMER_BOUND No, Basic, Single, Single_Edits_Sparse, Single_First, Single_First_Edits_Sparse
 #define CHOICES_CONSUMER_RESULT
