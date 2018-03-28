@@ -380,5 +380,6 @@ int main(int argc, char *argv[])
 	options.argv = argv;
 	run(options);
 
+	std::cerr << "done" << std::endl;
 	return 0;
 }

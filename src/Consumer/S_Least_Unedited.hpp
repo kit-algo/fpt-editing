@@ -1,5 +1,5 @@
-#ifndef SELECTOR_LEAST_HPP
-#define SELECTOR_LEAST_HPP
+#ifndef CONSUMER_SELECTOR_LEAST_HPP
+#define CONSUMER_SELECTOR_LEAST_HPP
 
 #include <vector>
 

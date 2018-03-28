@@ -1,5 +1,5 @@
-#ifndef LOWER_BOUND_NO_HPP
-#define LOWER_BOUND_NO_HPP
+#ifndef CONSUMER_LOWER_BOUND_NO_HPP
+#define CONSUMER_LOWER_BOUND_NO_HPP
 
 #include <vector>
 

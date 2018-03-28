@@ -1,5 +1,5 @@
-#ifndef SELECTOR_FIRST_HPP
-#define SELECTOR_FIRST_HPP
+#ifndef CONSUMER_SELECTOR_FIRST_HPP
+#define CONSUMER_SELECTOR_FIRST_HPP
 
 #include <vector>
 

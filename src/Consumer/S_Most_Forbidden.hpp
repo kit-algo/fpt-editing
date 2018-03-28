@@ -1,5 +1,5 @@
-#ifndef SELECTOR_MOST_HPP
-#define SELECTOR_MOST_HPP
+#ifndef CONSUMER_SELECTOR_MOST_HPP
+#define CONSUMER_SELECTOR_MOST_HPP
 
 #include <algorithm>
 #include <vector>

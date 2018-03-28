@@ -1,5 +1,5 @@
-#ifndef SELECTOR_SINGLE_HPP
-#define SELECTOR_SINGLE_HPP
+#ifndef CONSUMER_SELECTOR_SINGLE_HPP
+#define CONSUMER_SELECTOR_SINGLE_HPP
 
 #include <algorithm>
 #include <set>
