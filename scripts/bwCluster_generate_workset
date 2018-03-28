@@ -71,7 +71,8 @@ while [ $args_check -ne 0 ] ; do
 		echo "Arguments seem to be invalid"
 	fi
 done
-echo exec ./graphedit "${CMDARGS}" '"$@"' > cmdline
+echo -e "#!/bin/sh\n\ncd \"$(pwd)\"\nexec ./graphedit ${CMDARGS} \"\$@\"" > cmdline
+chmod +x cmdline
 
 # get graphs
 args_check=1
