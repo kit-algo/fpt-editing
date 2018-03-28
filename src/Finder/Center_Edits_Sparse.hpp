@@ -107,31 +107,41 @@ namespace Finder
 			{
 				VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
 				if(offered.has_edge(u, vf)) {return false;}
+				bool can_skip = !std::is_same<Mode, Options::Modes::Insert>::value && !edited.has_edge(u, vf);
+				bool skipping = false;
+
 				path[length / 2 - 1] = vf;
 				Packed vf_mask = ~((Packed(2) << PACKED_CTZ(curf)) - 1);
 
-				auto inner = [&](size_t const j, Packed const curb)
+				auto inner = [&](size_t const j, Packed const curb, bool can_skip, bool &skipping)
 				{
 					VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 					if(offered.has_edge(u, vb) || offered.has_edge(vf, vb)) {return false;}
 					if(graph.has_edge(vf, vb)) {return false;}
+					if(!can_skip)
+					{
+						if(!std::is_same<Mode, Options::Modes::Insert>::value && !edited.has_edge(u, vb)) {can_skip = true;}
+						if(!std::is_same<Mode, Options::Modes::Delete>::value && !edited.has_edge(vf, vb)) {can_skip = true;}
+					}
 					path[length / 2 + 1] = vb;
-					if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1, near>::find_rec(graph, edited, path, forbidden, feeder, offered)) {return true;}
+					if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1, near>::find_rec(graph, edited, path, forbidden, feeder, offered, can_skip, skipping)) {return true;}
 					return false;
 				};
 
-				for(size_t j = i; j < graph.get_row_length(); j++)
+				for(size_t j = i; !skipping && j < graph.get_row_length(); j++)
 				{
-					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & edited.get_row(u)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 					{
-						if(inner(j, curb)) {return true;}
+						if(inner(j, curb, can_skip, skipping)) {return true;}
+						if(!can_skip) {skipping = false;}
 					}
 				}
-				for(size_t j = i; j < graph.get_row_length(); j++)
+				for(size_t j = i; !skipping && j < graph.get_row_length(); j++)
 				{
-					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & ~edited.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+					for(Packed curb = (j == i? graph.get_row(u)[j] & vf_mask : graph.get_row(u)[j]) & ~edited.get_row(u)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 					{
-						if(inner(j, curb)) {return true;}
+						if(inner(j, curb, can_skip, skipping)) {return true;}
+						if(!can_skip) {skipping = false;}
 					}
 				}
 				return false;
@@ -163,9 +173,12 @@ namespace Finder
 			{
 				VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
 				if(offered.has_edge(u, v)) {return false;}
+				bool can_skip = !std::is_same<Mode, Options::Modes::Insert>::value && !edited.has_edge(u, v);
+				bool skipping = false;
+
 				f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 				path[length / 2] = v;
-				if(Find_Rec<Feeder, length / 2 - 1, length / 2, near>::find_rec(graph, edited, path, forbidden, feeder, offered)) {return true;}
+				if(Find_Rec<Feeder, length / 2 - 1, length / 2, near>::find_rec(graph, edited, path, forbidden, feeder, offered, can_skip, skipping)) {return true;}
 				f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 				return false;
 			};
@@ -194,7 +207,7 @@ namespace Finder
 		class Find_Rec
 		{
 		public:
-			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder, Graph_Edits &offered)
+			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder, Graph_Edits &offered, bool can_skip, bool &skipping)
 			{
 				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
 				Packed *nf = f - graph.get_row_length();
@@ -207,51 +220,65 @@ namespace Finder
 						nf[i] = graph.get_row(uf)[i] | graph.get_row(ub)[i] | f[i];
 					}
 
-					auto outer = [&](size_t const i, Packed const curf) -> bool
+					auto outer = [&](size_t const i, Packed const curf, bool can_skip, bool &skipping) -> bool
 					{
 						VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
-						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vf)) {return false;}
+						for(size_t i = lf; i <= lb; i++) {if(offered.has_edge(path[i], vf)) {return false;}}
+						if(!can_skip)
+						{
+							if(!std::is_same<Mode, Options::Modes::Insert>::value && !edited.has_edge(path[lf], vf)) {can_skip = true;}
+							if(!std::is_same<Mode, Options::Modes::Delete>::value) {for(size_t i = lf + 1; i <= lb; i++) {if(!edited.has_edge(path[i], vf)) {can_skip = true;}}}
+						}
 						path[lf - 1] = vf;
 
-						auto inner = [&](size_t const j, Packed const curb) -> bool
+						auto inner = [&](size_t const j, Packed const curb, bool can_skip, bool &skipping) -> bool
 						{
 							VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-							if(offered.has_edge(vf, vb)) {return false;}
-							for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
+							if(!std::is_same<Mode, Options::Modes::Delete>::value && offered.has_edge(vf, vb)) {return false;}
+							for(size_t i = lf; i <= lb; i++) {if(offered.has_edge(path[i], vf)) {return false;}}
+							if(!can_skip)
+							{
+								if(!std::is_same<Mode, Options::Modes::Insert>::value && !edited.has_edge(path[lb], vb)) {can_skip = true;}
+								if(!std::is_same<Mode, Options::Modes::Delete>::value) {for(size_t i = lf; i < lb; i++) {if(!edited.has_edge(path[i], vb)) {can_skip = true;}}}
+							}
 							if(vf == vb || graph.has_edge(vf, vb)) {return false;}
 							path[lb + 1] = vb;
-							return Find_Rec<Feeder, lf - 1, lb + 1, near>::find_rec(graph, edited, path, forbidden, feeder, offered);
+							return Find_Rec<Feeder, lf - 1, lb + 1, near>::find_rec(graph, edited, path, forbidden, feeder, offered, can_skip, skipping);
 						};
 
-						for(size_t j = 0; j < graph.get_row_length(); j++)
+						for(size_t j = 0; !skipping && j < graph.get_row_length(); j++)
 						{
-							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 							{
-								if(inner(j, curb)) {return true;}
+								if(inner(j, curb, can_skip, skipping)) {return true;}
+								if(!can_skip) {skipping = false;}
 							}
 						}
-						for(size_t j = 0; j < graph.get_row_length(); j++)
+						for(size_t j = 0; !skipping && j < graph.get_row_length(); j++)
 						{
-							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+							for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 							{
-								if(inner(j, curb)) {return true;}
+								if(inner(j, curb, can_skip, skipping)) {return true;}
+								if(!can_skip) {skipping = false;}
 							}
 						}
 						return false;
 					};
 
-					for(size_t i = 0; i < graph.get_row_length(); i++)
+					for(size_t i = 0; !skipping && i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; !skipping && curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
-							if(outer(i, curf)) {return true;}
+							if(outer(i, curf, can_skip, skipping)) {return true;}
+							if(!can_skip) {skipping = false;}
 						}
 					}
-					for(size_t i = 0; i < graph.get_row_length(); i++)
+					for(size_t i = 0; !skipping && i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; !skipping && curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 						{
-							if(outer(i, curf)) {return true;}
+							if(outer(i, curf, can_skip, skipping)) {return true;}
+							if(!can_skip) {skipping = false;}
 						}
 					}
 				}
@@ -263,7 +290,7 @@ namespace Finder
 		class Find_Rec<Feeder, 1, lb, false>
 		{
 		public:
-			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder, Graph_Edits &offered)
+			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder, Graph_Edits &offered, bool can_skip, bool &skipping)
 			{
 				constexpr size_t lf = 1;
 				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
@@ -272,53 +299,61 @@ namespace Finder
 				VertexID &ub = path[lb];
 
 				/* last vertices */
-				auto outer = [&](size_t const i, Packed const curf) -> bool
+				auto outer = [&](size_t const i, Packed const curf, bool can_skip, bool &skipping) -> bool
 				{
 					VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
-					for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vf)) {return false;}
+					for(size_t i = lf; i <= lb; i++) {if(offered.has_edge(path[i], vf)) {return false;}}
+					if(!can_skip)
+					{
+						if(!std::is_same<Mode, Options::Modes::Insert>::value && !edited.has_edge(path[lf], vf)) {can_skip = true;}
+						if(!std::is_same<Mode, Options::Modes::Delete>::value) {for(size_t i = lf + 1; i <= lb; i++) {if(!edited.has_edge(path[i], vf)) {can_skip = true;}}}
+					}
 					path[lf - 1] = vf;
 
-					auto inner = [&](size_t const j, Packed const curb) -> bool
+					auto inner = [&](size_t const j, Packed const curb, bool can_skip, bool &skipping) -> bool
 					{
 						VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-						//if(std::is_same<Conversion, Options::Conversions::Skip>::value && offered.has_edge(vf, vb)) {return false;}
+						if(!std::is_same<Conversion, Options::Conversions::Skip>::value && offered.has_edge(vf, vb)) {return false;}
 						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
 						if(vf == vb) {return false;}
 						path[lb + 1] = vb;
 						if(for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {return offered.has_edge(*uit, *vit);})) {return false;}
 						for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {offered.set_edge(*uit, *vit); return false;});
+						skipping = can_skip;
 						return feeder.callback(graph, edited, path.cbegin(), path.cend());
 					};
 
-					for(size_t j = 0; j < graph.get_row_length(); j++)
+					for(size_t j = 0; !skipping && j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
-							if(inner(j, curb)) {return true;}
+							if(inner(j, curb, can_skip, skipping)) {return true;}
 						}
 					}
-					for(size_t j = 0; j < graph.get_row_length(); j++)
+					for(size_t j = 0; !skipping && j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
-							if(inner(j, curb)) {return true;}
+							if(inner(j, curb, can_skip, skipping)) {return true;}
 						}
 					}
 					return false;
 				};
 
-				for(size_t i = 0; i < graph.get_row_length(); i++)
+				for(size_t i = 0; !skipping && i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; !skipping && curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
-						if(outer(i, curf)) {return true;}
+						if(outer(i, curf, can_skip, skipping)) {return true;}
+						if(!can_skip) {skipping = false;}
 					}
 				}
-				for(size_t i = 0; i < graph.get_row_length(); i++)
+				for(size_t i = 0; !skipping && i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; !skipping && curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
-						if(outer(i, curf)) {return true;}
+						if(outer(i, curf, can_skip, skipping)) {return true;}
+						if(!can_skip) {skipping = false;}
 					}
 				}
 				return false;
@@ -329,7 +364,7 @@ namespace Finder
 		class Find_Rec<Feeder, 1, lb, true>
 		{
 		public:
-			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder, Graph_Edits &offered)
+			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder, Graph_Edits &offered, bool const can_skip, bool &skipping)
 			{
 				constexpr size_t lf = 1;
 				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
@@ -338,52 +373,59 @@ namespace Finder
 				VertexID &ub = path[lb];
 
 				/* last vertices */
-				auto outer = [&](size_t const i, Packed const curf) -> bool
+				auto outer = [&](size_t const i, Packed const curf, bool can_skip, bool &skipping) -> bool
 				{
 					VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
-					for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vf)) {return false;}
+					if(!can_skip)
+					{
+						if(!std::is_same<Mode, Options::Modes::Insert>::value && !edited.has_edge(path[lf], vf)) {can_skip = true;}
+						if(!std::is_same<Mode, Options::Modes::Delete>::value) {for(size_t i = lf + 1; i <= lb; i++) {if(!edited.has_edge(path[i], vf)) {can_skip = true;}}}
+					}
 					path[lf - 1] = vf;
 
-					auto inner = [&](size_t const j, Packed const curb) -> bool
+					auto inner = [&](size_t const j, Packed const curb, bool can_skip, bool &skipping) -> bool
 					{
 						VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-						//if(offered.has_edge(vf, vb)) {return false;}
+						if(!std::is_same<Conversion, Options::Conversions::Skip>::value && offered.has_edge(vf, vb)) {return false;}
 						for(size_t i = lf; i <= lb; i++) if(offered.has_edge(path[i], vb)) {return false;}
 						if(vf == vb) {return false;}
 						path[lb + 1] = vb;
 						for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.cbegin(), path.cend(), [&](auto uit, auto vit) {offered.set_edge(*uit, *vit); return false;});
+						skipping = can_skip;
 						return feeder.callback_near(graph, edited, path.cbegin(), path.cend());
 					};
 
-					for(size_t j = 0; j < graph.get_row_length(); j++)
+					for(size_t j = 0; !skipping && j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & edited.get_row(ub)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
-							if(inner(j, curb)) {return true;}
+							if(inner(j, curb, can_skip, skipping)) {return true;}
 						}
 					}
-					for(size_t j = 0; j < graph.get_row_length(); j++)
+					for(size_t j = 0; !skipping && j < graph.get_row_length(); j++)
 					{
-						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+						for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j] & ~edited.get_row(ub)[j]; !skipping && curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
 						{
-							if(inner(j, curb)) {return true;}
+							if(inner(j, curb, can_skip, skipping)) {return true;}
 						}
 					}
 					return false;
 				};
 
-				for(size_t i = 0; i < graph.get_row_length(); i++)
+				for(size_t i = 0; !skipping && i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & edited.get_row(uf)[i]; !skipping && curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
-						if(outer(i, curf)) {return true;}
+						if(outer(i, curf, can_skip, skipping)) {return true;}
+						if(!can_skip) {skipping = false;}
 					}
 				}
-				for(size_t i = 0; i < graph.get_row_length(); i++)
+				for(size_t i = 0; !skipping && i < graph.get_row_length(); i++)
 				{
-					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+					for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i] & ~edited.get_row(uf)[i]; !skipping && curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
 					{
-						if(outer(i, curf)) {return true;}
+						if(outer(i, curf, can_skip, skipping)) {return true;}
+						if(!can_skip) {skipping = false;}
 					}
 				}
 				return false;
