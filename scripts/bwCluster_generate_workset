@@ -195,9 +195,8 @@ for j in $(seq ${JOB_COUNT}) ; do
 # graph, combination, repeat
 	#MPI_PROGS=""
 	for t in $(seq $(( TASKS_PER_NODE * NODES_PER_JOB )) ) ; do
-		echo -e "#!/bin/sh\n\nexec sh -c '../cmdline -j ${THREADS_PER_TASK} -X ${c} graphs/${gg##*/}' > ../results/task.${j}.${t}.eval" >> ../tasks/task.${j}.${t}.sh
-		chmod +x ../tasks/task.${j}.${t}.sh
-		MPI_PROGS="${MPI_PROGS} ${MPI_PROGS:+:} ../tasks/task.${j}.${t}.sh"
+		echo -e "exec sh ../cmdline -j ${THREADS_PER_TASK} -X ${c} graphs/${gg##*/} > ../results/task.${j}.${t}.eval" >> ../tasks/task.${j}.${t}.sh
+		MPI_PROGS="${MPI_PROGS} ${MPI_PROGS:+:} sh ../tasks/task.${j}.${t}.sh"
 		r=$((r + 1))
 		if [ "${r}" -gt "${REPEAT}" ] ; then r=1 ; c=$((c + 1)) ; fi
 		if [ "${c}" -gt "${COMBINATIONS}" ] ; then c=1 ; g=$((g + 1)) ; gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')" ; fi
