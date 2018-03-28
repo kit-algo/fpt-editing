@@ -214,7 +214,7 @@ for j in $(seq ${JOB_COUNT}) ; do
 	cat - > job.${j}.sh <<EOF
 #!/bin/bash
 #MSUB -l nodes=${NODES_PER_JOB}:ppn=${CORES_PER_NODE}
-#MSUB -l walltime=1:00:00
+#MSUB -l walltime=2:00:00
 #MSUB -l mem=600mb
 #MSUB -N Single_Threaded_28_Shared
 #MSUB -v MODULE="devel/python/3.5.2 compiler/gnu/7.1 mpi/openmpi/3.0-gnu-7.1"
