@@ -10,6 +10,7 @@
 #include "Finder/Center.hpp"
 #include "Finder/Center_Edits.hpp"
 #include "Finder/Center_Edits_Sparse.hpp"
+#include "Finder/Center_Edits_Sparse_Old.hpp"
 //#include "Finder/Linear.hpp"
 #include "Consumer/S_First.hpp"
 #include "Consumer/S_Least_Unedited.hpp"

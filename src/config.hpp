@@ -31,7 +31,7 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define CHOICES_CONVERSION Normal, Last, Skip
 #define CHOICES_EDITOR ST, MT
 #define CHOICES_HEURISTIC
-#define CHOICES_FINDER Center_4, /*Center_Edits_4,*/ Center_Edits_Sparse_4, Center_5, /*Center_Edits_5,*/ Center_Edits_Sparse_5
+#define CHOICES_FINDER Center_4, /*Center_Edits_4,*/ Center_Edits_Sparse_4, /*Center_Edits_Sparse_Old_4,*/ Center_5, /*Center_Edits_5,*/ Center_Edits_Sparse_5 /*, Center_Edits_Sparse_Old_5*/
 #define CHOICES_CONSUMER_SELECTOR First, Least, /*Most,*/ Single, Single_Edits_Sparse, Single_First, Single_First_Edits_Sparse, Single_Heur
 #define CHOICES_CONSUMER_BOUND No, Basic, Single, Single_Edits_Sparse, Single_First, Single_First_Edits_Sparse, Single_Heur
 #define CHOICES_CONSUMER_RESULT
