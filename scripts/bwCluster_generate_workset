@@ -200,9 +200,9 @@ for j in $(seq ${JOB_COUNT}) ; do
 		chmod +x ../tasks/task.${j}.${t}.sh
 		MPI_PROGS="${MPI_PROGS} ${MPI_PROGS:+:} -np 1 ../tasks/task.${j}.${t}.sh"
 		r=$((r + 1))
-		if [ "${r}" -gt "${REPEAT}" ] ; then r=1 ; c=$((c + 1)) ; fi
-		if [ "${c}" -gt "${COMBINATIONS}" ] ; then c=1 ; g=$((g + 1)) ; gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')" ; fi
-		if [ "${g}" -gt "${graph_count}" ] ; then break ; fi
+		if [ "${r}" -gt "${REPEAT}" ] ; then r=1 ; g=$((g + 1)) ; gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')" ; fi
+		if [ "${g}" -gt "${graph_count}" ] ; then c=$((c + 1)) ; fi
+		if [ "${c}" -gt "${COMBINATIONS}" ] ; then break ; fi
 	done
 
 #######################################
