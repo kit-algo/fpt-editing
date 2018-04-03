@@ -195,13 +195,14 @@ r=1
 for j in $(seq ${JOB_COUNT}) ; do
 # graph, combination, repeat
 	#MPI_PROGS=""
+	NUM_TASKS_IN_JOB=0
 	for t in $(seq $(( TASKS_PER_NODE * NODES_PER_JOB )) ) ; do
 		echo -e "#!/bin/sh\n\nexec sh -c '../cmdline -j ${THREADS_PER_TASK} -X ${c} graphs/${gg##*/}' > ../results/task.${j}.${t}.eval" >> ../tasks/task.${j}.${t}.sh
 		chmod +x ../tasks/task.${j}.${t}.sh
-		MPI_PROGS="${MPI_PROGS} ${MPI_PROGS:+:} -np 1 ../tasks/task.${j}.${t}.sh"
+		NUM_TASKS_IN_JOB=$((NUM_TASKS_IN_JOB + 1))
 		r=$((r + 1))
 		if [ "${r}" -gt "${REPEAT}" ] ; then r=1 ; g=$((g + 1)) ; gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')" ; fi
-		if [ "${g}" -gt "${graph_count}" ] ; then c=$((c + 1)) ; fi
+		if [ "${g}" -gt "${graph_count}" ] ; then g=1 ; gg="$(echo "${FILES}" | awk -v N=${g} '{print $N}')" ; c=$((c + 1)) ; fi
 		if [ "${c}" -gt "${COMBINATIONS}" ] ; then break ; fi
 	done
 
@@ -227,16 +228,12 @@ export KMP_AFFINITY=compact,1,0
 
 module load \${MODULE}
 echo "Executable \${EXECUTABLE} running on \${MOAB_PROCCOUNT} cores with \${OMP_NUM_THREADS} threads"
-mpi_options="--bind-to core --map-by core:PE=$((${CORES_PER_NODE}/${TASKS_PER_NODE})) -report-bindings"
+mpi_options="--rank-by core --bind-to core --map-by node:PE=$((${CORES_PER_NODE}/${TASKS_PER_NODE})) -report-bindings"
 
-mpi_progs="${MPI_PROGS}"
-
-exec mpirun -n \${MOAB_PROCCOUNT} \${mpi_options} \${mpi_progs}
+exec mpirun \${mpi_options} -np ${NUM_TASKS_IN_JOB} sh -c 'exec ../tasks/task.$j.\$((OMPI_COMM_WORLD_RANK + 1)).sh'
 EOF
 
 #######################################
-
-	unset MPI_PROGS
 done
 cd ..
 
