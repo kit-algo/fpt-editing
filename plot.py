@@ -159,6 +159,15 @@ def my_boxplot(data, measure, logy=True, showfliers=True):
             patch.set_edgecolor(patch.get_facecolor())
     return fig
 
+def graph_k_selector(data, desired_k):
+    selector = False
+
+    for g, k in desired_k.items():
+        selector = ((data.Graph == g) & (data.k == k)) | selector
+
+    return selector
+
+
 def threading_boxplot(data, measure, logy=True, showfliers=True):
     fig, ax = plt.subplots(figsize=(12, 6))
     min_k = data.k.min()
@@ -180,12 +189,7 @@ def threading_boxplot(data, measure, logy=True, showfliers=True):
 def threading_max_k_all_graphs(data, measure, logy=False, showfliers=True):
     k_per_graph = data[data.Threads == 1].groupby(["Graph", "Threads", "Permutation"]).max().groupby("Graph").min().k
 
-    selector = False
-
-    for g, k in k_per_graph.items():
-        selector = ((data.Graph == g) & (data.k == k)) | selector
-
-    plot_data = data[selector]
+    plot_data = data[graph_k_selector(data, k_per_graph)]
 
     fig, ax = plt.subplots(figsize=(6, 3))
     sns.boxplot(x="Graph", y=measure, hue="Threads", data=plot_data, ax=ax, hue_order=thread_order, palette=thread_colors, showfliers=showfliers)
@@ -196,6 +200,19 @@ def threading_max_k_all_graphs(data, measure, logy=False, showfliers=True):
         patch.set_edgecolor(patch.get_facecolor())
 
     return fig
+
+def max_k_table(data):
+    st_max_k = data[data.Threads == 1].groupby(["Graph"]).max().k
+    st_time = data[(data.Threads == 1) & graph_k_selector(data, st_max_k)].groupby(["Graph"]).min()['Time [s]']
+
+    mt_max_k = data[data.Threads == 28].groupby(["Graph"]).max().k
+    mt_data = data[(data.Threads == 28) & graph_k_selector(data, mt_max_k)].groupby(["Graph"]).min()
+    mt_time = mt_data['Time [s]']
+    solved = mt_data['Solved']
+
+    df = pd.DataFrame({'k (st)': st_max_k, 'Time [s] (st)' : st_time, 'k (28 Threads)': mt_max_k, 'Time [s] (28 Threads)': mt_time, 'Solved': solved})
+    df.sort_values(by='Time [s] (st)', inplace=True)
+    print(df.to_latex())
 
 for g in df_st_4.Graph.unique():
     g_df = df_st_4[df.Graph == g]
