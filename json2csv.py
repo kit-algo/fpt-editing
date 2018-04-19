@@ -11,7 +11,7 @@ algos = {'MT-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Si
          'ST-Edit-Redundant-Normal-Center_4-First-Basic-Matrix' : 'Lower Bound',
          'ST-Edit-Redundant-Normal-Center_4-First-No-Matrix' : 'No Redundancy',
          'ST-Edit-Redundant-Skip-Center_4-First-Basic-Matrix' : 'Skip Conversion',
-         'ST-Edit-Redundant-Skip-Center_4-Least-Basic-Matrix' : 'Least Edited',
+         'ST-Edit-Redundant-Skip-Center_4-Least-Basic-Matrix' : 'Least Editable',
          #'ST-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
          #'ST-Edit-Redundant-Skip-Center_5-Single_Heur-Matrix' : 'Single',
          'ST-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Single',

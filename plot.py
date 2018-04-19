@@ -12,7 +12,7 @@ import numpy as np
 import sys
 import copy
 
-algo_order = ["Base", "No Undo", "No Redundancy", "Lower Bound", "Skip Conversion", "Least Edited", "Single"]
+algo_order = ["Base", "No Undo", "No Redundancy", "Lower Bound", "Skip Conversion", "Least Editable", "Single"]
 algo_colors = [cm.Dark2(i) for i, v in enumerate(algo_order)]
 thread_order = [1, 2, 4, 7, 14, 28]
 thread_colors = [cm.plasma(i/len(thread_order)) for i in range(len(thread_order))]
