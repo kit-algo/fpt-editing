@@ -136,19 +136,19 @@ if __name__ == "__main__":
         g_df = df_st_4[df_st_4.Graph == g]
 
         fig = my_boxplot(g_df, "Time [s]")
-        fig.savefig("{}/{}.times.pdf".format(args.output_dir, g))
+        fig.savefig("{}/{}-times.pdf".format(args.output_dir, g))
         plt.close(fig)
 
         fig = my_boxplot(g_df, "Calls")
-        fig.savefig("{}/{}.calls.pdf".format(args.output_dir, g))
+        fig.savefig("{}/{}-calls.pdf".format(args.output_dir, g))
         plt.close(fig)
 
         fig = my_boxplot(g_df, "Scaling Factor Time", logy=False, showfliers=False)
-        fig.savefig("{}/{}.scaling_time.pdf".format(args.output_dir, g))
+        fig.savefig("{}/{}-scaling_time.pdf".format(args.output_dir, g))
         plt.close(fig)
 
         fig = my_boxplot(g_df, "Scaling Factor Calls", logy=False, showfliers=False)
-        fig.savefig("{}/{}.scaling_calls.pdf".format(args.output_dir, g))
+        fig.savefig("{}/{}-scaling_calls.pdf".format(args.output_dir, g))
         plt.close(fig)
 
     mt_plot_data = df[(df.Algorithm == "Single") & (df.l == 4) & (df.Graph != "jazz")]
