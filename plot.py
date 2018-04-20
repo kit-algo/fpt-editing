@@ -11,6 +11,7 @@ import argparse
 import numpy as np
 import sys
 import copy
+import collections
 
 sns.set(style="whitegrid")
 
@@ -109,17 +110,26 @@ def max_k_table(data, file=sys.stdout):
     mt_max_k = data[data.Threads == 28].groupby(["Graph"]).max().k
     mt_data = data[(data.Threads == 28) & graph_k_selector(data, mt_max_k)].groupby(["Graph"]).min()
     mt_time = mt_data['Time [s]']
-    solved = mt_data['Solved']
-    solved['dolphins'] = True
 
-    mt_128_time = copy.copy(mt_time)
-    mt_128_time[:] = math.nan
-    mt_128_time['dolphins'] = 4095.15
-    mt_128_k = copy.copy(mt_max_k)
-    mt_128_k[:] = math.nan
-    mt_128_k['dolphins'] = 70
+    amd_max_k = data[data.Threads == 128].groupby(["Graph"]).max().k
+    amd_data = data[(data.Threads == 128) & graph_k_selector(data, amd_max_k)].groupby(["Graph"]).min()
+    amd_time = amd_data['Time [s]']
 
-    df = pd.DataFrame(list(zip(mt_data.index, solved, st_max_k, st_time, mt_max_k, mt_time, mt_128_k, mt_128_time)),  columns=pd.MultiIndex.from_tuples([('Graph', ''), ('Solved', ''), ('1 Thread', 'k'), ('1 Thread', 'Time [s]'), ('28 Threads', 'k'), ('28 Threads', 'Time [s]'), ('128 Threads', 'k'), ('128 Threads', 'Time [s]')]))
+    solved = mt_data['Solved'] | amd_data['Solved']
+
+    df = pd.DataFrame(collections.OrderedDict([
+        (('Graph', 'Name'), mt_data.index),
+        (('Graph', 'n'), mt_data.n),
+        (('Graph', 'm'), mt_data.m),
+        (('Solved', ''), solved),
+        (('1 Thread', 'k'), st_max_k),
+        (('1 Thread', 'Time [s]'), st_time),
+        (('28 Threads', 'k'), mt_max_k),
+        (('28 Threads', 'Time [s]'), mt_time),
+        (('128 Threads', 'k'), amd_max_k),
+        (('128 Threads', 'Time [s]'), amd_time)
+        ]))
+
     df.sort_values(by=('1 Thread', 'Time [s]'), inplace=True)
     print(df.to_latex(index=False, formatters={('Solved', '') : lambda x : 'Yes' if x else 'No', ('128 Threads', 'k') : lambda x : str(int(x)) if not math.isnan(x) else '', ('128 Threads', 'Time [s]') : lambda x : "{:.2f}".format(x) if not math.isnan(x) else ''}, float_format=lambda x : "{:.2f}".format(x), na_rep=" "), file=file)
 
@@ -153,7 +163,7 @@ if __name__ == "__main__":
         fig.savefig("{}/{}-scaling_calls.pdf".format(args.output_dir, g))
         plt.close(fig)
 
-    mt_plot_data = df[(df.Algorithm == "Single") & (df.l == 4) & (df.Graph != "jazz")]
+    mt_plot_data = df[(df.Algorithm == "Single") & (df.l == 4) & (df.Graph != "jazz") & (df.Threads < 128)]
 
     fig = threading_max_k_all_graphs(mt_plot_data, "Speedup", logy=False)
     fig.savefig("{}/mt_speedup.pdf".format(args.output_dir))
@@ -171,5 +181,7 @@ if __name__ == "__main__":
     fig.savefig("{}/mt_calls.pdf".format(args.output_dir))
     plt.close(fig)
 
+    max_k_data = df[(df.Algorithm == "Single") & (df.l == 4) & (df.Graph != "jazz")]
+
     with open("{}/max_k.tex".format(args.output_dir), "w") as f:
-        max_k_table(mt_plot_data, f)
+        max_k_table(max_k_data, f)
