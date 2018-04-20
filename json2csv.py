@@ -5,6 +5,7 @@ import json
 import pandas as pd
 import re
 import argparse
+import os
 
 algos = {'MT-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Single',
          'ST-Edit-None-Normal-Center_4-First-No-Matrix' : 'Base',
@@ -22,6 +23,8 @@ def load_json(jsonfile):
     with open(jsonfile, "r") as f:
         data = json.load(f)
 
+    json_dir = os.path.abspath(os.path.dirname(jsonfile))
+
     df_data = []
 
     for experiment in data:
@@ -33,13 +36,20 @@ def load_json(jsonfile):
 
         g = experiment['graph']
 
-        gm = re.match("graphs/(.*).permutate.*\.n([0-9]*)\..*$", g)
-        exp_dict["Graph"] = gm[1]
-        exp_dict["Permutation"] = int(gm[2])
+        gm = re.match("(graphs|data)/(.*).permutate.*\.n([0-9]*)\..*$", g)
+        exp_dict["Graph"] = gm[2]
+        exp_dict["Permutation"] = int(gm[3])
 
         a = experiment['algo']
         if not a in algos:
             continue
+
+        g_path = g.replace(gm[1], "{}/data".format(json_dir))
+        with open(g_path, 'r') as f:
+            n, m, _ = f.readline().strip().split(maxsplit=3)
+
+        exp_dict["n"] = int(n)
+        exp_dict["m"] = int(m)
 
         exp_dict["l"] = 4 if "4" in a else 5
 
