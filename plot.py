@@ -185,3 +185,8 @@ if __name__ == "__main__":
 
     with open("{}/max_k.tex".format(args.output_dir), "w") as f:
         max_k_table(max_k_data, f)
+
+    print("Fallback percentage:")
+    df['Fallback %'] = df['Fallbacks'] / (df['Fallbacks'] + df['Single']) * 100
+    #print(df[(df.Graph != 'jazz') & (df.Algorithm == 'Single') & (df.l == 4)].groupby(['Graph', 'k']).max()['Fallback %'].to_string(float_format=lambda x : "{:.2f}".format(x)))
+    print(df[(df.Graph != 'jazz') & (df.Algorithm == 'Single') & (df.l == 4)].groupby(['Graph', 'k']).max()['Fallback %'].to_string())
