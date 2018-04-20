@@ -12,6 +12,8 @@ import numpy as np
 import sys
 import copy
 
+sns.set(style="whitegrid")
+
 algo_order = ["Base", "No Undo", "No Redundancy", "Lower Bound", "Skip Conversion", "Least Editable", "Single"]
 algo_colors = [cm.Dark2(i) for i, v in enumerate(algo_order)]
 thread_order = [1, 2, 4, 7, 14, 28]
