@@ -7,6 +7,7 @@
 #include "../config.hpp"
 
 #include "../Options.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -15,6 +16,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "Most";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		std::vector<size_t> use_count;
@@ -23,7 +25,7 @@ namespace Consumer
 	public:
 		Most(VertexID graph_size) : use_count((graph_size * (graph_size - 1)) / 2) {;}
 
-		void prepare()
+		void prepare(const Lower_Bound_Storage_type&)
 		{
 			std::fill(use_count.begin(), use_count.end(), 0);
 		}

@@ -49,6 +49,8 @@ namespace Options
 		struct Selector {};
 		/** The consumer calculates a lower bound on the number of edits required */
 		struct Lower_Bound {};
+		/** The consumer returns a lower bound and this lower bound without freshly edited edges should be set again before calling prepare() */
+		struct Lower_Bound_Update {};
 		/** The consumers result function should be called (for side effects) */
 		struct Result {};
 	}

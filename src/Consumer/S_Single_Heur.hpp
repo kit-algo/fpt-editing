@@ -18,6 +18,7 @@
 
 #include "../Finder/Finder.hpp"
 #include "../Finder/Center.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -26,6 +27,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "Single_Heur";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		// feeder contains references to this which turn to dangling pointers with default {copy,move} {constructor,assignment}.
@@ -33,9 +35,13 @@ namespace Consumer
 		// so the {copy,move} {constructor,assignment} doesn't have to mention every single member.
 		struct M
 		{
-			Graph_Edits used;
+			Graph_Edits used_updated;
+			Graph_Edits used_new;
 
-			std::vector<std::vector<VertexID>> bounds;
+			Lower_Bound_Storage_type bound_updated;
+			Lower_Bound_Storage_type bound_new;
+
+			bool initialized_bound_updated;
 
 			std::unordered_map<std::pair<VertexID, VertexID>, size_t> bounds_single;
 			bool searching_single = false;
@@ -44,7 +50,7 @@ namespace Consumer
 
 			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
-			M(VertexID graph_size) : used(graph_size), finder(graph_size) {;}
+			M(VertexID graph_size) : used_updated(graph_size), used_new(graph_size), finder(graph_size) {;}
 		} m;
 
 		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single_Heur> feeder;
@@ -66,12 +72,15 @@ namespace Consumer
 
 		Single_Heur(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
-		void prepare()
+		void prepare(const Lower_Bound_Storage_type& lower_bound)
 		{
 			if(!m.searching_single)
 			{
-				m.used.clear();
-				m.bounds.clear();
+				m.used_updated.clear();
+				m.bound_updated = lower_bound;
+				m.initialized_bound_updated = false;
+				m.used_new.clear();
+				m.bound_new.clear();
 			}
 			m.bounds_single.clear();
 			m.fallback.clear();
@@ -82,17 +91,44 @@ namespace Consumer
 		{
 			if(!m.searching_single)
 			{
-				bool skip = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
-					return m.used.has_edge(*uit, *vit);
-				});
 
-				if(skip) {return false;}
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
-					m.used.set_edge(*uit, *vit);
-					return false;
-				});
+				auto any_used = [&](const Graph_Edits& used, auto begin, auto end) -> bool
+				{
+					return Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, begin, end, [&](auto uit, auto vit) {
+						return used.has_edge(*uit, *vit);
+					});
+				};
 
-				m.bounds.emplace_back(b, e);
+				auto add_subgraph = [&](Graph_Edits& used, auto begin, auto end)
+				{
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, begin, end, [&](auto uit, auto vit) {
+						used.set_edge(*uit, *vit);
+						return false;
+					});
+				};
+
+				if (!m.initialized_bound_updated)
+				{
+					for (const auto &it : m.bouds.get_bound())
+					{
+						add_subgraph(m.used_updated, it.begin(), it.end());
+					}
+
+					m.initialized_bound_updated = true;
+				}
+
+				if (!any_used(m.used_updated, b, e))
+				{
+					add_subgraph(m.used_updated, b, e);
+					m.bound_updated.add(b, e);
+				}
+
+				if (!any_used(m.used_new, b, e))
+				{
+					add_subgraph(m.used_new, b, e);
+					m.bound_new.add(b, e);
+				}
+
 				return false;
 			}
 			else
@@ -102,7 +138,7 @@ namespace Consumer
 				std::pair<VertexID, VertexID> in_bound;
 				size_t free = 0;
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
-					if(m.used.has_edge(*uit, *vit))
+					if(m.used_updated.has_edge(*uit, *vit))
 					{
 						count_bound++;
 						in_bound = std::minmax(*uit, *vit);
@@ -124,19 +160,21 @@ namespace Consumer
 			}
 		}
 
-		std::vector<VertexID> const &result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
+		std::vector<VertexID> result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
 		{
-			if(m.bounds.empty())
+			ensure_updated_is_larger_bound();
+
+			if(m.bound_updated.empty())
 			{
 				// a solved graph?!
 				m.fallback.clear();
 				return m.fallback;
 			}
-			if(m.bounds.size() > k) {return m.bounds[0];} // fast return since lb will prune anyway
+			if(m.bound_updated.size() > k) {return m.bound_updated.as_vector(0);} // fast return since lb will prune anyway
 
 			// find forbidden subgraph with only one edge in m.bounds
 			m.searching_single = true;
-			feeder.feed(k, g, e);
+			feeder.feed(k, g, e, m.bound_updated);
 			m.searching_single = false;
 
 			if(m.fallback_free == 0 && !m.fallback.empty())
@@ -166,8 +204,26 @@ namespace Consumer
 
 		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
-			return m.bounds.size();
+			ensure_updated_is_larger_bound();
+			return m.bound_updated.size();
 		}
+
+		const Lower_Bound_Storage_type& result(size_t, Graph const&, Graph_Edits const &, Options::Tag::Lower_Bound_Update) const
+		{
+			ensure_updated_is_larger_bound();
+			return m.bound_updated;
+		}
+
+	private:
+		void ensure_updated_is_larger_bound()
+		{
+			if (m.bound_new.size() > m.bound_updated.size())
+			{
+				std::swap(m.bound_new, m.bound_updated);
+				std::swap(m.used_new, m.used_updated);
+			}
+		}
+
 	};
 }
 

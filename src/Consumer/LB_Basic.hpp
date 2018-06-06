@@ -7,6 +7,7 @@
 
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -15,6 +16,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "Basic";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		size_t found = 0;
@@ -23,7 +25,7 @@ namespace Consumer
 	public:
 		Basic(VertexID graph_size) : used(graph_size) {;}
 
-		void prepare()
+		void prepare(const Lower_Bound_Storage_type&)
 		{
 			used.clear();
 			found = 0;
@@ -48,6 +50,11 @@ namespace Consumer
 		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
 			return found;
+		}
+
+		const Lower_Bound_Storage_type result(size_t, Graph const&, Graph_Edits const&, Options::Tag::Lower_Bound_Update)
+		{
+			return Lower_Bound_Storage_type();
 		}
 	};
 }

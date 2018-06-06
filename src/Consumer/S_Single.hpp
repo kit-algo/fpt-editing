@@ -18,6 +18,7 @@
 
 #include "../Finder/Finder.hpp"
 #include "../Finder/Center.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -26,6 +27,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "Single";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		// feeder contains references to this which turn to dangling pointers with default {copy,move} {constructor,assignment}.
@@ -35,7 +37,8 @@ namespace Consumer
 		{
 			Graph_Edits used;
 
-			std::vector<std::vector<VertexID>> bounds;
+			Lower_Bound_Storage_type bounds;
+			bool initialized_bound;
 			std::unordered_map<std::pair<VertexID, VertexID>, size_t> bounds_rev;
 			size_t replacing_bound;
 
@@ -72,32 +75,49 @@ namespace Consumer
 
 		Single(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
-		void prepare()
+		void prepare(const Lower_Bound_Storage_type& lower_bound)
 		{
 			m.used.clear();
-			m.bounds.clear();
+			m.bounds = lower_bound;
 			m.bounds_rev.clear();
 			m.best = {{0, 0}, {0, 0}};
+			m.initialized_bound = false;
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
+			auto add_subgraph = [&](auto begin, auto end)
+			{
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, begin, end, [&](auto uit, auto vit){
+					m.used.set_edge(*uit, *vit);
+					m.bounds_rev.insert({std::minmax(*uit, *vit), m.bounds.size()});
+					return false;
+				});
+			};
+
+			// initialize lower bound on first run
+			if (!m.initialized_bound)
+			{
+				for (const auto &it : m.bounds.get_bound())
+				{
+					add_subgraph(it.begin(), it.end());
+				}
+				m.initialized_bound = true;
+			}
+
 			bool skip = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
 				return m.used.has_edge(*uit, *vit);
 			});
 
 			if(skip) {return false;}
-			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit){
-				m.used.set_edge(*uit, *vit);
-				m.bounds_rev.insert({std::minmax(*uit, *vit), m.bounds.size()});
-				return false;
-			});
 
-			m.bounds.emplace_back(b, e);
+			add_subgraph(b, e);
+			m.bounds.add(b, e);
+
 			return false;
 		}
 
-		std::vector<VertexID> const &result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
+		std::vector<VertexID> const result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
 		{
 			auto &graph = const_cast<Graph &>(g);
 			auto &edited = const_cast<Graph_Edits &>(e);
@@ -107,7 +127,7 @@ namespace Consumer
 				m.best.edge.clear();
 				return m.best.edge;
 			}
-			if(m.bounds.size() > k) {return m.bounds[0];} // fast return since lb will prune anyway
+			if(m.bounds.size() > k) {return std::vector<VertexID>(m.bounds[0].begin(), m.bounds[0].end());} // fast return since lb will prune anyway
 
 			auto handle_edge = [&](size_t idx, VertexID u, VertexID v) -> bool
 			{
@@ -200,7 +220,7 @@ namespace Consumer
 					if(free == 0)
 					{
 						// found completly edited/marked forbidden subgraph
-						return m.bounds[idx];
+						return std::vector<VertexID>(m.bounds[idx].begin(), m.bounds[idx].end());
 					}
 					free_idx = idx;
 					free_count = free;
@@ -215,13 +235,18 @@ namespace Consumer
 			else
 			{
 //				std::cout << "using bound " << +free_idx << " (" << +free_count << " free edges)\n";
-				return m.bounds[free_idx];
+				return std::vector<VertexID>(m.bounds[free_idx].begin(), m.bounds[free_idx].end());
 			}
 		}
 
 		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
 			return m.bounds.size();
+		}
+
+		const Lower_Bound_Storage_type& result(size_t, Graph const&, Graph_Edits const &, Options::Tag::Lower_Bound_Update) const
+		{
+			return m.bounds;
 		}
 
 		void prepare_near(VertexID, VertexID)

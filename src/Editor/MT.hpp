@@ -24,6 +24,7 @@
 #include "../util.hpp"
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Editor
 {
@@ -38,6 +39,7 @@ namespace Editor
 		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value;
 		using Selector_type = typename std::tuple_element<selector, std::tuple<Consumer ...>>::type;
 		using Lower_Bound_type = typename std::tuple_element<lb, std::tuple<Consumer ...>>::type;
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, Finder::length>;
 
 	private:
 		struct Work
@@ -45,8 +47,9 @@ namespace Editor
 			Graph graph;
 			Graph_Edits edited;
 			size_t k;
+			Lower_Bound_Storage_type lower_bound;
 
-			Work(Graph graph, Graph_Edits edited, size_t k) : graph(graph), edited(edited), k(k) {;}
+			Work(Graph graph, Graph_Edits edited, size_t k, Lower_Bound_Storage_type lower_bound) : graph(graph), edited(edited), k(k), lower_bound(lower_bound) {;}
 		};
 
 		Finder &finder;
@@ -101,7 +104,7 @@ namespace Editor
 			}
 
 			available_work.clear();
-			available_work.push_back(std::make_unique<Work>(graph, Graph_Edits(graph.size()), k));
+			available_work.push_back(std::make_unique<Work>(graph, Graph_Edits(graph.size()), k, Lower_Bound_Storage_type()));
 			working = threads;
 			std::vector<std::thread> work_threads;
 			for(size_t t = 1; t < threads; t++)
@@ -199,9 +202,10 @@ namespace Editor
 			struct Path
 			{
 				std::vector<VertexID> problem;
+				Lower_Bound_Storage_type lower_bound;
 				size_t edges_done = 0;
 
-				Path(std::vector<VertexID> problem) : problem(problem) {;}
+				Path(std::vector<VertexID> problem, Lower_Bound_Storage_type lower_bound) : problem(problem), lower_bound(lower_bound) {;}
 			};
 			std::deque<Path> path;
 
@@ -286,7 +290,7 @@ namespace Editor
 //					std::cout << std::this_thread::get_id() << " got work" << std::endl;
 					lock.unlock();
 
-					top = std::make_unique<Work>(work->graph, work->edited, work->k);
+					top = std::make_unique<Work>(work->graph, work->edited, work->k, work->lower_bound);
 					if(edit_rec())
 					{
 						editor.done = true;
@@ -303,11 +307,12 @@ namespace Editor
 				auto &graph = work->graph;
 				auto &edited = work->edited;
 				auto &k = work->k;
+				auto &lower_bound = work->lower_bound;
 #ifdef STATS
 				calls[k]++;
 #endif
 				// start finder and feed into selector and lb
-				feeder.feed(k, graph, edited);
+				feeder.feed(k, graph, edited, lower_bound);
 
 				// graph solved?
 				auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
@@ -331,7 +336,7 @@ namespace Editor
 					return false;
 				}
 
-				path.emplace_back(problem);
+				path.emplace_back(problem, std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
 
 				if(editor.available_work.size() < editor.threads)
 				{
@@ -346,6 +351,7 @@ namespace Editor
 						auto &graph = top->graph;
 						auto &edited = top->edited;
 						auto &k = top->k;
+						auto &lower_bound = path.front().lower_bound;
 						auto const &problem = path.front().problem;
 						auto const &edges_done = path.front().edges_done;
 
@@ -364,20 +370,25 @@ namespace Editor
 							}
 
 							//edit
-							edited.set_edge(problem.front(), problem.back());
 							if(edges_done < 1)
 							{
+								Lower_Bound_Storage_type new_lower_bound(lower_bound);
+								new_lower_bound.remove(graph, edited, problem.front(), problem.back());
+
+								edited.set_edge(problem.front(), problem.back());
 								graph.toggle_edge(problem.front(), problem.back());
 								k--;
-								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
+								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, new_lower_bound));
 								k++;
 								graph.toggle_edge(problem.front(), problem.back());
+							} else {
+								edited.set_edge(problem.front(), problem.back());
 							}
 
 							//unedit, mark
 							if(edges_done < 2)
 							{
-								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
+								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, lower_bound));
 							}
 
 							// adjust top:
@@ -388,6 +399,7 @@ namespace Editor
 								k--;
 								graph.toggle_edge(problem.front(), problem.back());
 							}
+
 							// if == 2: top in correct state
 						}
 						else
@@ -407,6 +419,9 @@ namespace Editor
 							std::vector<std::pair<size_t, size_t>> marked;
 							::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
 							{
+								Lower_Bound_Storage_type updated_lower_bound(lower_bound);
+								updated_lower_bound.remove(graph, edited, *uit, *vit);
+
 								if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 								{
 									edited.set_edge(*uit, *vit);
@@ -419,7 +434,7 @@ namespace Editor
 #endif
 									graph.toggle_edge(*uit, *vit);
 									k--;
-									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k));
+									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, updated_lower_bound));
 									k++;
 									graph.toggle_edge(*uit, *vit);
 								}
@@ -476,6 +491,9 @@ namespace Editor
 					}
 
 					//edit
+					// update lower bound
+					lower_bound = path.back().lower_bound;
+					lower_bound.remove(graph, edited, problem.front(), problem.back());
 					graph.toggle_edge(problem.front(), problem.back());
 					edited.set_edge(problem.front(), problem.back());
 					k--;
@@ -485,6 +503,8 @@ namespace Editor
 					k++;
 
 					//unedit, mark
+					// restore lower bound from path
+					lower_bound = path.back().lower_bound;
 					graph.toggle_edge(problem.front(), problem.back());
 					path.back().edges_done++;
 					if(edit_rec()) {return true;}
@@ -506,6 +526,8 @@ namespace Editor
 					{
 #ifdef STATS
 						skipped[k - 1]--;
+						lower_bound = path.back().lower_bound;
+						lower_bound.remove(graph, edited, *uit, *vit);
 #endif
 						if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 						{

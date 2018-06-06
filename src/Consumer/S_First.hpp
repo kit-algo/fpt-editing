@@ -6,6 +6,7 @@
 #include "../config.hpp"
 
 #include "../Options.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -14,6 +15,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "First";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		std::vector<VertexID> problem;
@@ -21,7 +23,7 @@ namespace Consumer
 	public:
 		First(VertexID) {;}
 
-		void prepare()
+		void prepare(const Lower_Bound_Storage_type&)
 		{
 			problem.clear();
 		}

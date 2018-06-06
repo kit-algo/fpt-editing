@@ -18,6 +18,7 @@
 
 #include "../Finder/Finder.hpp"
 #include "../Finder/Center.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -26,6 +27,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "Single_First";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		// feeder contains references to this which turn to dangling pointers with default {copy,move} {constructor,assignment}.
@@ -72,7 +74,7 @@ namespace Consumer
 
 		Single_First(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
-		void prepare()
+		void prepare(const Lower_Bound_Storage_type&)
 		{
 			m.used.clear();
 			m.bounds.clear();
@@ -199,6 +201,11 @@ namespace Consumer
 		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
 			return m.bounds.size();
+		}
+
+		Lower_Bound_Storage_type result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound_Update) const
+		{
+			return Lower_Bound_Storage_type();
 		}
 
 		void prepare_near(VertexID, VertexID)

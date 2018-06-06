@@ -6,6 +6,7 @@
 #include "../config.hpp"
 
 #include "../Options.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -14,6 +15,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "No";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		bool found = false;
@@ -21,7 +23,7 @@ namespace Consumer
 	public:
 		No(VertexID) {;}
 
-		void prepare()
+		void prepare(const Lower_Bound_Storage_type)
 		{
 			found = false;
 		}
@@ -35,6 +37,11 @@ namespace Consumer
 		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
 			return found? 1 : 0;
+		}
+
+		const Lower_Bound_Storage_type result(size_t, Graph const&, Graph_Edits const&, Options::Tag::Lower_Bound_Update) const
+		{
+			return Lower_Bound_Storage_type();
 		}
 	};
 }

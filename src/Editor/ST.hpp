@@ -14,6 +14,7 @@
 #include "Editor.hpp"
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Editor
 {
@@ -28,6 +29,7 @@ namespace Editor
 		static constexpr size_t lb = Options::get_tagged_consumer<Options::Tag::Lower_Bound, Consumer...>::value;
 		using Selector_type = typename std::tuple_element<selector, std::tuple<Consumer ...>>::type;
 		using Lower_Bound_type = typename std::tuple_element<lb, std::tuple<Consumer ...>>::type;
+		using Lower_Bound_Storage_type = Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, Finder::length>;
 
 	private:
 		Finder &finder;
@@ -63,7 +65,7 @@ namespace Editor
 			single = decltype(single)(k + 1, 0);
 #endif
 			found_soulution = false;
-			edit_rec(k);
+			edit_rec(k, Lower_Bound_Storage_type());
 			return found_soulution;
 		}
 
@@ -76,13 +78,13 @@ namespace Editor
 
 	private:
 
-		bool edit_rec(size_t k)
+		bool edit_rec(size_t k, const Lower_Bound_Storage_type& lower_bound)
 		{
 #ifdef STATS
 			calls[k]++;
 #endif
 			// start finder and feed into selector and lb
-			feeder.feed(k, graph, edited);
+			feeder.feed(k, graph, edited, lower_bound);
 
 			// graph solved?
 			auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
@@ -117,13 +119,20 @@ namespace Editor
 				}
 
 				//edit
-				graph.toggle_edge(problem.front(), problem.back());
-				edited.set_edge(problem.front(), problem.back());
-				if(edit_rec(k - 1)) {return true;}
+				{
+					Lower_Bound_Storage_type next_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+					next_lower_bound.remove(graph, edited, problem.front(), problem.back());
+					graph.toggle_edge(problem.front(), problem.back());
+					edited.set_edge(problem.front(), problem.back());
+					if(edit_rec(k - 1, next_lower_bound)) {return true;}
+				}
 
 				//unedit, mark
-				graph.toggle_edge(problem.front(), problem.back());
-				if(edit_rec(k)) {return true;}
+				{
+					Lower_Bound_Storage_type next_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+					graph.toggle_edge(problem.front(), problem.back());
+					if(edit_rec(k), next_lower_bound) {return true;}
+				}
 
 				//unmark
 				edited.clear_edge(problem.front(), problem.back());
@@ -136,12 +145,14 @@ namespace Editor
 #endif
 				std::vector<std::pair<size_t, size_t>> marked;
 				bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit){
+					Lower_Bound_Storage_type next_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+					next_lower_bound.remove(graph, edited, *uit, *vit);
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						edited.set_edge(*uit, *vit);
 					}
 					graph.toggle_edge(*uit, *vit);
-					if(edit_rec(k - 1)) {return true;}
+					if(edit_rec(k - 1, next_lower_bound)) {return true;}
 					graph.toggle_edge(*uit, *vit);
 					if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 					else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}

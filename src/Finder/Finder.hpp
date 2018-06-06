@@ -67,10 +67,11 @@ namespace Finder
 		Feeder(Finder &finder, Consumer &... consumer) : finder(finder), consumer(consumer...) {;}
 
 		/** Prepares consumers for a new run of the Finder and starts it */
-		void feed(size_t k, Graph const &graph, Graph_Edits const &edited)
+		template <typename Lower_Bound_Storage_type>
+		void feed(size_t k, Graph const &graph, Graph_Edits const &edited, const Lower_Bound_Storage_type& lower_bound)
 		{
 			done.fill(false);
-			prepare_impl(std::index_sequence_for<Consumer ...>{});
+			prepare_impl(std::index_sequence_for<Consumer ...>{}, lower_bound);
 			finder.find(graph, edited, *this);
 			Result_impl<sizeof...(Consumer), Consumer...>::result(consumer, k, graph, edited);
 		}
@@ -97,10 +98,10 @@ namespace Finder
 		}
 
 	private:
-		template<size_t... Is>
-		void prepare_impl(std::index_sequence<Is ...>)
+		template<typename Lower_Bound_Storage_type, size_t... Is>
+		void prepare_impl(std::index_sequence<Is ...>, const Lower_Bound_Storage_type& lower_bound)
 		{
-			((std::get<Is>(consumer).prepare()), ...);
+			((std::get<Is>(consumer).prepare(lower_bound)), ...);
 		}
 
 		template<size_t... Is>
@@ -127,8 +128,8 @@ namespace Finder
 	/** Iterate over a forbidden subgraph, limited to edges currently editable
 	 * calls f(iterator, iterator) for each editable edge
 	 */
-	template<typename Mode, typename Restriction, typename Conversion, typename Graph, typename Graph_Edits, typename Func>
-	inline bool for_all_edges_ordered(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end, Func func)
+	template<typename Mode, typename Restriction, typename Conversion, typename Graph, typename Graph_Edits, typename VertexIterator, typename Func>
+	inline bool for_all_edges_ordered(Graph const &graph, Graph_Edits const &edited, VertexIterator begin, VertexIterator end, Func func)
 	{
 		if(std::is_same<Mode, Options::Modes::Edit>::value)
 		{
@@ -217,8 +218,8 @@ namespace Finder
 	 * useful if order doesn't matter, e.g. when just counting edges
 	 * calls f(iterator, iterator) for each editable edge
 	 */
-	template<typename Mode, typename Restriction, typename Conversion, typename Graph, typename Graph_Edits, typename Func>
-	inline bool for_all_edges_unordered(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator begin, std::vector<VertexID>::const_iterator end, Func func)
+	template<typename Mode, typename Restriction, typename Conversion, typename Graph, typename Graph_Edits, typename VertexIterator, typename Func>
+	inline bool for_all_edges_unordered(Graph const &graph, Graph_Edits const &edited, VertexIterator begin, VertexIterator end, Func func)
 	{
 		if(std::is_same<Mode, Options::Modes::Edit>::value)
 		{
