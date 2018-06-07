@@ -419,8 +419,11 @@ namespace Editor
 							std::vector<std::pair<size_t, size_t>> marked;
 							::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
 							{
-								Lower_Bound_Storage_type updated_lower_bound(lower_bound);
-								updated_lower_bound.remove(graph, edited, *uit, *vit);
+								// the other edges have already been removed by regular editing
+								if(edges_done == 0 || edges_finished > edges_done)
+								{
+									lower_bound.remove(graph, edited, *uit, *vit);
+								}
 
 								if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 								{
@@ -434,7 +437,7 @@ namespace Editor
 #endif
 									graph.toggle_edge(*uit, *vit);
 									k--;
-									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, updated_lower_bound));
+									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, lower_bound));
 									k++;
 									graph.toggle_edge(*uit, *vit);
 								}
@@ -526,8 +529,9 @@ namespace Editor
 					{
 #ifdef STATS
 						skipped[k - 1]--;
+						// make sure the path contains the correct state so if those edits should be stolen they get the correct edits
+						path.back().lower_bound.remove(graph, edited, *uit, *vit);
 						lower_bound = path.back().lower_bound;
-						lower_bound.remove(graph, edited, *uit, *vit);
 #endif
 						if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 						{

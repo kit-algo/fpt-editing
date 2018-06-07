@@ -109,8 +109,9 @@ namespace Consumer
 
 				if (!m.initialized_bound_updated)
 				{
-					for (const auto &it : m.bouds.get_bound())
+					for (const auto &it : m.bound_updated.get_bound())
 					{
+						assert(!any_used(m.used_updated, it.begin(), it.end()));
 						add_subgraph(m.used_updated, it.begin(), it.end());
 					}
 
@@ -202,13 +203,13 @@ namespace Consumer
 			}
 		}
 
-		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
+		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
 		{
 			ensure_updated_is_larger_bound();
 			return m.bound_updated.size();
 		}
 
-		const Lower_Bound_Storage_type& result(size_t, Graph const&, Graph_Edits const &, Options::Tag::Lower_Bound_Update) const
+		const Lower_Bound_Storage_type& result(size_t, Graph const&, Graph_Edits const &, Options::Tag::Lower_Bound_Update)
 		{
 			ensure_updated_is_larger_bound();
 			return m.bound_updated;

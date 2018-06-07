@@ -107,6 +107,9 @@ namespace Editor
 				return false;
 			}
 
+			Lower_Bound_Storage_type updated_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+
+
 			if(problem.size() == 2)
 			{
 #ifdef STATS
@@ -120,7 +123,7 @@ namespace Editor
 
 				//edit
 				{
-					Lower_Bound_Storage_type next_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+					Lower_Bound_Storage_type next_lower_bound(updated_lower_bound);
 					next_lower_bound.remove(graph, edited, problem.front(), problem.back());
 					graph.toggle_edge(problem.front(), problem.back());
 					edited.set_edge(problem.front(), problem.back());
@@ -129,9 +132,8 @@ namespace Editor
 
 				//unedit, mark
 				{
-					Lower_Bound_Storage_type next_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
 					graph.toggle_edge(problem.front(), problem.back());
-					if(edit_rec(k), next_lower_bound) {return true;}
+					if(edit_rec(k, updated_lower_bound)) {return true;}
 				}
 
 				//unmark
@@ -145,14 +147,13 @@ namespace Editor
 #endif
 				std::vector<std::pair<size_t, size_t>> marked;
 				bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit){
-					Lower_Bound_Storage_type next_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
-					next_lower_bound.remove(graph, edited, *uit, *vit);
+					updated_lower_bound.remove(graph, edited, *uit, *vit);
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						edited.set_edge(*uit, *vit);
 					}
 					graph.toggle_edge(*uit, *vit);
-					if(edit_rec(k - 1, next_lower_bound)) {return true;}
+					if(edit_rec(k - 1, updated_lower_bound)) {return true;}
 					graph.toggle_edge(*uit, *vit);
 					if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 					else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
