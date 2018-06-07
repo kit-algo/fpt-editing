@@ -22,6 +22,7 @@
 #include "Consumer/S_Most_Forbidden.hpp"
 #include "Consumer/LB_No.hpp"
 #include "Consumer/LB_Basic.hpp"
+#include "Consumer/LB_Updated.hpp"
 #include "Consumer/Counter.hpp"
 #include "Graph/Matrix.hpp"
 
