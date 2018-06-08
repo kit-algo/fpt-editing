@@ -147,13 +147,14 @@ namespace Editor
 #endif
 				std::vector<std::pair<size_t, size_t>> marked;
 				bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit){
-					updated_lower_bound.remove(graph, edited, *uit, *vit);
+					Lower_Bound_Storage_type next_lower_bound(updated_lower_bound);
+					next_lower_bound.remove(graph, edited, *uit, *vit);
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						edited.set_edge(*uit, *vit);
 					}
 					graph.toggle_edge(*uit, *vit);
-					if(edit_rec(k - 1, updated_lower_bound)) {return true;}
+					if(edit_rec(k - 1, next_lower_bound)) {return true;}
 					graph.toggle_edge(*uit, *vit);
 					if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 					else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
