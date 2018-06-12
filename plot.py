@@ -69,6 +69,14 @@ def graph_k_selector(data, desired_k):
 
     return selector
 
+def graph_time_selector(data, desired_time):
+    selector = False
+
+    for g, t in desired_time.items():
+        selector = ((data.Graph == g) & (data['Time [s]'] == t)) | selector
+
+    return selector
+
 
 def threading_boxplot(data, measure, logy=True, showfliers=True):
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -108,8 +116,13 @@ def max_k_table(data, file=sys.stdout):
     st_time = data[(data.Threads == 1) & graph_k_selector(data, st_max_k)].groupby(["Graph"]).min()['Time [s]']
 
     mt_max_k = data[data.Threads == 28].groupby(["Graph"]).max().k
-    mt_data = data[(data.Threads == 28) & graph_k_selector(data, mt_max_k)].groupby(["Graph"]).min()
+    mt_k_selector = graph_k_selector(data, mt_max_k)
+    mt_data = data[(data.Threads == 28) & mt_k_selector].groupby(["Graph"]).min()
     mt_time = mt_data['Time [s]']
+
+    mt_full_data = data[(data.Threads == 28) & mt_k_selector & graph_time_selector(data, mt_time)]    
+    print("Best permutation for 28 Threads per Graph:")
+    print(mt_full_data[['Graph', 'Permutation']].to_string())
 
     amd_max_k = data[data.Threads == 128].groupby(["Graph"]).max().k
     amd_data = data[(data.Threads == 128) & graph_k_selector(data, amd_max_k)].groupby(["Graph"]).min()

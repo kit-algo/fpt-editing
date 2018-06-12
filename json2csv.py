@@ -7,16 +7,24 @@ import re
 import argparse
 import os
 
-algos = {'MT-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Single',
-         'ST-Edit-None-Normal-Center_4-First-No-Matrix' : 'Base',
-         'ST-Edit-Redundant-Normal-Center_4-First-Basic-Matrix' : 'Lower Bound',
+algos = {'MT-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Single Sparse',
+         'ST-Edit-Redundant-Normal-Center_4-First-Basic-Matrix' : 'Lower Bound (LB No-Update)',
          'ST-Edit-Redundant-Normal-Center_4-First-No-Matrix' : 'No Redundancy',
-         'ST-Edit-Redundant-Skip-Center_4-First-Basic-Matrix' : 'Skip Conversion',
-         'ST-Edit-Redundant-Skip-Center_4-Least-Basic-Matrix' : 'Least Editable',
+         'ST-Edit-Redundant-Skip-Center_4-First-Basic-Matrix' : 'Skip Conversion (LB No-Update)',
+         'ST-Edit-Redundant-Skip-Center_4-Least-Basic-Matrix' : 'Least Editable (LB No-Update)',
          #'ST-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
          #'ST-Edit-Redundant-Skip-Center_5-Single_Heur-Matrix' : 'Single',
-         'ST-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Single',
-         'ST-Edit-Redundant-Skip-Center_Edits_Sparse_5-Single_Heur-Matrix' : 'Single',
+         'ST-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Single Sparse',
+         'ST-Edit-Redundant-Skip-Center_Edits_Sparse_5-Single_Heur-Matrix' : 'Single Sparse',
+         'MT-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
+         'ST-Edit-None-Normal-Center_4-First-No-Matrix' : 'Base',
+         'ST-Edit-Redundant-Normal-Center_4-First-Updated-Matrix' : 'Lower Bound',
+         'ST-Edit-Redundant-Skip-Center_4-First-Updated-Matrix' : 'Skip Conversion',
+         'ST-Edit-Redundant-Skip-Center_4-Least-Updated-Matrix' : 'Least Editable',
+         #'ST-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
+         #'ST-Edit-Redundant-Skip-Center_5-Single_Heur-Matrix' : 'Single',
+         'ST-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
+         'ST-Edit-Redundant-Skip-Center_5-Single_Heur-Matrix' : 'Single',
          'ST-Edit-Undo-Normal-Center_4-First-No-Matrix' : 'No Undo'}
 
 def load_json(jsonfile):
