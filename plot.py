@@ -170,7 +170,9 @@ if __name__ == "__main__":
         fig.savefig("{}/{}-scaling_calls.pdf".format(args.output_dir, g))
         plt.close(fig)
 
-    mt_plot_data = df[(df.Algorithm == "Single") & (df.l == 4) & (df.Graph != "jazz") & (df.Threads < 128)]
+    # There are only 14 real permutations (0-13). Additional runs with 12h time limit
+    # are marked as higher permutations in the data.
+    mt_plot_data = df[(df.Algorithm == "Single") & (df.l == 4) & (df.Graph != "jazz") & (df.Permutation < 14)]
 
     fig = threading_max_k_all_graphs(mt_plot_data, "Speedup", logy=False)
     fig.savefig("{}/mt_speedup.pdf".format(args.output_dir))
