@@ -124,11 +124,7 @@ def max_k_table(data, file=sys.stdout):
     print("Best permutation for 28 Threads per Graph:")
     print(mt_full_data[['Graph', 'Permutation']].to_string())
 
-    amd_max_k = data[data.Threads == 128].groupby(["Graph"]).max().k
-    amd_data = data[(data.Threads == 128) & graph_k_selector(data, amd_max_k)].groupby(["Graph"]).min()
-    amd_time = amd_data['Time [s]']
-
-    solved = mt_data['Solved'] | amd_data['Solved']
+    solved = mt_data['Solved']
 
     df = pd.DataFrame(collections.OrderedDict([
         (('Graph', 'Name'), mt_data.index),
@@ -138,13 +134,11 @@ def max_k_table(data, file=sys.stdout):
         (('1 Thread', 'k'), st_max_k),
         (('1 Thread', 'Time [s]'), st_time),
         (('28 Threads', 'k'), mt_max_k),
-        (('28 Threads', 'Time [s]'), mt_time),
-        (('128 Threads', 'k'), amd_max_k),
-        (('128 Threads', 'Time [s]'), amd_time)
+        (('28 Threads', 'Time [s]'), mt_time)
         ]))
 
     df.sort_values(by=('1 Thread', 'Time [s]'), inplace=True)
-    print(df.to_latex(index=False, formatters={('Solved', '') : lambda x : 'Yes' if x else 'No', ('128 Threads', 'k') : lambda x : str(int(x)) if not math.isnan(x) else '', ('128 Threads', 'Time [s]') : lambda x : "{:.2f}".format(x) if not math.isnan(x) else ''}, float_format=lambda x : "{:.2f}".format(x), na_rep=" "), file=file)
+    print(df.to_latex(index=False, formatters={('Solved', '') : lambda x : 'Yes' if x else 'No'}, float_format=lambda x : "{:.2f}".format(x), na_rep=" "), file=file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create plots out of the result data.")
