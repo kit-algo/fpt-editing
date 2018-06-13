@@ -101,7 +101,7 @@ def threading_max_k_all_graphs(data, measure, logy=False, showfliers=True):
 
     plot_data = data[graph_k_selector(data, k_per_graph)]
 
-    fig, ax = plt.subplots(figsize=(4, 3))
+    fig, ax = plt.subplots(figsize=(5, 4))
     sns.boxplot(x="Graph", y=measure, hue="Threads", data=plot_data, ax=ax, hue_order=thread_order, palette=thread_colors, showfliers=showfliers)
     fig.tight_layout()
     if logy:
