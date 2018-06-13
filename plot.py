@@ -115,16 +115,20 @@ def max_k_table(data, file=sys.stdout):
     st_max_k = data[data.Threads == 1].groupby(["Graph"]).max().k
     st_time = data[(data.Threads == 1) & graph_k_selector(data, st_max_k)].groupby(["Graph"]).min()['Time [s]']
 
-    mt_max_k = data[data.Threads == 28].groupby(["Graph"]).max().k
+    mt_max_k = data[(data.Threads == 28) & (data.Permutation < 14)].groupby(["Graph"]).max().k
     mt_k_selector = graph_k_selector(data, mt_max_k)
-    mt_data = data[(data.Threads == 28) & mt_k_selector].groupby(["Graph"]).min()
+    mt_data = data[(data.Threads == 28) & (data.Permutation < 14) & mt_k_selector].groupby(["Graph"]).min()
     mt_time = mt_data['Time [s]']
 
-    mt_full_data = data[(data.Threads == 28) & mt_k_selector & graph_time_selector(data, mt_time)]    
+    mt_full_data = data[(data.Threads == 28) & (data.Permutation < 14) & mt_k_selector & graph_time_selector(data, mt_time)]
     print("Best permutation for 28 Threads per Graph:")
     print(mt_full_data[['Graph', 'Permutation']].to_string())
 
-    solved = mt_data['Solved']
+    mt_extra_k = data[(data.Threads == 28) & (data.Permutation >= 14)].groupby(["Graph"]).max().k
+    mt_extra_data = data[(data.Threads == 28) & (data.Permutation >= 14) & graph_k_selector(data, mt_extra_k)].groupby(["Graph"]).min()
+    mt_extra_time = mt_extra_data['Time [s]']
+
+    solved = mt_data['Solved'] | mt_extra_data['Solved']
 
     df = pd.DataFrame(collections.OrderedDict([
         (('Graph', 'Name'), mt_data.index),
@@ -134,11 +138,13 @@ def max_k_table(data, file=sys.stdout):
         (('1 Thread', 'k'), st_max_k),
         (('1 Thread', 'Time [s]'), st_time),
         (('28 Threads', 'k'), mt_max_k),
-        (('28 Threads', 'Time [s]'), mt_time)
+        (('28 Threads', 'Time [s]'), mt_time),
+        (('28 Threads*', 'k'), mt_extra_k),
+        (('28 Threads*', 'Time [s]'), mt_extra_time)
         ]))
 
     df.sort_values(by=('1 Thread', 'Time [s]'), inplace=True)
-    print(df.to_latex(index=False, formatters={('Solved', '') : lambda x : 'Yes' if x else 'No'}, float_format=lambda x : "{:.2f}".format(x), na_rep=" "), file=file)
+    print(df.to_latex(index=False, formatters={('Solved', '') : lambda x : 'Yes' if x else 'No', ('28 Threads*', 'k') : lambda x : str(int(x)) if not math.isnan(x) else '', ('28 Threads*', 'Time [s]') : lambda x : "{:.2f}".format(x) if not math.isnan(x) else ''}, float_format=lambda x : "{:.2f}".format(x), na_rep=" "), file=file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create plots out of the result data.")
