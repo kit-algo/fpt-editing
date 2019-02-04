@@ -74,7 +74,7 @@ namespace Consumer
 
 		Single_Edits_Sparse(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
-		void prepare(const Lower_Bound_Storage_type&)
+		void prepare(size_t, const Lower_Bound_Storage_type&)
 		{
 			m.used.clear();
 			m.bounds.clear();

@@ -31,7 +31,7 @@ namespace Consumer
 	public:
 		Updated(VertexID graph_size) : used_updated(graph_size), used_new(graph_size) {;}
 
-		void prepare(const Lower_Bound_Storage_type& lower_bound)
+		void prepare(size_t, const Lower_Bound_Storage_type& lower_bound)
 		{
 			used_updated.clear();
 			used_new.clear();

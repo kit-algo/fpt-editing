@@ -194,7 +194,7 @@ public:
 
 		// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
 		Finder::Feeder<F, G, GE, typename E::Lower_Bound_type> feeder(finder, std::get<E::lb>(consumer));
-		feeder.feed(0, graph, edited, typename E::Lower_Bound_Storage_type());
+		feeder.feed(0, graph, edited, 0, typename E::Lower_Bound_Storage_type());
 		size_t bound = std::get<E::lb>(consumer).result(0, graph, edited, Options::Tag::Lower_Bound());
 
 		// warmup

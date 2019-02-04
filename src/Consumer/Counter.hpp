@@ -7,6 +7,7 @@
 #include "../config.hpp"
 
 #include "../Options.hpp"
+#include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
 {
@@ -15,6 +16,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "Counter";
+		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		size_t paths = 0;
@@ -23,7 +25,7 @@ namespace Consumer
 	public:
 		Counter(VertexID) {;}
 
-		void prepare()
+		void prepare(size_t, const Lower_Bound_Storage_type&)
 		{
 			paths = 0;
 			cycles = 0;

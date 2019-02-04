@@ -68,10 +68,10 @@ namespace Finder
 
 		/** Prepares consumers for a new run of the Finder and starts it */
 		template <typename Lower_Bound_Storage_type>
-		void feed(size_t k, Graph const &graph, Graph_Edits const &edited, const Lower_Bound_Storage_type& lower_bound)
+		void feed(size_t k, Graph const &graph, Graph_Edits const &edited, size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
 		{
 			done.fill(false);
-			prepare_impl(std::index_sequence_for<Consumer ...>{}, lower_bound);
+			prepare_impl(std::index_sequence_for<Consumer ...>{}, no_edits_left, lower_bound);
 			finder.find(graph, edited, *this);
 			Result_impl<sizeof...(Consumer), Consumer...>::result(consumer, k, graph, edited);
 		}
@@ -99,9 +99,9 @@ namespace Finder
 
 	private:
 		template<typename Lower_Bound_Storage_type, size_t... Is>
-		void prepare_impl(std::index_sequence<Is ...>, const Lower_Bound_Storage_type& lower_bound)
+		void prepare_impl(std::index_sequence<Is ...>, size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
 		{
-			((std::get<Is>(consumer).prepare(lower_bound)), ...);
+			((std::get<Is>(consumer).prepare(no_edits_left, lower_bound)), ...);
 		}
 
 		template<size_t... Is>

@@ -47,9 +47,10 @@ namespace Editor
 			Graph graph;
 			Graph_Edits edited;
 			size_t k;
+			size_t no_edits_left;
 			Lower_Bound_Storage_type lower_bound;
 
-			Work(Graph graph, Graph_Edits edited, size_t k, Lower_Bound_Storage_type lower_bound) : graph(graph), edited(edited), k(k), lower_bound(lower_bound) {;}
+			Work(Graph graph, Graph_Edits edited, size_t k, size_t no_edits_left, Lower_Bound_Storage_type lower_bound) : graph(graph), edited(edited), k(k), no_edits_left(no_edits_left), lower_bound(lower_bound) {;}
 		};
 
 		Finder &finder;
@@ -104,7 +105,7 @@ namespace Editor
 			}
 
 			available_work.clear();
-			available_work.push_back(std::make_unique<Work>(graph, Graph_Edits(graph.size()), k, Lower_Bound_Storage_type()));
+			available_work.push_back(std::make_unique<Work>(graph, Graph_Edits(graph.size()), k, k, Lower_Bound_Storage_type()));
 			working = threads;
 			std::vector<std::thread> work_threads;
 			for(size_t t = 1; t < threads; t++)
@@ -290,7 +291,7 @@ namespace Editor
 //					std::cout << std::this_thread::get_id() << " got work" << std::endl;
 					lock.unlock();
 
-					top = std::make_unique<Work>(work->graph, work->edited, work->k, work->lower_bound);
+					top = std::make_unique<Work>(work->graph, work->edited, work->k, work->no_edits_left, work->lower_bound);
 					if(edit_rec())
 					{
 						editor.done = true;
@@ -307,12 +308,13 @@ namespace Editor
 				auto &graph = work->graph;
 				auto &edited = work->edited;
 				auto &k = work->k;
+				auto &no_edits_left = work->no_edits_left;
 				auto &lower_bound = work->lower_bound;
 #ifdef STATS
 				calls[k]++;
 #endif
 				// start finder and feed into selector and lb
-				feeder.feed(k, graph, edited, lower_bound);
+				feeder.feed(k, graph, edited, no_edits_left, lower_bound);
 
 				// graph solved?
 				auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
@@ -351,6 +353,7 @@ namespace Editor
 						auto &graph = top->graph;
 						auto &edited = top->edited;
 						auto &k = top->k;
+						auto &no_edits_left = top->no_edits_left;
 						auto &lower_bound = path.front().lower_bound;
 						auto const &problem = path.front().problem;
 						auto const &edges_done = path.front().edges_done;
@@ -378,7 +381,7 @@ namespace Editor
 								edited.set_edge(problem.front(), problem.back());
 								graph.toggle_edge(problem.front(), problem.back());
 								k--;
-								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, new_lower_bound));
+								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, no_edits_left, new_lower_bound));
 								k++;
 								graph.toggle_edge(problem.front(), problem.back());
 							} else {
@@ -388,7 +391,8 @@ namespace Editor
 							//unedit, mark
 							if(edges_done < 2)
 							{
-								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, lower_bound));
+								--no_edits_left;
+								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, no_edits_left, lower_bound));
 							}
 
 							// adjust top:
@@ -398,6 +402,7 @@ namespace Editor
 							{
 								k--;
 								graph.toggle_edge(problem.front(), problem.back());
+								++no_edits_left;
 							}
 
 							// if == 2: top in correct state
@@ -434,7 +439,7 @@ namespace Editor
 #endif
 									graph.toggle_edge(*uit, *vit);
 									k--;
-									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, std::move(new_lower_bound)));
+									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, no_edits_left, std::move(new_lower_bound)));
 									k++;
 									graph.toggle_edge(*uit, *vit);
 								}
@@ -507,8 +512,10 @@ namespace Editor
 					lower_bound = path.back().lower_bound;
 					graph.toggle_edge(problem.front(), problem.back());
 					path.back().edges_done++;
+					--no_edits_left;
 					if(edit_rec()) {return true;}
 					else if(path.empty()) {return false;}
+					++no_edits_left;
 
 					//unmark
 					edited.clear_edge(problem.front(), problem.back());

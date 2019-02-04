@@ -65,7 +65,7 @@ namespace Editor
 			single = decltype(single)(k + 1, 0);
 #endif
 			found_soulution = false;
-			edit_rec(k, Lower_Bound_Storage_type());
+			edit_rec(k, k, Lower_Bound_Storage_type());
 			return found_soulution;
 		}
 
@@ -78,13 +78,13 @@ namespace Editor
 
 	private:
 
-		bool edit_rec(size_t k, const Lower_Bound_Storage_type& lower_bound)
+		bool edit_rec(size_t k, size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
 		{
 #ifdef STATS
 			calls[k]++;
 #endif
 			// start finder and feed into selector and lb
-			feeder.feed(k, graph, edited, lower_bound);
+			feeder.feed(k, graph, edited, no_edits_left, lower_bound);
 
 			// graph solved?
 			auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
@@ -127,13 +127,13 @@ namespace Editor
 					next_lower_bound.remove(graph, edited, problem.front(), problem.back());
 					graph.toggle_edge(problem.front(), problem.back());
 					edited.set_edge(problem.front(), problem.back());
-					if(edit_rec(k - 1, next_lower_bound)) {return true;}
+					if(edit_rec(k - 1, no_edits_left, next_lower_bound)) {return true;}
 				}
 
 				//unedit, mark
 				{
 					graph.toggle_edge(problem.front(), problem.back());
-					if(edit_rec(k, updated_lower_bound)) {return true;}
+					if(edit_rec(k, no_edits_left - 1, updated_lower_bound)) {return true;}
 				}
 
 				//unmark
@@ -154,7 +154,7 @@ namespace Editor
 						edited.set_edge(*uit, *vit);
 					}
 					graph.toggle_edge(*uit, *vit);
-					if(edit_rec(k - 1, next_lower_bound)) {return true;}
+					if(edit_rec(k - 1, no_edits_left, next_lower_bound)) {return true;}
 					graph.toggle_edge(*uit, *vit);
 					if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
 					else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}

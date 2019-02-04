@@ -41,6 +41,7 @@ namespace Consumer
 			bool searching_single = false;
 			std::vector<VertexID> fallback;
 			size_t fallback_free = 0;
+			size_t no_edits_left;
 
 			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
@@ -66,12 +67,13 @@ namespace Consumer
 
 		Single_Heur(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
-		void prepare(const Lower_Bound_Storage_type& lower_bound)
+		void prepare(size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
 		{
 			if(!m.searching_single)
 			{
-				m.updated_lb.prepare(lower_bound);
+				m.updated_lb.prepare(no_edits_left, lower_bound);
 			}
+			m.no_edits_left = no_edits_left;
 			m.bounds_single.clear();
 			m.fallback.clear();
 			m.fallback_free = 0;
@@ -126,7 +128,7 @@ namespace Consumer
 
 			// find forbidden subgraph with only one edge in m.bounds
 			m.searching_single = true;
-			feeder.feed(k, g, e, lower_bound);
+			feeder.feed(k, g, e, m.no_edits_left, lower_bound);
 			m.searching_single = false;
 
 			if(m.fallback_free == 0 && !m.fallback.empty())

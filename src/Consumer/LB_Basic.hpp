@@ -25,7 +25,7 @@ namespace Consumer
 	public:
 		Basic(VertexID graph_size) : used(graph_size) {;}
 
-		void prepare(const Lower_Bound_Storage_type&)
+		void prepare(size_t, const Lower_Bound_Storage_type&)
 		{
 			used.clear();
 			found = 0;

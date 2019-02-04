@@ -25,7 +25,7 @@ namespace Consumer
 	public:
 		Most(VertexID graph_size) : use_count((graph_size * (graph_size - 1)) / 2) {;}
 
-		void prepare(const Lower_Bound_Storage_type&)
+		void prepare(size_t, const Lower_Bound_Storage_type&)
 		{
 			std::fill(use_count.begin(), use_count.end(), 0);
 		}

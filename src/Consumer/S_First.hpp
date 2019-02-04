@@ -23,7 +23,7 @@ namespace Consumer
 	public:
 		First(VertexID) {;}
 
-		void prepare(const Lower_Bound_Storage_type&)
+		void prepare(size_t, const Lower_Bound_Storage_type&)
 		{
 			problem.clear();
 		}

@@ -75,7 +75,7 @@ namespace Consumer
 
 		Single(VertexID graph_size) : m(graph_size), feeder(m.finder, *this) {;}
 
-		void prepare(const Lower_Bound_Storage_type& lower_bound)
+		void prepare(size_t, const Lower_Bound_Storage_type& lower_bound)
 		{
 			m.used.clear();
 			m.bounds = lower_bound;
