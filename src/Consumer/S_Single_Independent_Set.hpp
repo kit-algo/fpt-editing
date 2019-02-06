@@ -39,18 +39,19 @@ namespace Consumer
 		struct M
 		{
 			Updated<Graph, Graph_Edits, Mode, Restriction, Conversion, length> updated_lb;
-			std::vector<typename Lower_Bound_Storage_type::subgraph_t> forbidden_subgraphs;
-			Value_Matrix<std::vector<size_t>> subgraphs_per_edge;
+			std::vector<std::pair<typename Lower_Bound_Storage_type::subgraph_t, size_t>> forbidden_subgraphs_degrees;
+			Value_Matrix<size_t> subgraphs_per_edge;
 			std::vector<VertexID> fallback;
 			size_t fallback_free = 0;
 			bool use_single;
 
 			Lower_Bound_Storage_type lower_bound;
+			Graph_Edits in_lower_bound;
 			bool lower_bound_calculated;
 
 			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
-			M(VertexID graph_size) : updated_lb(graph_size), subgraphs_per_edge(graph_size), finder(graph_size) {;}
+			M(VertexID graph_size) : updated_lb(graph_size), subgraphs_per_edge(graph_size), in_lower_bound(graph_size), finder(graph_size) {;}
 		} m;
 
 		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single_Independent_Set> feeder;
@@ -76,10 +77,11 @@ namespace Consumer
 		{
 			m.use_single = (no_edits_left > 0);
 			m.updated_lb.prepare(no_edits_left, lower_bound);
-			m.forbidden_subgraphs.clear();
-			m.subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, std::vector<size_t>& v) { v.clear(); });
+			m.forbidden_subgraphs_degrees.clear();
+			m.subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, size_t& v) { v = 0; });
 			m.fallback.clear();
 			m.fallback_free = 0;
+			m.in_lower_bound.clear();
 			m.lower_bound.clear();
 			m.lower_bound_calculated = false;
 		}
@@ -88,15 +90,14 @@ namespace Consumer
 		{
 			m.updated_lb.next(graph, edited, b, e);
 
-			const size_t forbidden_index = m.forbidden_subgraphs.size();
 			{ // insert into array
-				m.forbidden_subgraphs.emplace_back();
+				m.forbidden_subgraphs_degrees.emplace_back();
 				auto it = b;
 				for (size_t i = 0; i < length; ++i)
 					{
 						if (it == e) abort();
 
-						m.forbidden_subgraphs.back()[i] = *it;
+						m.forbidden_subgraphs_degrees.back().first[i] = *it;
 						++it;
 					}
 
@@ -105,7 +106,7 @@ namespace Consumer
 
 			size_t free = 0;
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
-				m.subgraphs_per_edge.at(*uit, *vit).push_back(forbidden_index);
+				++m.subgraphs_per_edge.at(*uit, *vit);
 				free++;
 				return false;
 			});
@@ -134,71 +135,35 @@ namespace Consumer
 				return;
 			}
 
-			std::vector<size_t> tmp;
-			auto populate_neighbor_ids = [&](const typename Lower_Bound_Storage_type::subgraph_t& fs, std::vector<size_t>& neighbors) {
-				neighbors.clear();
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					const auto& new_neighbors = m.subgraphs_per_edge.at(*uit, *vit);
 
-					if (neighbors.size() < 2) {
-						// One neighbors is always fs itself
-						// And it is in every list of neighbors - no need to merge.
-						neighbors = new_neighbors;
-					} else if (new_neighbors.size() > 1) {
-						// As one neighbor is always fs itself, no need to merge
-						// new neighbors that contain only one node.
-						std::set_union(neighbors.begin(), neighbors.end(), new_neighbors.begin(), new_neighbors.end(), std::back_inserter(tmp));
-						std::swap(tmp, neighbors);
-						tmp.clear();
+			for (auto& fs_count : m.forbidden_subgraphs_degrees) {
+				fs_count.second = 0;
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs_count.first.begin(), fs_count.first.end(), [&](auto uit, auto vit) {
+					fs_count.second += m.subgraphs_per_edge.at(*uit, *vit);
+					return false;
+				});
+			}
+
+			std::sort(m.forbidden_subgraphs_degrees.begin(), m.forbidden_subgraphs_degrees.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+
+			for (const auto& fs_degree : m.forbidden_subgraphs_degrees) {
+				bool can_use = true;
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs_degree.first.begin(), fs_degree.first.end(), [&](auto uit, auto vit) {
+					if (m.in_lower_bound.has_edge(*uit, *vit)) {
+						can_use = false;
+						return true;
 					}
 					return false;
 				});
-			};
 
-			RoutingKit::MinIDQueue pq(m.forbidden_subgraphs.size());
-
-			std::vector<size_t> neighbors, neighbors_of_neighbors;
-
-			for (size_t fsid = 0; fsid < m.forbidden_subgraphs.size(); ++fsid) {
-				const typename Lower_Bound_Storage_type::subgraph_t& fs = m.forbidden_subgraphs[fsid];
-
-				populate_neighbor_ids(fs, neighbors);
-
-				if (neighbors.size() == 1) {
-					assert(neighbors.back() == fsid);
-					m.lower_bound.add(fs.begin(), fs.end());
-				} else {
-					pq.push({fsid, neighbors.size()});
+				if (can_use) {
+					m.lower_bound.add(fs_degree.first.begin(), fs_degree.first.end());
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs_degree.first.begin(), fs_degree.first.end(), [&](auto uit, auto vit) {
+						m.in_lower_bound.set_edge(*uit, *vit);
+						return false;
+					});
 				}
-			}
-
-			while (!pq.empty()) {
-				auto idkey = pq.pop();
-
-				const auto& fs = m.forbidden_subgraphs[idkey.id];
-
-				if (idkey.key > 1) {
-				    populate_neighbor_ids(fs, neighbors);
-				    for (size_t nfsid : neighbors) {
-					    if (pq.contains_id(nfsid)) {
-						    { // simulate deletion - there should be no element with key 0
-							    assert(pq.peek().key > 0);
-							    pq.decrease_key({nfsid, 0});
-							    auto el = pq.pop();
-							    assert(el.id == nfsid);
-						    }
-
-						    populate_neighbor_ids(m.forbidden_subgraphs[nfsid], neighbors_of_neighbors);
-						    for (size_t nnfsid : neighbors_of_neighbors) {
-							    if (pq.contains_id(nnfsid)) {
-								    pq.decrease_key({nnfsid, pq.get_key(nnfsid) - 1});
-							    }
-						    }
-					    }
-				    }
-				}
-
-				m.lower_bound.add(fs.begin(), fs.end());
 			}
 
 			if (m.lower_bound.size() < lower_bound_simple.size()) {
@@ -227,17 +192,15 @@ namespace Consumer
 			if (m.use_single) {
 				size_t max_subgraphs = 0;
 				std::pair<VertexID, VertexID> node_pair;
-				m.subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, std::vector<size_t>& fb_ids) {
-					if (fb_ids.size() > max_subgraphs) {
-						max_subgraphs = fb_ids.size();
+				m.subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, size_t& fbs) {
+					if (fbs > max_subgraphs) {
+						max_subgraphs = fbs;
 						node_pair.first = u;
 						node_pair.second = v;
 					}
 				});
 
-				if (max_subgraphs > 1) { // only use single editing if there is a node pair that is part of multiple forbidden subgraphs
-					return std::vector<VertexID>{node_pair.first, node_pair.second};
-				}
+				return std::vector<VertexID>{node_pair.first, node_pair.second};
 			}
 			//			std::unordered_map<std::pair<VertexID, VertexID>, size_t> node_pairs_single;
 			//
