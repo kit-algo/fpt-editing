@@ -45,9 +45,8 @@ namespace Consumer
 		Graph_Edits in_updated_lower_bound;
 		bool lower_bound_calculated;
 
-		Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 	public:
-		Single_Independent_Set(VertexID graph_size) : subgraphs_per_edge(graph_size), num_subgraphs_per_edge(graph_size), in_updated_lower_bound(graph_size), finder(graph_size) {;}
+		Single_Independent_Set(VertexID graph_size) : subgraphs_per_edge(graph_size), num_subgraphs_per_edge(graph_size), in_updated_lower_bound(graph_size) {;}
 
 		void prepare(size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
 		{
