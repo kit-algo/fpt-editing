@@ -38,19 +38,21 @@ namespace Consumer
 		// so the {copy,move} {constructor,assignment} doesn't have to mention every single member.
 		struct M
 		{
-			Updated<Graph, Graph_Edits, Mode, Restriction, Conversion, length> updated_lb;
 			std::vector<typename Lower_Bound_Storage_type::subgraph_t> forbidden_subgraphs;
 			Value_Matrix<std::vector<size_t>> subgraphs_per_edge;
+			Value_Matrix<size_t> num_subgraphs_per_edge;
 			std::vector<VertexID> fallback;
 			size_t fallback_free = 0;
 			bool use_single;
 
 			Lower_Bound_Storage_type lower_bound;
+			Lower_Bound_Storage_type updated_lower_bound;
+			Graph_Edits in_updated_lower_bound;
 			bool lower_bound_calculated;
 
 			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
-			M(VertexID graph_size) : updated_lb(graph_size), subgraphs_per_edge(graph_size), finder(graph_size) {;}
+			M(VertexID graph_size) : subgraphs_per_edge(graph_size), num_subgraphs_per_edge(graph_size), in_updated_lower_bound(graph_size), finder(graph_size) {;}
 		} m;
 
 		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single_Independent_Set> feeder;
@@ -75,9 +77,12 @@ namespace Consumer
 		void prepare(size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
 		{
 			m.use_single = (no_edits_left > 0);
-			m.updated_lb.prepare(no_edits_left, lower_bound);
+			m.updated_lower_bound = lower_bound;
+			m.in_updated_lower_bound.clear();
+
 			m.forbidden_subgraphs.clear();
 			m.subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, std::vector<size_t>& v) { v.clear(); });
+			m.num_subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, size_t& v) { v = 0; });
 			m.fallback.clear();
 			m.fallback_free = 0;
 			m.lower_bound.clear();
@@ -86,8 +91,6 @@ namespace Consumer
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
-			m.updated_lb.next(graph, edited, b, e);
-
 			const size_t forbidden_index = m.forbidden_subgraphs.size();
 			{ // insert into array
 				m.forbidden_subgraphs.emplace_back();
@@ -106,6 +109,7 @@ namespace Consumer
 			size_t free = 0;
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
 				m.subgraphs_per_edge.at(*uit, *vit).push_back(forbidden_index);
+				++m.num_subgraphs_per_edge.at(*uit, *vit);
 				free++;
 				return false;
 			});
@@ -125,14 +129,6 @@ namespace Consumer
 		{
 			if (m.lower_bound_calculated) return;
 			m.lower_bound_calculated = true;
-
-			const Lower_Bound_Storage_type& lower_bound_simple = m.updated_lb.result(k, g, e, Options::Tag::Lower_Bound_Update());
-
-			// FIXME: catch nasty initial lower bound better than checking k > 0
-			if (k > 0 && lower_bound_simple.size() > k) {
-				m.lower_bound = lower_bound_simple;
-				return;
-			}
 
 			std::vector<size_t> tmp;
 			auto populate_neighbor_ids = [&](const typename Lower_Bound_Storage_type::subgraph_t& fs, std::vector<size_t>& neighbors) {
@@ -159,10 +155,21 @@ namespace Consumer
 
 			std::vector<size_t> neighbors, neighbors_of_neighbors;
 
+			size_t total_neighbors_size = 0, max_neighbor_size = 0, min_neighbor_size = std::numeric_limits<size_t>::max();
+
 			for (size_t fsid = 0; fsid < m.forbidden_subgraphs.size(); ++fsid) {
 				const typename Lower_Bound_Storage_type::subgraph_t& fs = m.forbidden_subgraphs[fsid];
 
 				populate_neighbor_ids(fs, neighbors);
+
+				total_neighbors_size += neighbors.size();
+				if (neighbors.size() > max_neighbor_size) {
+					max_neighbor_size = neighbors.size();
+				}
+
+				if (neighbors.size() < min_neighbor_size) {
+					min_neighbor_size = neighbors.size();
+				}
 
 				if (neighbors.size() == 1) {
 					assert(neighbors.back() == fsid);
@@ -172,37 +179,87 @@ namespace Consumer
 				}
 			}
 
+			auto process_pq = [&](Lower_Bound_Storage_type &lb) {
 			while (!pq.empty()) {
-				auto idkey = pq.pop();
+					auto idkey = pq.pop();
 
-				const auto& fs = m.forbidden_subgraphs[idkey.id];
+					const auto& fs = m.forbidden_subgraphs[idkey.id];
 
-				if (idkey.key > 1) {
-				    populate_neighbor_ids(fs, neighbors);
-				    for (size_t nfsid : neighbors) {
-					    if (pq.contains_id(nfsid)) {
-						    { // simulate deletion - there should be no element with key 0
-							    assert(pq.peek().key > 0);
-							    pq.decrease_key({nfsid, 0});
-							    auto el = pq.pop();
-							    assert(el.id == nfsid);
-						    }
+					if (idkey.key > 1) {
+					    populate_neighbor_ids(fs, neighbors);
+					    for (size_t nfsid : neighbors) {
+						    if (pq.contains_id(nfsid)) {
+							    { // simulate deletion - there should be no element with key 0
+								    assert(pq.peek().key > 0);
+								    pq.decrease_key({nfsid, 0});
+								    auto el = pq.pop();
+								    assert(el.id == nfsid);
+							    }
 
-						    populate_neighbor_ids(m.forbidden_subgraphs[nfsid], neighbors_of_neighbors);
-						    for (size_t nnfsid : neighbors_of_neighbors) {
-							    if (pq.contains_id(nnfsid)) {
-								    pq.decrease_key({nnfsid, pq.get_key(nnfsid) - 1});
+							    populate_neighbor_ids(m.forbidden_subgraphs[nfsid], neighbors_of_neighbors);
+							    for (size_t nnfsid : neighbors_of_neighbors) {
+								    if (pq.contains_id(nnfsid)) {
+									    pq.decrease_key({nnfsid, pq.get_key(nnfsid) - 1});
+								    }
 							    }
 						    }
 					    }
-				    }
-				}
+					}
 
-				m.lower_bound.add(fs.begin(), fs.end());
+					lb.add(fs.begin(), fs.end());
+				}
+			};
+
+			process_pq(m.lower_bound);
+
+			for (const auto& fs : m.updated_lower_bound.get_bound()) {
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+					m.in_updated_lower_bound.set_edge(*uit, *vit);
+					return false;
+				});
 			}
 
-			if (m.lower_bound.size() < lower_bound_simple.size()) {
-				m.lower_bound = lower_bound_simple;
+			std::vector<bool> can_use(m.forbidden_subgraphs.size(), true);
+
+			for (size_t i = 0; i < m.forbidden_subgraphs.size(); ++i) {
+				const auto& fs = m.forbidden_subgraphs[i];
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+					if (m.in_updated_lower_bound.has_edge(*uit, *vit)) {
+						can_use[i] = false;
+						return true;
+					}
+					return false;
+				});
+			}
+
+			m.subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, std::vector<size_t>& fs_ids)
+			{
+				auto new_end = std::remove_if(fs_ids.begin(), fs_ids.end(), [&](size_t v) { return !can_use[v]; });
+				fs_ids.erase(new_end, fs_ids.end());
+			});
+
+			for (size_t i = 0; i < m.forbidden_subgraphs.size(); ++i) {
+				if (!can_use[i]) continue;
+
+				const typename Lower_Bound_Storage_type::subgraph_t& fs = m.forbidden_subgraphs[i];
+
+				populate_neighbor_ids(fs, neighbors);
+
+				if (neighbors.size() == 1) {
+					assert(neighbors.back() == fsid);
+					m.updated_lower_bound.add(fs.begin(), fs.end());
+				} else {
+					pq.push({i, neighbors.size()});
+				}
+			}
+
+			process_pq(m.updated_lower_bound);
+
+			//std::cout << "k = " << k << " #fs = " << m.forbidden_subgraphs.size() << " max_neigh = " << max_neighbor_size << " avg_neighbors = " << total_neighbors_size / m.forbidden_subgraphs.size() << " min_neighbors = " << min_neighbor_size << " lb: " << m.lower_bound.size() << " updated lb: " << m.updated_lower_bound.size() << std::endl;
+
+			if (m.updated_lower_bound.size() > m.lower_bound.size()) {
+				m.lower_bound = m.updated_lower_bound;
 			}
 		}
 
@@ -227,9 +284,9 @@ namespace Consumer
 			if (m.use_single) {
 				size_t max_subgraphs = 0;
 				std::pair<VertexID, VertexID> node_pair;
-				m.subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, std::vector<size_t>& fb_ids) {
-					if (fb_ids.size() > max_subgraphs) {
-						max_subgraphs = fb_ids.size();
+				m.num_subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, size_t& num_fbs) {
+					if (num_fbs > max_subgraphs) {
+						max_subgraphs = num_fbs;
 						node_pair.first = u;
 						node_pair.second = v;
 					}
