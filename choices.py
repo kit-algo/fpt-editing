@@ -86,7 +86,7 @@ for macro, arguments in need.items():
 	for combination in itertools.product(*using):
 		# index/opt  0e 1 f      2 g    3 M    4 R  5 C  6 c   7 c
 		# run-EDITOR-MT-Center_4-Matrix-Delete-None-Last-First-Basic.cpp
-		if ("Single" in combination[6] or "Single" in combination[7]) and not combination[6] == combination[7]:
+		if ("Single" in combination[6] or "Single" in combination[7]) and not combination[6] == combination[7] and (not ("Most" in combination[6] and not "Single" in combination[7])):
 			continue
 		if "Single" in combination[6] and (not combination[4] == "Redundant" or not combination[5] == "Skip"):
 			continue

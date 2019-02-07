@@ -1,66 +1,47 @@
-#ifndef CONSUMER_SELECTOR_SINGLE_INDEPENDENT_SET_HPP
-#define CONSUMER_SELECTOR_SINGLE_INDEPENDENT_SET_HPP
+#ifndef CONSUMER_LOWER_BOUND_MIN_DEG_HPP
+#define CONSUMER_LOWER_BOUND_MIN_DEG_HPP
 
-#include <algorithm>
-#include <set>
-#include <tuple>
-#include <unordered_map>
-#include <utility>
 #include <vector>
-
-#include <iostream>
-
-#include "../util.hpp"
 
 #include "../config.hpp"
 
 #include "../Options.hpp"
-
 #include "../Finder/Finder.hpp"
-#include "../Finder/Center.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
-#include "LB_Updated.hpp"
 #include "../id_queue.h"
 #include "../Graph/ValueMatrix.hpp"
 
 namespace Consumer
 {
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
-	class Single_Independent_Set : Options::Tag::Selector, Options::Tag::Lower_Bound
+	class Min_Deg : Options::Tag::Lower_Bound
 	{
 	public:
-		static constexpr char const *name = "Single_Independent_Set";
+		static constexpr char const *name = "Min_Deg";
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
 		std::vector<typename Lower_Bound_Storage_type::subgraph_t> forbidden_subgraphs;
 		Value_Matrix<std::vector<size_t>> subgraphs_per_edge;
-		Value_Matrix<size_t> num_subgraphs_per_edge;
-		std::vector<VertexID> fallback;
-		size_t fallback_free = 0;
-		bool use_single;
 
-		Lower_Bound_Storage_type lower_bound;
-		Lower_Bound_Storage_type updated_lower_bound;
-		Graph_Edits in_updated_lower_bound;
-		bool lower_bound_calculated;
+		bool bound_calculated;
 
+		Graph_Edits used_updated;
+
+		Lower_Bound_Storage_type bound_updated;
+		Lower_Bound_Storage_type bound_new;
 	public:
-		Single_Independent_Set(VertexID graph_size) : subgraphs_per_edge(graph_size), num_subgraphs_per_edge(graph_size), in_updated_lower_bound(graph_size) {;}
+		Min_Deg(VertexID graph_size) : subgraphs_per_edge(graph_size), used_updated(graph_size) {;}
 
-		void prepare(size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
+		void prepare(size_t, const Lower_Bound_Storage_type& lower_bound)
 		{
-			use_single = (no_edits_left > 0);
-			updated_lower_bound = lower_bound;
-			in_updated_lower_bound.clear();
-
 			forbidden_subgraphs.clear();
 			subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, std::vector<size_t>& v) { v.clear(); });
-			num_subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, size_t& v) { v = 0; });
-			fallback.clear();
-			fallback_free = 0;
-			this->lower_bound.clear();
-			lower_bound_calculated = false;
+
+			bound_calculated = false;
+			used_updated.clear();
+			bound_new.clear();
+			bound_updated = lower_bound;
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
@@ -83,26 +64,30 @@ namespace Consumer
 			size_t free = 0;
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
 				subgraphs_per_edge.at(*uit, *vit).push_back(forbidden_index);
-				++num_subgraphs_per_edge.at(*uit, *vit);
 				free++;
 				return false;
 			});
 
-			// fallback handling
-			if(free < fallback_free || fallback_free == 0)
-			{
-				fallback_free = free;
-				fallback = std::vector<VertexID>{b, e};
-				if(free == 0) {return true;} // completly edited subgraph -- impossible to solve graph
-			}
-
 			return false;
 		}
 
-		void prepare_result(size_t k, Graph const &g, Graph_Edits const &e)
+		size_t result(size_t, Graph const &g, Graph_Edits const &e, Options::Tag::Lower_Bound)
 		{
-			if (lower_bound_calculated) return;
-			lower_bound_calculated = true;
+			prepare_result(g, e);
+			return bound_new.size();
+		}
+
+		const Lower_Bound_Storage_type& result(size_t, Graph const &g, Graph_Edits const &e, Options::Tag::Lower_Bound_Update)
+		{
+			prepare_result(g, e);
+			return bound_new;
+		}
+
+	private:
+		void prepare_result(Graph const &g, Graph_Edits const &e)
+		{
+			if (bound_calculated) return;
+			bound_calculated = true;
 
 			std::vector<size_t> tmp;
 			auto populate_neighbor_ids = [&](const typename Lower_Bound_Storage_type::subgraph_t& fs, std::vector<size_t>& neighbors) {
@@ -147,7 +132,7 @@ namespace Consumer
 
 				if (neighbors.size() == 1) {
 					assert(neighbors.back() == fsid);
-					lower_bound.add(fs.begin(), fs.end());
+					bound_new.add(fs.begin(), fs.end());
 				} else {
 					pq.push({fsid, neighbors.size()});
 				}
@@ -167,7 +152,7 @@ namespace Consumer
 								    assert(pq.peek().key > 0);
 								    pq.decrease_key({nfsid, 0});
 								    auto el = pq.pop();
-								    assert(el.id == nfsid);
+								    if (el.id != nfsid) { throw std::logic_error("Invalid pq element found"); }
 							    }
 
 							    populate_neighbor_ids(forbidden_subgraphs[nfsid], neighbors_of_neighbors);
@@ -184,11 +169,11 @@ namespace Consumer
 				}
 			};
 
-			process_pq(lower_bound);
+			process_pq(bound_new);
 
-			for (const auto& fs : updated_lower_bound.get_bound()) {
+			for (const auto& fs : bound_updated.get_bound()) {
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					in_updated_lower_bound.set_edge(*uit, *vit);
+					used_updated.set_edge(*uit, *vit);
 					return false;
 				});
 			}
@@ -199,7 +184,7 @@ namespace Consumer
 				const auto& fs = forbidden_subgraphs[i];
 
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					if (in_updated_lower_bound.has_edge(*uit, *vit)) {
+					if (used_updated.has_edge(*uit, *vit)) {
 						can_use[i] = false;
 						return true;
 					}
@@ -222,70 +207,19 @@ namespace Consumer
 
 				if (neighbors.size() == 1) {
 					assert(neighbors.back() == fsid);
-					updated_lower_bound.add(fs.begin(), fs.end());
+					bound_updated.add(fs.begin(), fs.end());
 				} else {
 					pq.push({i, neighbors.size()});
 				}
 			}
 
-			process_pq(updated_lower_bound);
+			process_pq(bound_updated);
 
 			//std::cout << "k = " << k << " #fs = " << m.forbidden_subgraphs.size() << " max_neigh = " << max_neighbor_size << " avg_neighbors = " << total_neighbors_size / m.forbidden_subgraphs.size() << " min_neighbors = " << min_neighbor_size << " lb: " << m.lower_bound.size() << " updated lb: " << m.updated_lower_bound.size() << std::endl;
 
-			if (updated_lower_bound.size() > lower_bound.size()) {
-				lower_bound = updated_lower_bound;
+			if (bound_updated.size() > bound_new.size()) {
+				bound_new = bound_updated;
 			}
-		}
-
-		std::vector<VertexID> result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
-		{
-			prepare_result(k, g, e);
-
-			if(lower_bound.empty())
-			{
-				// a solved graph?!
-				fallback.clear();
-				return fallback;
-			}
-			if(lower_bound.size() > k) {return lower_bound.as_vector(0);} // fast return since lb will prune anyway
-
-			if(fallback_free == 0 && !fallback.empty())
-			{
-				// we found a completly edited/marked subgraph
-				return fallback;
-			}
-
-			if (use_single) {
-				size_t max_subgraphs = 0;
-				std::pair<VertexID, VertexID> node_pair;
-				num_subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, size_t& num_fbs) {
-					if (num_fbs > max_subgraphs) {
-						max_subgraphs = num_fbs;
-						node_pair.first = u;
-						node_pair.second = v;
-					}
-				});
-
-				if (max_subgraphs > 1) { // only use single editing if there is a node pair that is part of multiple forbidden subgraphs
-					return std::vector<VertexID>{node_pair.first, node_pair.second};
-				}
-			}
-
-			return fallback;
-		}
-
-		size_t result(size_t k, Graph const & graph, Graph_Edits const & edited, Options::Tag::Lower_Bound)
-		{
-			prepare_result(k, graph, edited);
-
-			return lower_bound.size();
-		}
-
-		const Lower_Bound_Storage_type& result(size_t k, Graph const& graph, Graph_Edits const & edited, Options::Tag::Lower_Bound_Update)
-		{
-			prepare_result(k, graph, edited);
-
-			return lower_bound;
 		}
 	};
 }
