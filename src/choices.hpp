@@ -20,6 +20,7 @@
 #include "Consumer/S_Single_First_Edits_Sparse.hpp"
 #include "Consumer/S_Single_Heur.hpp"
 #include "Consumer/S_Single_Independent_Set.hpp"
+#include "Consumer/S_Single_Simple.hpp"
 #include "Consumer/S_Most_Forbidden.hpp"
 #include "Consumer/LB_No.hpp"
 #include "Consumer/LB_Basic.hpp"
