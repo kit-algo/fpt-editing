@@ -2,9 +2,9 @@
 #define CONSUMER_SELECTOR_SINGLE_INDEPENDENT_SET_HPP
 
 #include <algorithm>
-#include <set>
 #include <utility>
 #include <vector>
+#include <limits>
 
 #include <iostream>
 
@@ -41,7 +41,7 @@ namespace Consumer
 			use_single = (no_edits_left > 0);
 			num_subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, size_t& v) { v = 0; });
 			fallback.clear();
-			fallback_free = 0;
+			fallback_free = std::numeric_limits<size_t>::max();
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
@@ -54,7 +54,7 @@ namespace Consumer
 			});
 
 			// fallback handling
-			if(free < fallback_free || fallback_free == 0)
+			if(free < fallback_free)
 			{
 				fallback_free = free;
 				fallback = std::vector<VertexID>{b, e};
@@ -67,9 +67,9 @@ namespace Consumer
 
 		std::vector<VertexID> result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Selector)
 		{
-			if(fallback.empty() || fallback_free == 0)
+			if(fallback.empty() || fallback_free <= 1)
 			{
-				// a solved graph?! or we found a completly edited/marked subgraph
+				// a solved graph?! or we found a completly edited/marked subgraph or one with just a single branch
 				return fallback;
 			}
 
