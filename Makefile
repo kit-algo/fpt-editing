@@ -1,5 +1,5 @@
 CPP := g++
-DEBUGFLAGS := -ggdb -Og
+DEBUGFLAGS := -ggdb -O0
 RELEASEFLAGS := -O3 -DNDEBUG
 PROFILEFLAGS := -ggdb $(RELEASEFLAGS)
 COMMON := -std=c++17 -pedantic -W -Wall -Wextra -march=native
