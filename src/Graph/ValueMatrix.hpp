@@ -40,7 +40,7 @@ public:
 	void forAllNodePairs(F f) {
 		VertexID u = 0, v = 1;
 		for (size_t i = 0; i < matrix.size(); ++i) {
-			assert(v * (v - 1) / 2 + u == i);
+			assert(v * static_cast<size_t>(v - 1) / 2 + u == i);
 			f(u, v, matrix[i]);
 			++u;
 			if (u == v)
