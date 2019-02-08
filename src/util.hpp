@@ -2,6 +2,7 @@
 #define UTIL_HPP
 
 #include <utility>
+#include <array>
 
 namespace std
 {
@@ -29,6 +30,16 @@ namespace Util
 	std::tuple<Args &...> MakeTupleRef(std::tuple<Args...> &tuple)
 	{
 		return MakeTupleRef(tuple, std::make_index_sequence<sizeof...(Args)>());
+	}
+
+	template<typename T, typename Iter, std::size_t... Indices>
+	std::array<T, sizeof...(Indices)> to_array(Iter iter, std::index_sequence<Indices...>) {
+		return {{((void)Indices, *iter++)...}};
+	}
+
+	template<typename T, std::size_t N, typename Iter>
+	std::array<T, N> to_array(Iter iter) {
+		return to_array<T>(std::move(iter), std::make_index_sequence<N>{});
 	}
 }
 
