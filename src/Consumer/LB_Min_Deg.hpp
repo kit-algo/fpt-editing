@@ -11,6 +11,7 @@
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../Bucket_PQ.hpp"
 #include "../Graph/ValueMatrix.hpp"
+#include "../util.hpp"
 
 namespace Consumer
 {
@@ -50,19 +51,7 @@ namespace Consumer
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
 			const size_t forbidden_index = forbidden_subgraphs.size();
-			{ // insert into array
-				forbidden_subgraphs.emplace_back();
-				auto it = b;
-				for (size_t i = 0; i < length; ++i)
-					{
-						if (it == e) abort();
-
-						forbidden_subgraphs.back()[i] = *it;
-						++it;
-					}
-
-				if (it != e) throw std::logic_error("Subgraph length doesn't fit");
-			}
+			forbidden_subgraphs.emplace_back(Util::to_array<VertexID, length>(b));
 
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
 				subgraphs_per_edge.at(*uit, *vit).push_back(forbidden_index);
