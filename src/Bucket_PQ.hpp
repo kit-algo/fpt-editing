@@ -18,7 +18,10 @@ public:
 	{
 		assert(el < pos.size());
 		if (buckets_built) throw std::runtime_error("Elements cannot be inserted after building");
-		if (pos[el] != invalid_pos) throw std::runtime_error("Error, element already inserted");
+		assert(pos[el] == invalid_pos);
+		// This is not necessary if assertions are disable.
+		// BUT: this seems to make the code faster.
+		// Maybe as positions are semi-ordered this triggers loading of pos into the cache?
 		pos[el] = elements.size();
 		elements.emplace_back(el, val);
 		if (val > max_val) max_val = val;
