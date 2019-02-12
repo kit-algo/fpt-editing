@@ -8,6 +8,7 @@
 #include "../Finder/Finder.hpp"
 #include <iostream>
 #include <sstream>
+#include <cassert>
 
 namespace Lower_Bound
 {
@@ -92,6 +93,31 @@ namespace Lower_Bound
 		bool empty() const
 		{
 			return bound.empty();
+		}
+
+		void assert_valid(const Graph&
+#ifndef NDEBUG
+				  graph
+#endif
+				  , const Graph_Edits&
+#ifndef NDEBUG
+				  edited
+#endif
+				  ) const
+		{
+			#ifndef NDEBUG
+			Graph_Edits in_bound(graph.size());
+
+			for (const auto& fs : bound)
+			{
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion, Graph, Graph_Edits>(graph, edited, fs.begin(), fs.end(), [&in_bound](auto uit, auto vit)
+				{
+					assert(!in_bound.has_edge(*uit, *vit));
+					in_bound.set_edge(*uit, *vit);
+					return false;
+				});
+			}
+			#endif
 		}
 
 		std::string to_string() const

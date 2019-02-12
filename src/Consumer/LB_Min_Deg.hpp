@@ -149,6 +149,8 @@ namespace Consumer
 					}
 				}
 
+				lb.assert_valid(g, e);
+
 				//std::cout << "k = " << k << " #fs = " << forbidden_subgraphs.size() << " max_neigh = " << max_neighbor_size << " avg_neighbors = " << total_neighbors_size / forbidden_subgraphs.size() << " min_neighbors = " << min_neighbor_size << " lb: " << lb.size() << std::endl;
 			};
 
