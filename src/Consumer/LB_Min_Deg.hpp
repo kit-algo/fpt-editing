@@ -81,45 +81,29 @@ namespace Consumer
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			std::vector<std::pair<std::vector<size_t>::const_iterator, std::vector<size_t>::const_iterator>> neighbor_lists;
-			std::vector<size_t> tmp;
-			auto populate_neighbor_ids = [&neighbor_lists, &tmp, &subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, std::vector<size_t>& neighbors) {
+			std::vector<bool> in_neighbors(forbidden_subgraphs.size(), false);
+
+			auto populate_neighbor_ids = [&in_neighbors, &subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, std::vector<size_t>& neighbors) {
 				neighbors.clear();
-				neighbor_lists.clear();
 
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
 					const auto& new_neighbors = subgraphs_per_edge.at(*uit, *vit);
-					if (new_neighbors.size() > 1)
+					for (size_t ne : new_neighbors)
 					{
-						neighbor_lists.emplace_back(new_neighbors.begin(), new_neighbors.end());
+						if (!in_neighbors[ne])
+						{
+							neighbors.push_back(ne);
+							in_neighbors[ne] = true;
+						}
 					}
 
 					return false;
 				});
 
-				if (neighbor_lists.size() == 1)
+				for (size_t ne : neighbors)
 				{
-					std::copy(neighbor_lists.front().first, neighbor_lists.front().second, std::back_inserter(neighbors));
+					in_neighbors[ne] = false;
 				}
-				else if (neighbor_lists.size() == 2)
-				{
-					std::set_union(neighbor_lists.front().first, neighbor_lists.front().second, neighbor_lists.back().first, neighbor_lists.back().second, std::back_inserter(neighbors));
-				}
-				else if (neighbor_lists.size() > 2)
-				{
-				    std::sort(neighbor_lists.begin(), neighbor_lists.end(), [](const auto& a, const auto& b) { return std::distance(a.first, a.second) < std::distance(b.first, b.second); });
-
-				    std::set_union(neighbor_lists[0].first, neighbor_lists[0].second, neighbor_lists[1].first, neighbor_lists[1].second, std::back_inserter(neighbors));
-
-				    for (auto it = neighbor_lists.begin() + 2; it != neighbor_lists.end(); ++it)
-				    {
-					    std::swap(tmp, neighbors);
-					    neighbors.clear();
-					    std::set_union(it->first, it->second, tmp.begin(), tmp.end(), std::back_inserter(neighbors));
-				    }
-				}
-
-				assert(std::is_sorted(neighbors.begin(), neighbors.end()));
 			};
 
 			std::vector<bool> can_use(forbidden_subgraphs.size(), true);
