@@ -81,37 +81,22 @@ namespace Consumer
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			std::vector<bool> in_neighbors(forbidden_subgraphs.size(), false);
-
-			auto populate_neighbor_ids = [&in_neighbors, &subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, std::vector<size_t>& neighbors) {
-				neighbors.clear();
-
+			auto enumerate_neighbor_ids = [&subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, auto callback) {
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
 					const auto& new_neighbors = subgraphs_per_edge.at(*uit, *vit);
 					for (size_t ne : new_neighbors)
 					{
-						if (!in_neighbors[ne])
-						{
-							neighbors.push_back(ne);
-							in_neighbors[ne] = true;
-						}
+						callback(ne);
 					}
 
 					return false;
 				});
-
-				for (size_t ne : neighbors)
-				{
-					in_neighbors[ne] = false;
-				}
 			};
 
 			std::vector<bool> can_use(forbidden_subgraphs.size(), true);
 			BucketPQ pq(forbidden_subgraphs.size(), 42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
 
-			std::vector<size_t> neighbors, neighbors_of_neighbors;
-
-			auto calculate_lb = [&neighbors, &neighbors_of_neighbors, &pq, &populate_neighbor_ids, &can_use, &forbidden_subgraphs = forbidden_subgraphs, k](Lower_Bound_Storage_type &lb) {
+			auto calculate_lb = [&pq, &enumerate_neighbor_ids, &can_use, &forbidden_subgraphs = forbidden_subgraphs, k, &g, &e, &subgraphs_per_edge = subgraphs_per_edge](Lower_Bound_Storage_type &lb) {
 				size_t total_neighbors_size = 0, max_neighbor_size = 0, min_neighbor_size = std::numeric_limits<size_t>::max();
 
 				for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid) {
@@ -119,23 +104,22 @@ namespace Consumer
 
 					const typename Lower_Bound_Storage_type::subgraph_t& fs = forbidden_subgraphs[fsid];
 
-					populate_neighbor_ids(fs, neighbors);
+					size_t neighbor_count = 0;
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&neighbor_count, &subgraphs_per_edge = subgraphs_per_edge](auto uit, auto vit) {
+						neighbor_count += subgraphs_per_edge.at(*uit, *vit).size();
+						return false;
+					});
 
-					total_neighbors_size += neighbors.size();
-					if (neighbors.size() > max_neighbor_size) {
-						max_neighbor_size = neighbors.size();
+					total_neighbors_size += neighbor_count;
+					if (neighbor_count > max_neighbor_size) {
+						max_neighbor_size = neighbor_count;
 					}
 
-					if (neighbors.size() < min_neighbor_size) {
-						min_neighbor_size = neighbors.size();
+					if (neighbor_count < min_neighbor_size) {
+						min_neighbor_size = neighbor_count;
 					}
 
-					if (neighbors.size() <= 1) {
-						assert(neighbors.empty() || neighbors.back() == fsid);
-						lb.add(fs.begin(), fs.end());
-					} else {
-						pq.insert(fsid, neighbors.size());
-					}
+					pq.insert(fsid, neighbor_count);
 				}
 
 				if (!pq.empty()) {
@@ -147,18 +131,18 @@ namespace Consumer
 						const auto& fs = forbidden_subgraphs[idkey.first];
 
 						if (idkey.second > 1) {
-							populate_neighbor_ids(fs, neighbors);
-							for (size_t nfsid : neighbors) {
+							enumerate_neighbor_ids(fs, [&pq, &enumerate_neighbor_ids, &forbidden_subgraphs](size_t nfsid)
+							{
 								if (pq.contains(nfsid)) {
 									pq.erase(nfsid);
-									populate_neighbor_ids(forbidden_subgraphs[nfsid], neighbors_of_neighbors);
-									for (size_t nnfsid : neighbors_of_neighbors) {
+									enumerate_neighbor_ids(forbidden_subgraphs[nfsid], [&pq](size_t nnfsid)
+									{
 										if (pq.contains(nnfsid)) {
 											pq.decrease_key_by_one(nnfsid);
 										}
-									}
+									});
 								}
-							}
+							});
 						}
 
 						lb.add(fs.begin(), fs.end());
