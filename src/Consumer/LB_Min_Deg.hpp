@@ -130,6 +130,9 @@ namespace Consumer
 
 						const auto& fs = forbidden_subgraphs[idkey.first];
 
+						lb.add(fs.begin(), fs.end());
+						if (k > 0 && lb.size() > k) return;
+
 						if (idkey.second > 1) {
 							enumerate_neighbor_ids(fs, [&pq, &enumerate_neighbor_ids, &forbidden_subgraphs](size_t nfsid)
 							{
@@ -144,8 +147,6 @@ namespace Consumer
 								}
 							});
 						}
-
-						lb.add(fs.begin(), fs.end());
 					}
 				}
 
@@ -155,6 +156,8 @@ namespace Consumer
 			};
 
 			calculate_lb(bound_new);
+
+			if (k > 0 && bound_new.size() > k) return;
 
 			// update existing lower bound
 			// Mark all node pairs that are used as used
