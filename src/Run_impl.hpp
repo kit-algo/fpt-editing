@@ -78,14 +78,14 @@ struct Minimize
 template<typename C, typename... Con>
 struct Namer
 {
-	static constexpr std::string name() {return (std::string(C::name) + ... + (std::string("-") + Con::name));}
+	static std::string name() {return (std::string(C::name) + ... + (std::string("-") + Con::name));}
 };
 
 /* Helper template to create a name from the individual components */
 template<typename C>
 struct Namer<C>
 {
-	static constexpr std::string name() {return C::name;}
+	static std::string name() {return C::name;}
 };
 
 template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, typename TCon>
@@ -345,7 +345,7 @@ public:
 		}
 	}
 
-	static constexpr std::string name()
+	static std::string name()
 	{
 		/* Editor must be valid to be able to access Editor::name */
 		using E = _E<F, G, GE, M, R, C, Consumer::Single<G, GE, M, R, C, F::length>>;
@@ -364,7 +364,7 @@ void Run<_E, _F, _G, _GE, small, M, R, C, Con...>::run(CMDOptions const &options
 }
 
 template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, size_t> typename... Con>
-constexpr std::string Run<_E, _F, _G, _GE, small, M, R, C, Con...>::name()
+std::string Run<_E, _F, _G, _GE, small, M, R, C, Con...>::name()
 {
 	using G = _G<small>;
 	using GE = _GE<small>;

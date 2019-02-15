@@ -38,7 +38,7 @@ template<template<typename, typename, typename, typename, typename, typename, ty
 struct Run
 {
 	static void run(CMDOptions const &options, std::string const &filename);
-	static constexpr std::string name();
+	static std::string name();
 };
 
 #endif
