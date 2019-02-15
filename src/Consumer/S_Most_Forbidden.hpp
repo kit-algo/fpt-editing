@@ -10,6 +10,7 @@
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../Graph/ValueMatrix.hpp"
 #include "../util.hpp"
+#include "../ProblemSet.hpp"
 
 namespace Consumer
 {
@@ -23,7 +24,24 @@ namespace Consumer
 	private:
 		Value_Matrix<size_t> use_count;
 		std::vector<typename Lower_Bound_Storage_type::subgraph_t> forbidden_subgraphs;
-		std::vector<VertexID> problem;
+
+		struct forbidden_count
+		{
+			std::pair<VertexID, VertexID> node_pair;
+			size_t num_forbidden;
+
+			forbidden_count(std::pair<VertexID, VertexID> pair, size_t num_forbidden) : node_pair(pair), num_forbidden(num_forbidden) {}
+
+			bool operator<(const forbidden_count& other) const
+			{
+				return this->num_forbidden > other.num_forbidden;
+			}
+
+			operator std::pair<VertexID, VertexID> () const
+			{
+				return node_pair;
+			}
+		};
 	public:
 		Most(VertexID graph_size) : use_count(graph_size) {;}
 
@@ -31,7 +49,6 @@ namespace Consumer
 		{
 			use_count.forAllNodePairs([](VertexID, VertexID, size_t& v) { v = 0; });
 			forbidden_subgraphs.clear();
-			problem.clear();
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
@@ -46,32 +63,59 @@ namespace Consumer
 			return false;
 		}
 
-		std::vector<VertexID> const& result(size_t, Graph const &graph, Graph const &edited, Options::Tag::Selector)
+		ProblemSet result(size_t k, Graph const &graph, Graph const &edited, Options::Tag::Selector)
 		{
-			size_t max_used = 0;
-			size_t min_pairs = std::numeric_limits<size_t>::max();
+			ProblemSet problem;
+			problem.found_solution = forbidden_subgraphs.empty();
+			problem.needs_no_edit_branch = false;
 
-			for (const auto& fs : forbidden_subgraphs)
+			// We only need to return an actual set of vertex pairs
+			// if we have not found the solution and k > 0, i.e., there is
+			// actually still something to do.
+			if (!problem.found_solution && k > 0)
 			{
-				size_t num_used = 0, num_pairs = 0;
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					num_used += use_count.at(*uit, *vit);
-					++num_pairs;
-					return false;
-				});
+				std::vector<forbidden_count> best_pairs, current_pairs;
 
-				if ((num_pairs <= 1 && num_pairs < min_pairs) || (min_pairs > 1 && (problem.empty() || num_pairs <= 1 || num_used / num_pairs > max_used)))
+				for (const auto& fs : forbidden_subgraphs)
 				{
-					problem = {fs.begin(), fs.end()};
-					if (num_pairs == 0)
-					{
-						return problem;
-					}
-					max_used = num_used / num_pairs;
-					min_pairs = num_pairs;
-				}
-			}
+					current_pairs.clear();
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+						current_pairs.emplace_back(std::make_pair(*uit, *vit), use_count.at(*uit, *vit));
+						return false;
+					});
 
+					if (current_pairs.empty())
+					{
+						best_pairs.clear();
+						break;
+					}
+
+					if (best_pairs.empty() || (current_pairs.size() == 1 && (best_pairs.size() > 1 || best_pairs.front().num_forbidden < current_pairs.front().num_forbidden)))
+					{
+						best_pairs = current_pairs;
+					}
+					else
+					{
+						std::sort(current_pairs.begin(), current_pairs.end());
+
+						auto bit = best_pairs.begin();
+						auto cit = current_pairs.begin();
+
+						while (bit != best_pairs.end() && cit != current_pairs.end() && bit->num_forbidden == cit->num_forbidden)
+						{
+							++bit;
+							++cit;
+						}
+
+						if (cit == current_pairs.end() || (bit != best_pairs.end() && bit->num_forbidden < cit->num_forbidden))
+						{
+							best_pairs = current_pairs;
+						}
+					}
+				}
+
+				std::copy(best_pairs.begin(), best_pairs.end(), std::back_inserter(problem.vertex_pairs));
+			}
 
 			return problem;
 		}

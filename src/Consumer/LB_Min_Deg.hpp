@@ -34,7 +34,7 @@ namespace Consumer
 		Lower_Bound_Storage_type bound_updated;
 		Lower_Bound_Storage_type bound_new;
 	public:
-		Min_Deg(VertexID graph_size) : subgraphs_per_edge(graph_size), sum_subgraphs_per_edge(0), used_updated(graph_size) {;}
+		Min_Deg(VertexID graph_size) : subgraphs_per_edge(graph_size), sum_subgraphs_per_edge(0), bound_calculated(false), used_updated(graph_size) {;}
 
 		void prepare(size_t, const Lower_Bound_Storage_type& lower_bound)
 		{

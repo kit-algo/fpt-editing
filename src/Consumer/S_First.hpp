@@ -7,6 +7,7 @@
 
 #include "../Options.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
+#include "../ProblemSet.hpp"
 
 namespace Consumer
 {
@@ -18,23 +19,32 @@ namespace Consumer
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 
 	private:
-		std::vector<VertexID> problem;
+		ProblemSet problem;
 
 	public:
 		First(VertexID) {;}
 
 		void prepare(size_t, const Lower_Bound_Storage_type&)
 		{
-			problem.clear();
+			problem.vertex_pairs.clear();
+			problem.needs_no_edit_branch = false;
+			problem.found_solution = true;
 		}
 
-		bool next(Graph const &, Graph_Edits const &, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
-			problem.insert(problem.end(), b, e);
+			Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&problem = problem](auto uit, auto vit)
+			{
+				problem.vertex_pairs.emplace_back(*uit, *vit);
+				return false;
+			});
+
+			problem.found_solution = false;
+
 			return true;
 		}
 
-		std::vector<VertexID> const &result(size_t, Graph const &, Graph const &, Options::Tag::Selector) const
+		ProblemSet const &result(size_t, Graph const &, Graph const &, Options::Tag::Selector) const
 		{
 			return problem;
 		}

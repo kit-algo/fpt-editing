@@ -15,6 +15,7 @@
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
+#include "../ProblemSet.hpp"
 
 namespace Editor
 {
@@ -87,89 +88,79 @@ namespace Editor
 			feeder.feed(k, graph, edited, no_edits_left, lower_bound);
 
 			// graph solved?
-			auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
-			if(problem.empty())
+			ProblemSet problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
+
+			if(problem.found_solution)
 			{
 				found_soulution = true;
 				return !write(graph, edited);
 			}
-			else if(k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+			else if(k == 0 || k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 			{
-				// lower bound too high
 #ifdef STATS
 				prunes[k]++;
 #endif
-				return false;
-			}
-			else if(k == 0 && !problem.empty())
-			{
 				// used all edits but graph still unsolved
+				// or lower bound too high
 				return false;
 			}
 
 			Lower_Bound_Storage_type updated_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
 
 
-			if(problem.size() == 2)
+			for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
 			{
-#ifdef STATS
-				single[k]++;
-#endif
-				// single edge editing
-				if(edited.has_edge(problem.front(), problem.back()))
+				if(edited.has_edge(vertex_pair.first, vertex_pair.second))
 				{
 					abort();
 				}
 
-				//edit
+				// Update lower bound
+				Lower_Bound_Storage_type next_lower_bound(updated_lower_bound);
+				next_lower_bound.remove(graph, edited, vertex_pair.first, vertex_pair.second);
+
+				if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 				{
-					Lower_Bound_Storage_type next_lower_bound(updated_lower_bound);
-					next_lower_bound.remove(graph, edited, problem.front(), problem.back());
-					graph.toggle_edge(problem.front(), problem.back());
-					edited.set_edge(problem.front(), problem.back());
-					if(edit_rec(k - 1, no_edits_left, next_lower_bound)) {return true;}
+					edited.set_edge(vertex_pair.first, vertex_pair.second);
 				}
 
-				//unedit, mark
-				{
-					graph.toggle_edge(problem.front(), problem.back());
-					if(edit_rec(k, no_edits_left - 1, updated_lower_bound)) {return true;}
-				}
+				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
-				//unmark
-				edited.clear_edge(problem.front(), problem.back());
+				if(edit_rec(k - 1, no_edits_left, next_lower_bound)) {return true;}
+
+				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
+
+				if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(vertex_pair.first, vertex_pair.second);}
 			}
+
+			if (problem.needs_no_edit_branch)
+			{
+				if (!std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+				{
+					throw std::runtime_error("No edit branches are only possible with restriction Redundant");
+				}
+
+#ifdef STATS
+				single[k]++;
+#endif
+
+				if(edit_rec(k, no_edits_left - 1, updated_lower_bound)) {return true;}
+			}
+#ifdef STATS
 			else
 			{
-				// normal editing
-#ifdef STATS
 				fallbacks[k]++;
+			}
 #endif
-				std::vector<std::pair<size_t, size_t>> marked;
-				bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit){
-					Lower_Bound_Storage_type next_lower_bound(updated_lower_bound);
-					next_lower_bound.remove(graph, edited, *uit, *vit);
-					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-					{
-						edited.set_edge(*uit, *vit);
-					}
-					graph.toggle_edge(*uit, *vit);
-					if(edit_rec(k - 1, no_edits_left, next_lower_bound)) {return true;}
-					graph.toggle_edge(*uit, *vit);
-					if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-					else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-					return false;
-				});
-				if(done) {return true;}
 
-				if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+			if (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+			{
+				for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
 				{
-					for(auto it = marked.rbegin(); it != marked.rend(); it++)
-					{
-						edited.clear_edge(it->first, it->second);
-					}
+					edited.clear_edge(vertex_pair.first, vertex_pair.second);
 				}
 			}
+
 			return false;
 		}
 	};

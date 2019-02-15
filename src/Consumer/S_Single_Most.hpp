@@ -18,6 +18,7 @@
 #include "../Finder/Center.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../Graph/ValueMatrix.hpp"
+#include "../ProblemSet.hpp"
 
 namespace Consumer
 {
@@ -30,18 +31,18 @@ namespace Consumer
 
 	private:
 		Value_Matrix<size_t> num_subgraphs_per_edge;
-		std::vector<VertexID> fallback;
-		size_t fallback_free = 0;
+		ProblemSet problem;
 		bool use_single;
 	public:
-		Single_Most(VertexID graph_size) : num_subgraphs_per_edge(graph_size) {;}
+		Single_Most(VertexID graph_size) : num_subgraphs_per_edge(graph_size), use_single(false) {;}
 
 		void prepare(size_t no_edits_left, const Lower_Bound_Storage_type&)
 		{
 			use_single = (no_edits_left > 0);
 			num_subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, size_t& v) { v = 0; });
-			fallback.clear();
-			fallback_free = std::numeric_limits<size_t>::max();
+			problem.vertex_pairs.clear();
+			problem.found_solution = true;
+			problem.needs_no_edit_branch = false;
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
@@ -54,10 +55,17 @@ namespace Consumer
 			});
 
 			// fallback handling
-			if(free < fallback_free)
+			if(free < problem.vertex_pairs.size() || problem.empty())
 			{
-				fallback_free = free;
-				fallback = std::vector<VertexID>{b, e};
+				problem.vertex_pairs.clear();
+
+				Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
+					problem.vertex_pairs.emplace_back(*uit, *vit);
+					return false;
+				});
+
+				problem.found_solution = false;
+
 				if(free == 0) {return true;} // completly edited subgraph -- impossible to solve graph
 			}
 
@@ -65,15 +73,10 @@ namespace Consumer
 		}
 
 
-		std::vector<VertexID> result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Selector)
+		ProblemSet result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Selector)
 		{
-			if(fallback.empty() || fallback_free <= 1)
-			{
-				// a solved graph?! or we found a completly edited/marked subgraph or one with just a single branch
-				return fallback;
-			}
-
-			if (use_single) {
+			// Do not use single vertex pair editing if we have a solved graph or we found a completely edited/marked subgraph or one with just a single branch.
+			if (problem.vertex_pairs.size() > 1 && use_single) {
 				size_t max_subgraphs = 0;
 				std::pair<VertexID, VertexID> node_pair;
 				num_subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, size_t& num_fbs) {
@@ -85,11 +88,13 @@ namespace Consumer
 				});
 
 				if (max_subgraphs > 1) { // only use single editing if there is a node pair that is part of multiple forbidden subgraphs
-					return std::vector<VertexID>{node_pair.first, node_pair.second};
+					problem.vertex_pairs.clear();
+					problem.vertex_pairs.push_back(node_pair);
+					problem.needs_no_edit_branch = true;
 				}
 			}
 
-			return fallback;
+			return problem;
 		}
 	};
 }

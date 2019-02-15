@@ -25,6 +25,7 @@
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
+#include "../ProblemSet.hpp"
 
 namespace Editor
 {
@@ -202,11 +203,11 @@ namespace Editor
 
 			struct Path
 			{
-				std::vector<VertexID> problem;
+				ProblemSet problem;
 				Lower_Bound_Storage_type lower_bound;
 				size_t edges_done = 0;
 
-				Path(std::vector<VertexID> problem, Lower_Bound_Storage_type lower_bound) : problem(problem), lower_bound(lower_bound) {;}
+				Path(ProblemSet problem, Lower_Bound_Storage_type lower_bound) : problem(problem), lower_bound(lower_bound) {;}
 			};
 			std::deque<Path> path;
 
@@ -317,24 +318,20 @@ namespace Editor
 				feeder.feed(k, graph, edited, no_edits_left, lower_bound);
 
 				// graph solved?
-				auto problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
-				if(problem.empty())
+				ProblemSet problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
+				if(problem.found_solution)
 				{
 					std::unique_lock<std::mutex> ul(editor.write_mutex);
 					editor.found_soulution = true;
 					return !editor.write(graph, edited);
 				}
-				else if(k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+				else if(k == 0 || k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 				{
-					// lower bound too high
+					// used all edits but graph still unsolved
+					// or lower bound too high
 #ifdef STATS
 					prunes[k]++;
 #endif
-					return false;
-				}
-				else if(k == 0 && !problem.empty())
-				{
-					// used all edits but graph still unsolved
 					return false;
 				}
 
@@ -355,126 +352,105 @@ namespace Editor
 						auto &k = top->k;
 						auto &no_edits_left = top->no_edits_left;
 						auto &lower_bound = path.front().lower_bound;
-						auto const &problem = path.front().problem;
+						ProblemSet const &problem = path.front().problem;
 						auto const &edges_done = path.front().edges_done;
 
-						if(problem.size() == 2)
-						{
-							// single edge editing
 #ifdef STATS
-							if(edges_done == 0)
+						if(edges_done == 0) // update stats only if no edges have been edited yet.
+						{
+							if (!problem.needs_no_edit_branch)
+							{
+								fallbacks[k]++;
+								skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
+							}
+							else
 							{
 								single[k]++;
 							}
-#endif
-							if(edited.has_edge(problem.front(), problem.back()))
-							{
-								abort();
-							}
-
-							//edit
-							if(edges_done < 1)
-							{
-								Lower_Bound_Storage_type new_lower_bound(lower_bound);
-								new_lower_bound.remove(graph, edited, problem.front(), problem.back());
-
-								edited.set_edge(problem.front(), problem.back());
-								graph.toggle_edge(problem.front(), problem.back());
-								k--;
-								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, no_edits_left, new_lower_bound));
-								k++;
-								graph.toggle_edge(problem.front(), problem.back());
-							} else {
-								edited.set_edge(problem.front(), problem.back());
-							}
-
-							//unedit, mark
-							if(edges_done < 2)
-							{
-								--no_edits_left;
-								editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, no_edits_left, lower_bound));
-							}
-
-							// adjust top:
-							// if edges_done == 0: don't care: delete then return
-							// if == 1: dec k, g.toggle
-							if(edges_done == 1)
-							{
-								k--;
-								graph.toggle_edge(problem.front(), problem.back());
-								++no_edits_left;
-							}
-
-							// if == 2: top in correct state
 						}
-						else
+#endif
+
+						// For non-redundant editing, we need to mark all node pairs as edited whose
+						// branches were already processed.
+						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 						{
-							// normal editing
-#ifdef STATS
-							if(edges_done == 0)
+							for (size_t i = 0; i < edges_done && i < problem.vertex_pairs.size(); ++i)
 							{
-								fallbacks[k]++;
-								skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0);
+								auto [u,v] = problem.vertex_pairs[i];
+								assert(!edited.has_edge(u, v));
+								edited.set_edge(u, v);
 							}
-#endif
-							size_t edges_finished = 0;
-							VertexID current_u = 0, current_v = 0;
-							size_t current_marks = 0;
+						}
 
-							std::vector<std::pair<size_t, size_t>> marked;
-							::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
+						// For all node pairs after the current node pair, create a work package for editing
+						// the node pairs.
+						for (size_t i = edges_done; i < problem.vertex_pairs.size(); ++i)
+						{
+							auto [u,v] = problem.vertex_pairs[i];
+							assert(!edited.has_edge(u, v));
+
+							// Update lower bound for recursion
+							Lower_Bound_Storage_type new_lower_bound(lower_bound);
+							new_lower_bound.remove(graph, edited, u, v);
+
+							// Both for no-undo and for non-redundant, mark the node pair as edited
+							if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 							{
-								Lower_Bound_Storage_type new_lower_bound(lower_bound);
-								new_lower_bound.remove(graph, edited, *uit, *vit);
+								edited.set_edge(u, v);
+							}
 
-								if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-								{
-									edited.set_edge(*uit, *vit);
-								}
-								edges_finished++;
-								if(edges_done == 0 || edges_finished > edges_done)
-								{
-#ifdef STATS
-									skipped[k - 1]--;
-#endif
-									graph.toggle_edge(*uit, *vit);
-									k--;
-									editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, no_edits_left, std::move(new_lower_bound)));
-									k++;
-									graph.toggle_edge(*uit, *vit);
-								}
-								else if(edges_finished == edges_done)
-								{
-									current_u = *uit;
-									current_v = *vit;
-									current_marks = marked.size() + 1;
-								}
-								if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-								else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-								return false;
-							});
+							// Edit the node pair
+							graph.toggle_edge(u, v);
+							// Create work package for recursive call with k-1
+							editor.available_work.push_back(std::make_unique<Work>(graph, edited, k - 1, no_edits_left, std::move(new_lower_bound)));
+							// Undo edit after the recursion
+							graph.toggle_edge(u, v);
 
-							/* adjust top for recursion this thread is currently in */
-							if(edges_done > 0)
+							// For no-undo, we directly unmark the node pair
+							if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(u, v);}
+						}
+
+						// For single node pair editing, create an additional work package where no node pair is edited
+						// but with no_edits_left - 1. Note that during the previous two loops, one or several node pairs
+						// were marked as edited.
+						if (problem.needs_no_edit_branch && edges_done <= problem.vertex_pairs.size())
+						{
+							editor.available_work.push_back(std::make_unique<Work>(graph, edited, k, no_edits_left - 1, lower_bound));
+						}
+
+						/* adjust top for recursion this thread is currently in */
+						if(edges_done > 0)
+						{
+							if (edges_done <= problem.vertex_pairs.size())
 							{
-								assert(current_u || current_v);
-								graph.toggle_edge(current_u, current_v);
-								k--;
-								if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+								// We are in the recursive call where (u, v) has been edited.
+								auto [u,v] = problem.vertex_pairs[edges_done - 1];
+								graph.toggle_edge(u, v);
+								--k;
+
+								// For no-undo we also need to mark (u, v) as edited.
+								// Note that for non-redundant editing, all node pairs are currently marked as edited.
+								if(std::is_same<Restriction, Options::Restrictions::Undo>::value)
 								{
-									for(auto it = marked.begin() + current_marks; it != marked.end(); it++)
-									{
-										edited.clear_edge(it->first, it->second);
-									}
-									marked.resize(current_marks);
+									edited.set_edge(u, v);
 								}
-								else if(std::is_same<Restriction, Options::Restrictions::Undo>::value)
+							}
+							else
+							{
+								// We are in the no-edit-branch
+								assert(problem.needs_no_edit_branch);
+								--no_edits_left;
+							}
+
+							// For non-redundant editing, unmark all node pairs after the current node pair
+							if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+							{
+
+								for(size_t i = edges_done; i < problem.vertex_pairs.size(); ++i)
 								{
-									edited.set_edge(current_u, current_v);
+									auto [u,v] = problem.vertex_pairs[i];
+									edited.clear_edge(u, v);
 								}
-#define COMMA ,
-								assert(std::is_same<Restriction COMMA Options::Restrictions::None>::value || edited.has_edge(current_u, current_v));
-#undef COMMA
 							}
 						}
 						editor.idlers.notify_all();
@@ -483,83 +459,61 @@ namespace Editor
 				}
 
 				if(path.empty()) {return false;}
-
-				if(problem.size() == 2)
-				{
 #ifdef STATS
+				if (!problem.needs_no_edit_branch)
+				{
+					fallbacks[k]++;
+					skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
+				}
+				else
+				{
 					single[k]++;
+				}
 #endif
-					// single edge editing
-					if(edited.has_edge(problem.front(), problem.back()))
+				for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
+				{
+					if(edited.has_edge(vertex_pair.first, vertex_pair.second))
 					{
 						abort();
 					}
 
-					//edit
-					// update lower bound
+					// make sure the path contains the correct state so if those edits should be stolen they get the correct edits
 					lower_bound = path.back().lower_bound;
-					lower_bound.remove(graph, edited, problem.front(), problem.back());
-					graph.toggle_edge(problem.front(), problem.back());
-					edited.set_edge(problem.front(), problem.back());
+					lower_bound.remove(graph, edited, vertex_pair.first, vertex_pair.second);
+					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
+					{
+						edited.set_edge(vertex_pair.first, vertex_pair.second);
+					}
+					graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 					k--;
 					path.back().edges_done++;
 					if(edit_rec()) {return true;}
 					else if(path.empty()) {return false;}
 					k++;
+					graph.toggle_edge(vertex_pair.first, vertex_pair.second);
+					if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(vertex_pair.first, vertex_pair.second);}
+				}
 
-					//unedit, mark
-					// restore lower bound from path
+				if (problem.needs_no_edit_branch)
+				{
+					if (!std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+					{
+						throw std::runtime_error("No edit branches are only possible with restriction Redundant");
+					}
+
 					lower_bound = path.back().lower_bound;
-					graph.toggle_edge(problem.front(), problem.back());
-					path.back().edges_done++;
 					--no_edits_left;
-					if(edit_rec()) {return true;}
+					path.back().edges_done++;
+					if (edit_rec()) {return true;}
 					else if(path.empty()) {return false;}
 					++no_edits_left;
-
-					//unmark
-					edited.clear_edge(problem.front(), problem.back());
 				}
-				else
-				{
-					// normal editing
-#ifdef STATS
-					fallbacks[k]++;
-					skipped[k - 1] += problem.size() * (problem.size() - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value? 1 : 0);
-#endif
-					std::vector<std::pair<size_t, size_t>> marked;
-					bool empty = false;
-					bool done = ::Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, problem.begin(), problem.end(), [&](auto uit, auto vit)
-					{
-#ifdef STATS
-						skipped[k - 1]--;
-						// make sure the path contains the correct state so if those edits should be stolen they get the correct edits
-						lower_bound = path.back().lower_bound;
-						lower_bound.remove(graph, edited, *uit, *vit);
-#endif
-						if(!std::is_same<Restriction, Options::Restrictions::None>::value)
-						{
-							edited.set_edge(*uit, *vit);
-						}
-						graph.toggle_edge(*uit, *vit);
-						k--;
-						path.back().edges_done++;
-						if(edit_rec()) {return true;}
-						else if(path.empty()) {empty = true; return true;}
-						k++;
-						graph.toggle_edge(*uit, *vit);
-						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value) {marked.emplace_back(*uit, *vit);}
-						else if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(*uit, *vit);}
-						return false;
-					});
-					if(done) {return !empty;}
 
-					if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+				if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+				{
+					for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
 					{
-						for(auto it = marked.rbegin(); it != marked.rend(); it++)
-						{
-							edited.clear_edge(it->first, it->second);
-						}
+						edited.clear_edge(vertex_pair.first, vertex_pair.second);
 					}
 				}
 				path.pop_back();

@@ -19,6 +19,8 @@
 #include "../Finder/Finder.hpp"
 #include "../Finder/Center.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
+#include "../ProblemSet.hpp"
+#include "../Graph/ValueMatrix.hpp"
 #include "LB_Updated.hpp"
 
 namespace Consumer
@@ -37,15 +39,15 @@ namespace Consumer
 		struct M
 		{
 			Updated<Graph, Graph_Edits, Mode, Restriction, Conversion, length> updated_lb;
-			std::unordered_map<std::pair<VertexID, VertexID>, size_t> bounds_single;
+
+			Value_Matrix<size_t> bounds_single;
 			bool searching_single = false;
-			std::vector<VertexID> fallback;
-			size_t fallback_free = 0;
+			ProblemSet problem;
 			size_t no_edits_left;
 
 			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
 
-			M(VertexID graph_size) : updated_lb(graph_size), finder(graph_size) {;}
+			M(VertexID graph_size) : updated_lb(graph_size), bounds_single(graph_size), finder(graph_size) {;}
 		} m;
 
 		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single_Heur> feeder;
@@ -72,11 +74,14 @@ namespace Consumer
 			if(!m.searching_single)
 			{
 				m.updated_lb.prepare(no_edits_left, lower_bound);
+
+				// No need to initialize stuff twice
+				m.no_edits_left = no_edits_left;
+				m.bounds_single.forAllNodePairs([](VertexID, VertexID, size_t &v) { v = 0; });
+				m.problem.vertex_pairs.clear();
+				m.problem.found_solution = true;
+				m.problem.needs_no_edit_branch = false;
 			}
-			m.no_edits_left = no_edits_left;
-			m.bounds_single.clear();
-			m.fallback.clear();
-			m.fallback_free = 0;
 		}
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
@@ -95,65 +100,73 @@ namespace Consumer
 					if(m.updated_lb.bound_uses(*uit, *vit))
 					{
 						count_bound++;
-						in_bound = std::minmax(*uit, *vit);
+						in_bound = std::make_pair(*uit, *vit);
 					}
 					free++;
 					return false;
 				});
 
 				// fallback handling
-				if(free < m.fallback_free || m.fallback_free == 0)
+				if(free < m.problem.vertex_pairs.size() || m.problem.found_solution)
 				{
-					m.fallback_free = free;
-					m.fallback = std::vector<VertexID>{b, e};
+					m.problem.vertex_pairs.clear();
+					m.problem.found_solution = false;
+					Finder::for_all_edges_ordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
+						m.problem.vertex_pairs.emplace_back(*uit, *vit);
+						return false;
+					});
+
 					if(free == 0) {return true;} // completly edited subgraph -- impossible to solve graph
 				}
 
-				if(count_bound == 1) {m.bounds_single[in_bound]++;}
+				if(count_bound == 1) {m.bounds_single.at(in_bound.first, in_bound.second)++;}
 				return false;
 			}
 		}
 
-		std::vector<VertexID> result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
+		ProblemSet result(size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Selector)
 		{
 			const Lower_Bound_Storage_type& lower_bound = m.updated_lb.result(k, g, e, Options::Tag::Lower_Bound_Update());
 
-			if(lower_bound.empty())
+			// Fast return for solved graphs and branches that will be pruned
+			if(lower_bound.empty() || lower_bound.size() > k)
 			{
-				// a solved graph?!
-				m.fallback.clear();
-				return m.fallback;
+				m.problem.found_solution = lower_bound.empty();
+				return m.problem;
 			}
-			if(lower_bound.size() > k) {return lower_bound.as_vector(0);} // fast return since lb will prune anyway
 
 			// find forbidden subgraph with only one edge in m.bounds
 			m.searching_single = true;
 			feeder.feed(k, g, e, m.no_edits_left, lower_bound);
 			m.searching_single = false;
 
-			if(m.fallback_free == 0 && !m.fallback.empty())
-			{
-				// we found a completly edited/marked subgraph
-				return m.fallback;
-			}
-			else if(!m.bounds_single.empty())
+			if(m.problem.vertex_pairs.size() > 1)
 			{
 				// we found edges suitable for single edge editing, pick best
-				std::pair<std::pair<VertexID, VertexID>, size_t> best_single_edge{{0, 0}, 0};
-				for(auto const &single_edge: m.bounds_single)
+				std::pair<VertexID, VertexID> best_single_edge = {0, 0};
+				size_t max_count = 0;
+				m.bounds_single.forAllNodePairs([&best_single_edge, &max_count](VertexID u, VertexID v, size_t count)
+								{
+					if(count > max_count)
+					{
+						best_single_edge = std::make_pair(u, v);
+						max_count = count;
+					}
+
+				});
+
+				if (max_count > 0)
 				{
-					if(single_edge.second > best_single_edge.second) {best_single_edge = single_edge;}
+					m.problem.vertex_pairs.clear();
+					m.problem.vertex_pairs.push_back(best_single_edge);
+					m.problem.needs_no_edit_branch = true;
 				}
-				m.fallback = std::vector<VertexID>{best_single_edge.first.first, best_single_edge.first.second};
-				return m.fallback;
 			}
-			else
-			{
-				// fallback
-				// no edge suitable for single edge editing, according to our heuristic
-				// pick least editable forbidden subgraph
-				return m.fallback;
-			}
+
+			// fallback
+			// no edge suitable for single edge editing, according to our heuristic
+			// pick least editable forbidden subgraph
+			return m.problem;
 		}
 
 		size_t result(size_t k, Graph const & graph, Graph_Edits const & edited, Options::Tag::Lower_Bound)
