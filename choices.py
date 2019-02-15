@@ -6,7 +6,7 @@ Generates files for instanziating and selecting all combinations of components a
 if the preprocessor would support loops or proper recursion this would be unneeded (preprocessor libraries like P99 or BOOST_PP don't suffice)
 """
 
-from collections import Iterable
+from collections.abc import Iterable
 from pathlib import Path
 import itertools
 import sys
