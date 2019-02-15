@@ -114,7 +114,11 @@ namespace Consumer
 					}
 				}
 
-				std::copy(best_pairs.begin(), best_pairs.end(), std::back_inserter(problem.vertex_pairs));
+				for (size_t i = 0; i < best_pairs.size(); ++i)
+				{
+					const forbidden_count& pair_count = best_pairs[i];
+					problem.vertex_pairs.emplace_back(pair_count.node_pair, (i + 2 < best_pairs.size() && pair_count.num_forbidden > 1));
+				}
 			}
 
 			return problem;

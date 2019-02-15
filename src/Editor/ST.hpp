@@ -39,6 +39,7 @@ namespace Editor
 		Graph_Edits edited;
 
 		::Finder::Feeder<Finder, Graph, Graph_Edits, Consumer...> feeder;
+		::Finder::Feeder<Finder, Graph, Graph_Edits, Lower_Bound_type> lb_feeder;
 		bool found_soulution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
 
@@ -47,10 +48,11 @@ namespace Editor
 		std::vector<size_t> prunes;
 		std::vector<size_t> fallbacks;
 		std::vector<size_t> single;
+		std::vector<size_t> extra_lbs;
 #endif
 
 	public:
-		ST(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer)
+		ST(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer), lb_feeder(finder, std::get<lb>(consumer))
 		{
 			;
 		}
@@ -64,6 +66,7 @@ namespace Editor
 			prunes = decltype(prunes)(k + 1, 0);
 			fallbacks = decltype(fallbacks)(k + 1, 0);
 			single = decltype(single)(k + 1, 0);
+			extra_lbs = decltype(extra_lbs)(k + 1, 0);
 #endif
 			found_soulution = false;
 			edit_rec(k, k, Lower_Bound_Storage_type());
@@ -73,7 +76,7 @@ namespace Editor
 #ifdef STATS
 		std::map<std::string, std::vector<size_t> const &> stats() const
 		{
-			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}};
+			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"extra_lbs", extra_lbs}};
 		}
 #endif
 
@@ -108,7 +111,7 @@ namespace Editor
 			Lower_Bound_Storage_type updated_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
 
 
-			for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
+			for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 			{
 				if(edited.has_edge(vertex_pair.first, vertex_pair.second))
 				{
@@ -131,6 +134,18 @@ namespace Editor
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
 				if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(vertex_pair.first, vertex_pair.second);}
+				else if (std::is_same<Restriction, Options::Restrictions::Redundant>::value && vertex_pair.updateLB)
+				{
+#ifdef STATS
+					++calls[k];
+					++extra_lbs[k];
+#endif
+					feeder.feed(k, graph, edited, no_edits_left, lower_bound);
+					if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+					{
+						break;
+					}
+				}
 			}
 
 			if (problem.needs_no_edit_branch)
@@ -155,7 +170,7 @@ namespace Editor
 
 			if (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 			{
-				for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
+				for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 				{
 					edited.clear_edge(vertex_pair.first, vertex_pair.second);
 				}

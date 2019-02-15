@@ -158,7 +158,7 @@ namespace Consumer
 				if (max_count > 0)
 				{
 					m.problem.vertex_pairs.clear();
-					m.problem.vertex_pairs.push_back(best_single_edge);
+					m.problem.vertex_pairs.emplace_back(best_single_edge);
 					m.problem.needs_no_edit_branch = true;
 				}
 			}

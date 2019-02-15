@@ -376,7 +376,7 @@ namespace Editor
 						{
 							for (size_t i = 0; i < edges_done && i < problem.vertex_pairs.size(); ++i)
 							{
-								auto [u,v] = problem.vertex_pairs[i];
+								auto [u,v,lb] = problem.vertex_pairs[i];
 								assert(!edited.has_edge(u, v));
 								edited.set_edge(u, v);
 							}
@@ -386,7 +386,7 @@ namespace Editor
 						// the node pairs.
 						for (size_t i = edges_done; i < problem.vertex_pairs.size(); ++i)
 						{
-							auto [u,v] = problem.vertex_pairs[i];
+							auto [u,v,lb] = problem.vertex_pairs[i];
 							assert(!edited.has_edge(u, v));
 
 							// Update lower bound for recursion
@@ -424,7 +424,7 @@ namespace Editor
 							if (edges_done <= problem.vertex_pairs.size())
 							{
 								// We are in the recursive call where (u, v) has been edited.
-								auto [u,v] = problem.vertex_pairs[edges_done - 1];
+								auto [u,v,lb] = problem.vertex_pairs[edges_done - 1];
 								graph.toggle_edge(u, v);
 								--k;
 
@@ -448,7 +448,7 @@ namespace Editor
 
 								for(size_t i = edges_done; i < problem.vertex_pairs.size(); ++i)
 								{
-									auto [u,v] = problem.vertex_pairs[i];
+									auto [u,v,lb] = problem.vertex_pairs[i];
 									edited.clear_edge(u, v);
 								}
 							}
@@ -470,7 +470,7 @@ namespace Editor
 					single[k]++;
 				}
 #endif
-				for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
+				for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 				{
 					if(edited.has_edge(vertex_pair.first, vertex_pair.second))
 					{
@@ -511,7 +511,7 @@ namespace Editor
 
 				if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 				{
-					for (std::pair<VertexID, VertexID> vertex_pair : problem.vertex_pairs)
+					for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 					{
 						edited.clear_edge(vertex_pair.first, vertex_pair.second);
 					}
