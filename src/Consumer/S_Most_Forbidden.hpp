@@ -117,7 +117,7 @@ namespace Consumer
 				for (size_t i = 0; i < best_pairs.size(); ++i)
 				{
 					const forbidden_count& pair_count = best_pairs[i];
-					problem.vertex_pairs.emplace_back(pair_count.node_pair, (i + 2 < best_pairs.size() && pair_count.num_forbidden > 1));
+					problem.vertex_pairs.emplace_back(pair_count.node_pair, (i > 0 && i + 1 < best_pairs.size() && best_pairs[i-1].num_forbidden > 1));
 				}
 			}
 

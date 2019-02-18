@@ -118,6 +118,19 @@ namespace Editor
 					abort();
 				}
 
+				if (std::is_same<Restriction, Options::Restrictions::Redundant>::value && vertex_pair.updateLB)
+				{
+#ifdef STATS
+					++calls[k];
+					++extra_lbs[k];
+#endif
+					feeder.feed(k, graph, edited, no_edits_left, updated_lower_bound);
+					if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+					{
+						break;
+					}
+				}
+
 				// Update lower bound
 				Lower_Bound_Storage_type next_lower_bound(updated_lower_bound);
 				next_lower_bound.remove(graph, edited, vertex_pair.first, vertex_pair.second);
@@ -134,18 +147,6 @@ namespace Editor
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
 				if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(vertex_pair.first, vertex_pair.second);}
-				else if (std::is_same<Restriction, Options::Restrictions::Redundant>::value && vertex_pair.updateLB)
-				{
-#ifdef STATS
-					++calls[k];
-					++extra_lbs[k];
-#endif
-					feeder.feed(k, graph, edited, no_edits_left, updated_lower_bound);
-					if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
-					{
-						break;
-					}
-				}
 			}
 
 			if (problem.needs_no_edit_branch)
