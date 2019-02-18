@@ -335,6 +335,18 @@ namespace Editor
 					return false;
 				}
 
+#ifdef STATS
+				if (!problem.needs_no_edit_branch)
+				{
+					fallbacks[k]++;
+					skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
+				}
+				else
+				{
+					single[k]++;
+				}
+#endif
+
 				path.emplace_back(problem, std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
 
 				if(editor.available_work.size() < editor.threads)
@@ -354,21 +366,6 @@ namespace Editor
 						auto &lower_bound = path.front().lower_bound;
 						ProblemSet const &problem = path.front().problem;
 						auto const &edges_done = path.front().edges_done;
-
-#ifdef STATS
-						if(edges_done == 0) // update stats only if no edges have been edited yet.
-						{
-							if (!problem.needs_no_edit_branch)
-							{
-								fallbacks[k]++;
-								skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
-							}
-							else
-							{
-								single[k]++;
-							}
-						}
-#endif
 
 						// For non-redundant editing, we need to mark all node pairs as edited whose
 						// branches were already processed.
@@ -459,17 +456,6 @@ namespace Editor
 				}
 
 				if(path.empty()) {return false;}
-#ifdef STATS
-				if (!problem.needs_no_edit_branch)
-				{
-					fallbacks[k]++;
-					skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
-				}
-				else
-				{
-					single[k]++;
-				}
-#endif
 				for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 				{
 					if(edited.has_edge(vertex_pair.first, vertex_pair.second))
