@@ -140,7 +140,7 @@ namespace Editor
 					++calls[k];
 					++extra_lbs[k];
 #endif
-					feeder.feed(k, graph, edited, no_edits_left, lower_bound);
+					feeder.feed(k, graph, edited, no_edits_left, updated_lower_bound);
 					if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 					{
 						break;
