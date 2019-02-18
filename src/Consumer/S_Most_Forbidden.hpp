@@ -14,7 +14,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length, bool pruned = false>
 	class Most : Options::Tag::Selector
 	{
 	public:
@@ -117,12 +117,19 @@ namespace Consumer
 				for (size_t i = 0; i < best_pairs.size(); ++i)
 				{
 					const forbidden_count& pair_count = best_pairs[i];
-					problem.vertex_pairs.emplace_back(pair_count.node_pair, (i > 0 && i + 1 < best_pairs.size() && best_pairs[i-1].num_forbidden > 1));
+					problem.vertex_pairs.emplace_back(pair_count.node_pair, (pruned && i > 0 && i + 1 < best_pairs.size() && best_pairs[i-1].num_forbidden > 1));
 				}
 			}
 
 			return problem;
 		}
+	};
+
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
+	class Most_Pruned : public Most<Graph, Graph_Edits, Mode, Restriction, Conversion, length, true> {
+	public:
+		static constexpr char const *name = "Most_Pruned";
+		using Most<Graph, Graph_Edits, Mode, Restriction, Conversion, length, true>::Most;
 	};
 }
 
