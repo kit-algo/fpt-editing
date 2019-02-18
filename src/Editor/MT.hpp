@@ -74,6 +74,7 @@ namespace Editor
 		std::vector<size_t> prunes;
 		std::vector<size_t> fallbacks;
 		std::vector<size_t> single;
+		std::vector<size_t> extra_lbs;
 		std::vector<size_t> stolen;
 		std::vector<size_t> skipped;
 #endif
@@ -92,6 +93,7 @@ namespace Editor
 			prunes = decltype(prunes)(k + 1, 0);
 			fallbacks = decltype(fallbacks)(k + 1, 0);
 			single = decltype(single)(k + 1, 0);
+			extra_lbs = decltype(extra_lbs)(k + 1, 0);
 			stolen = decltype(stolen)(k + 1, 0);
 			skipped = decltype(skipped)(k + 1, 0);
 #endif
@@ -125,6 +127,7 @@ namespace Editor
 					prunes[i] += worker.prunes[i];
 					fallbacks[i] += worker.fallbacks[i];
 					single[i] += worker.single[i];
+					extra_lbs[i] += worker.extra_lbs[i];
 					stolen[i] += worker.stolen[i];
 					skipped[i] += worker.skipped[i];
 				}
@@ -187,7 +190,7 @@ namespace Editor
 #ifdef STATS
 		std::map<std::string, std::vector<size_t> const &> stats() const
 		{
-			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"skipped", skipped}};
+			return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"extra_lbs", extra_lbs}, {"stolen", stolen}, {"skipped", skipped}};
 		}
 #endif
 
@@ -212,6 +215,7 @@ namespace Editor
 			std::deque<Path> path;
 
 			::Finder::Feeder<Finder, Graph, Graph_Edits, Consumer...> feeder;
+			::Finder::Feeder<Finder, Graph, Graph_Edits, Lower_Bound_type> lb_feeder;
 
 		public:
 #ifdef STATS
@@ -219,11 +223,12 @@ namespace Editor
 			std::vector<size_t> prunes;
 			std::vector<size_t> fallbacks;
 			std::vector<size_t> single;
+			std::vector<size_t> extra_lbs;
 			std::vector<size_t> stolen;
 			std::vector<size_t> skipped;
 #endif
 
-			Worker(MT &editor, Finder const &finder, std::tuple<Consumer ...> const &consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, Util::MakeTupleRef(this->consumer))
+			Worker(MT &editor, Finder const &finder, std::tuple<Consumer ...> const &consumer) : editor(editor), finder(finder), consumer(consumer), feeder(this->finder, Util::MakeTupleRef(this->consumer)), lb_feeder(this->finder, std::get<lb>(this->consumer))
 			{
 				;
 			}
@@ -231,7 +236,7 @@ namespace Editor
 			std::map<std::string, std::vector<size_t> const &> stats() const
 			{
 #ifdef STATS
-				return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"skipped", skipped}};
+				return {{"calls", calls}, {"prunes", prunes}, {"fallbacks", fallbacks}, {"single", single}, {"stolen", stolen}, {"skipped", skipped}, {"extra_lbs", extra_lbs}};
 #else
 				return {};
 #endif
@@ -248,6 +253,7 @@ namespace Editor
 				prunes = decltype(prunes)(kmax + 1, 0);
 				fallbacks = decltype(fallbacks)(kmax + 1, 0);
 				single = decltype(single)(kmax + 1, 0);
+				extra_lbs = decltype(extra_lbs)(kmax + 1, 0);
 				stolen = decltype(stolen)(kmax + 1, 0);
 				skipped = decltype(skipped)(kmax + 1, 0);
 #endif
@@ -317,37 +323,72 @@ namespace Editor
 				// start finder and feed into selector and lb
 				feeder.feed(k, graph, edited, no_edits_left, lower_bound);
 
-				// graph solved?
-				ProblemSet problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
-				if(problem.found_solution)
 				{
-					std::unique_lock<std::mutex> ul(editor.write_mutex);
-					editor.found_soulution = true;
-					return !editor.write(graph, edited);
-				}
-				else if(k == 0 || k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
-				{
-					// used all edits but graph still unsolved
-					// or lower bound too high
+					// graph solved?
+					ProblemSet problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
+					if(problem.found_solution)
+					{
+						std::unique_lock<std::mutex> ul(editor.write_mutex);
+						editor.found_soulution = true;
+						return !editor.write(graph, edited);
+					}
+					else if(k == 0 || k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+					{
+						// used all edits but graph still unsolved
+						// or lower bound too high
 #ifdef STATS
-					prunes[k]++;
+						prunes[k]++;
 #endif
-					return false;
-				}
+						return false;
+					}
 
 #ifdef STATS
-				if (!problem.needs_no_edit_branch)
-				{
-					fallbacks[k]++;
-					skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
-				}
-				else
-				{
-					single[k]++;
-				}
+					if (!problem.needs_no_edit_branch)
+					{
+						fallbacks[k]++;
+						skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
+					}
+					else
+					{
+						single[k]++;
+					}
 #endif
 
-				path.emplace_back(problem, std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+					path.emplace_back(std::move(problem), std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+				}
+
+				// Prune branches by using extra lower bounds
+				if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+				{
+					ProblemSet &problem = path.back().problem;
+
+					for (size_t i = 0; i < problem.vertex_pairs.size(); ++i)
+					{
+						auto [u,v,updateLB] = problem.vertex_pairs[i];
+						assert(!edited.has_edge(u, v));
+
+						if (updateLB)
+						{
+#ifdef STATS
+							++calls[k];
+							++extra_lbs[k];
+#endif
+							feeder.feed(k, graph, edited, no_edits_left, path.back().lower_bound);
+							if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+							{
+								problem.vertex_pairs.erase(problem.vertex_pairs.begin() + i, problem.vertex_pairs.end());
+								break;
+							}
+						}
+
+						edited.set_edge(u, v);
+					}
+
+					for (const ProblemSet::VertexPair vp : problem.vertex_pairs)
+					{
+						edited.clear_edge(vp.first, vp.second);
+					}
+				}
 
 				if(editor.available_work.size() < editor.threads)
 				{
@@ -456,7 +497,7 @@ namespace Editor
 				}
 
 				if(path.empty()) {return false;}
-				for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
+				for (ProblemSet::VertexPair vertex_pair : path.back().problem.vertex_pairs)
 				{
 					if(edited.has_edge(vertex_pair.first, vertex_pair.second))
 					{
@@ -480,7 +521,7 @@ namespace Editor
 					if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(vertex_pair.first, vertex_pair.second);}
 				}
 
-				if (problem.needs_no_edit_branch)
+				if (path.back().problem.needs_no_edit_branch)
 				{
 					if (!std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 					{
@@ -497,7 +538,7 @@ namespace Editor
 
 				if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 				{
-					for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
+					for (ProblemSet::VertexPair vertex_pair : path.back().problem.vertex_pairs)
 					{
 						edited.clear_edge(vertex_pair.first, vertex_pair.second);
 					}
