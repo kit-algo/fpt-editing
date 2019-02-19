@@ -81,235 +81,205 @@ namespace Consumer
 		}
 
 	private:
+		std::vector<size_t> initialize_independent_set_min_deg(size_t max_size, const std::vector<size_t>& first_neighbor, const std::vector<size_t>& neighbors)
+		{
+			std::vector<size_t> result;
+
+			const size_t n = first_neighbor.size() - 1;
+
+			BucketPQ pq(n, 42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
+
+			for (size_t u = 0; u < n; ++u) {
+				pq.insert(u, first_neighbor[u+1] - first_neighbor[u]);
+			}
+
+			if (!pq.empty()) {
+				pq.build();
+
+				while (!pq.empty()) {
+					auto idkey = pq.pop();
+
+					size_t u = idkey.first;
+
+					result.push_back(u);
+
+					if (max_size > 0 && result.size() > max_size) break;
+
+					if (idkey.second > 0) {
+						for (auto itv = neighbors.begin() + first_neighbor[u]; itv != neighbors.begin() + first_neighbor[u+1]; ++itv)
+						{
+							if (pq.contains(*itv)) {
+								pq.erase(*itv);
+								for (auto itw = neighbors.begin() + first_neighbor[*itv]; itw != neighbors.begin() + first_neighbor[(*itv) + 1]; ++itw)
+								{
+									if (pq.contains(*itw)) {
+										pq.decrease_key_by_one(*itw);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			return result;
+		}
+
+		std::vector<size_t> independent_set_pls(size_t max_size, const std::vector<size_t>& first_neighbor, const std::vector<size_t>& neighbors)
+		{
+			std::stringstream fname;
+			const size_t n = first_neighbor.size() - 1;
+			fname << "/tmp/independent_set_" << max_size << "_" << n << "_" << neighbors.size()/2 << ".metis.graph";
+			{
+				std::ofstream of(fname.str());
+
+				of << n << " " << neighbors.size()/2 << " 1" << std::endl;
+
+				for (size_t u = 0; u < n; ++u)
+				{
+					const auto start_it = neighbors.begin() + first_neighbor[u];
+					for (auto it = start_it; it != neighbors.begin() + first_neighbor[u+1]; ++it)
+					{
+						if (it != start_it) { of << " "; }
+						of << (*it + 1);
+					}
+
+					of << std::endl;
+				}
+			}
+
+			std::string cmd = "../open-pls/bin/pls --algorithm=mis --timeout=10  --input-file=" + fname.str() + " --verbose --no-reduce";
+			if (max_size > 0)
+			{
+				cmd += " --target-weight=" + std::to_string(max_size + 1);
+			}
+
+			std::array<char, 128> buffer;
+			std::stringstream output;
+			std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+			if (!pipe) {
+				throw std::runtime_error("popen() failed!");
+			}
+			while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+				output << buffer.data();
+			}
+
+			std::vector<size_t> result;
+
+			std::string line;
+			while (std::getline(output, line))
+			{
+				std::cout << line << std::endl;
+				if (line.find("best-solution") == 0)
+				{
+					std::stringstream solution(line.substr(17, line.size() - 17));
+					size_t fsid;
+					while (solution >> fsid)
+					{
+						result.push_back(fsid);
+					}
+				}
+			}
+
+			return result;
+		}
+
 		void prepare_result(size_t k, Graph const &g, Graph_Edits const &e)
 		{
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			auto enumerate_neighbor_ids = [&subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, auto callback) {
+			std::vector<size_t> first_neighbor;
+			std::vector<size_t> neighbors;
+
+			std::vector<std::pair<std::vector<size_t>::const_iterator, std::vector<size_t>::const_iterator>> neighbor_lists;
+			std::vector<size_t> tmp1, tmp2;
+
+			for (size_t u = 0; u < forbidden_subgraphs.size(); ++u)
+			{
+				neighbor_lists.clear();
+				const auto fs = forbidden_subgraphs[u];
+
+				first_neighbor.push_back(neighbors.size());
+
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
 					const auto& new_neighbors = subgraphs_per_edge.at(*uit, *vit);
-					for (size_t ne : new_neighbors)
+					if (new_neighbors.size() > 1)
 					{
-						callback(ne);
+						neighbor_lists.emplace_back(new_neighbors.begin(), new_neighbors.end());
 					}
 
 					return false;
 				});
-			};
 
-			std::vector<bool> can_use(forbidden_subgraphs.size(), true);
-			BucketPQ pq(forbidden_subgraphs.size(), 42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
+				if (neighbor_lists.size() == 1)
+				{
+					std::copy(neighbor_lists.front().first, neighbor_lists.front().second, std::back_inserter(neighbors));
+				}
+				else if (neighbor_lists.size() == 2)
+				{
+					std::set_union(neighbor_lists.front().first, neighbor_lists.front().second, neighbor_lists.back().first, neighbor_lists.back().second, std::back_inserter(neighbors));
+				}
+				else if (neighbor_lists.size() > 2)
+				{
+				    std::sort(neighbor_lists.begin(), neighbor_lists.end(), [](const auto& a, const auto& b) { return std::distance(a.first, a.second) < std::distance(b.first, b.second); });
 
-			auto calculate_lb = [&pq, &enumerate_neighbor_ids, &can_use, &forbidden_subgraphs = forbidden_subgraphs, k, &g, &e, &subgraphs_per_edge = subgraphs_per_edge](Lower_Bound_Storage_type &lb) {
-				size_t total_neighbors_size = 0, max_neighbor_size = 0, min_neighbor_size = std::numeric_limits<size_t>::max();
+				    tmp1.clear();
 
-				for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid) {
-					if (!can_use[fsid]) continue;
+				    std::set_union(neighbor_lists[0].first, neighbor_lists[0].second, neighbor_lists[1].first, neighbor_lists[1].second, std::back_inserter(tmp1));
 
-					const typename Lower_Bound_Storage_type::subgraph_t& fs = forbidden_subgraphs[fsid];
+				    for (auto it = neighbor_lists.begin() + 2; it + 1 != neighbor_lists.end(); ++it)
+				    {
+					    std::swap(tmp1, tmp2);
+					    tmp1.clear();
+					    std::set_union(it->first, it->second, tmp2.begin(), tmp2.end(), std::back_inserter(tmp1));
+				    }
 
-					size_t neighbor_count = 0;
-					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&neighbor_count, &subgraphs_per_edge = subgraphs_per_edge](auto uit, auto vit) {
-						neighbor_count += subgraphs_per_edge.at(*uit, *vit).size();
-						return false;
-					});
-
-					total_neighbors_size += neighbor_count;
-					if (neighbor_count > max_neighbor_size) {
-						max_neighbor_size = neighbor_count;
-					}
-
-					if (neighbor_count < min_neighbor_size) {
-						min_neighbor_size = neighbor_count;
-					}
-
-					pq.insert(fsid, neighbor_count);
+				    std::set_union(neighbor_lists.back().first, neighbor_lists.back().second, tmp1.begin(), tmp1.end(), std::back_inserter(neighbors));
 				}
 
-				if (!pq.empty()) {
-					pq.build();
+				neighbors.erase(std::remove(neighbors.begin() + first_neighbor[u], neighbors.end(), u), neighbors.end());
 
-					while (!pq.empty()) {
-						auto idkey = pq.pop();
+				assert(std::is_sorted(neighbors.begin() + first_neighbor[u], neighbors.end()));
+			}
 
-						const auto& fs = forbidden_subgraphs[idkey.first];
+			first_neighbor.push_back(neighbors.size());
 
-						lb.add(fs.begin(), fs.end());
-						if (k > 0 && lb.size() > k) return;
-
-						if (idkey.second > 1) {
-							enumerate_neighbor_ids(fs, [&pq, &enumerate_neighbor_ids, &forbidden_subgraphs](size_t nfsid)
-							{
-								if (pq.contains(nfsid)) {
-									pq.erase(nfsid);
-									enumerate_neighbor_ids(forbidden_subgraphs[nfsid], [&pq](size_t nnfsid)
-									{
-										if (pq.contains(nnfsid)) {
-											pq.decrease_key_by_one(nnfsid);
-										}
-									});
-								}
-							});
-						}
-					}
-				}
-
-				lb.assert_valid(g, e);
-
-				//std::cout << "k = " << k << " #fs = " << forbidden_subgraphs.size() << " max_neigh = " << max_neighbor_size << " avg_neighbors = " << total_neighbors_size / forbidden_subgraphs.size() << " min_neighbors = " << min_neighbor_size << " lb: " << lb.size() << std::endl;
-			};
-
-			calculate_lb(bound_new);
-
-			if (k > 0 && bound_new.size() > k) return;
-
-			Lower_Bound_Storage_type lb_pls;
+			std::vector<size_t> best_is(initialize_independent_set_min_deg(k, first_neighbor, neighbors));
 
 			{
-				std::vector<size_t> neighbor_begin;
-				std::vector<size_t> neighbors;
+				std::vector<size_t> existing_independent_set;
+				existing_independent_set.reserve(bound_updated.size());
 
-				for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid)
+				for (size_t i = 0; i < forbidden_subgraphs.size(); ++i)
 				{
-					neighbor_begin.push_back(neighbors.size());
-
-					enumerate_neighbor_ids(forbidden_subgraphs[fsid], [&neighbors, fsid](size_t ne) { if (ne != fsid) neighbors.push_back(ne); });
-					const auto start_it = neighbors.begin() + neighbor_begin.back();
-					std::sort(start_it, neighbors.end());
-					neighbors.erase(std::unique(start_it, neighbors.end()), neighbors.end());
-				}
-
-				neighbor_begin.push_back(neighbors.size());
-
-				std::stringstream fname;
-				fname << "/tmp/independent_set_" << k << "_" << forbidden_subgraphs.size() << "_" << neighbors.size()/2 << ".metis.graph";
-				{
-					std::ofstream of(fname.str());
-
-					of << forbidden_subgraphs.size() << " " << neighbors.size()/2 << " 1" << std::endl;
-
-					for (size_t u = 0; u < forbidden_subgraphs.size(); ++u)
+					if (std::find(bound_updated.get_bound().begin(), bound_updated.get_bound().end(), forbidden_subgraphs[i]) != bound_updated.get_bound().end())
 					{
-						const auto start_it = neighbors.begin() + neighbor_begin[u];
-						for (auto it = start_it; it != neighbors.begin() + neighbor_begin[u+1]; ++it)
-						{
-							if (it != start_it) { of << " "; }
-							of << (*it + 1);
-						}
-
-						of << std::endl;
+						existing_independent_set.push_back(i);
 					}
 				}
 
-				std::string bound_fname = "/tmp/independent_set_solution" + std::to_string(k) + ".txt";
-
-				if (false) {
-					const auto &base_lb = bound_new.size() > bound_updated.size() ? bound_new : bound_updated;
-					std::ofstream of(bound_fname);
-					for (const auto fs : base_lb.get_bound())
-					{
-						for (size_t i = 0; i < forbidden_subgraphs.size(); ++i)
-						{
-							if (forbidden_subgraphs[i] == fs)
-							{
-								of << i << std::endl;
-								break;
-							}
-						}
-					}
-				}
-
-				std::string cmd = "../open-pls/bin/pls --algorithm=mis --timeout=10  --input-file=" + fname.str() + " --verbose --no-reduce";
-				if (k > 0)
+				if (existing_independent_set.size() > best_is.size())
 				{
-					cmd += " --target-weight=" +	std::to_string(k + 1);
+					best_is = std::move(existing_independent_set);
 				}
-
-				std::array<char, 128> buffer;
-				std::stringstream result;
-				std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-				if (!pipe) {
-					throw std::runtime_error("popen() failed!");
-				}
-				while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-					result << buffer.data();
-				}
-
-				std::string line;
-				while (std::getline(result, line))
-				{
-					std::cout << line << std::endl;
-					if (line.find("best-solution") == 0)
-					{
-						std::stringstream solution(line.substr(17, line.size() - 17));
-						size_t fsid;
-						while (solution >> fsid)
-						{
-							lb_pls.add(forbidden_subgraphs[fsid].begin(), forbidden_subgraphs[fsid].end());
-						}
-					}
-				}
-
-				lb_pls.assert_valid(g, e);
 			}
 
-			if (lb_pls.size() > bound_new.size())
+			if (false && best_is.size() <= k)
 			{
-				std::cout << "pls better than bound_new" << std::endl;
-				bound_new = lb_pls;
-				if (k > 0 && bound_new.size() > k) {
-					std::cout << "pruned by pls" << std::endl;
-					return;
+				std::vector<size_t> is_pls(independent_set_pls(k, first_neighbor, neighbors));
+				if (is_pls.size() >= best_is.size())
+				{
+					best_is = std::move(is_pls);
 				}
 			}
 
-			// update existing lower bound
-			// Mark all node pairs that are used as used
-			for (const auto& fs : bound_updated.get_bound()) {
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					used_updated.set_edge(*uit, *vit);
-					return false;
-				});
-			}
-
-			bool found_usable = false;
-			// Check for all forbidden subgraphs if they can be used
-			for (size_t i = 0; i < forbidden_subgraphs.size(); ++i) {
-				const auto& fs = forbidden_subgraphs[i];
-
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					if (used_updated.has_edge(*uit, *vit)) {
-						can_use[i] = false;
-						return true;
-					}
-					return false;
-				});
-
-				found_usable |= can_use[i];
-			}
-
-			if (found_usable)
+			for (size_t fsid : best_is)
 			{
-				// Remove all subgraphs that cannot be used from neighbors
-				subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, std::vector<size_t>& fs_ids)
-				{
-					auto new_end = std::remove_if(fs_ids.begin(), fs_ids.end(), [&](size_t v) { return !can_use[v]; });
-					fs_ids.erase(new_end, fs_ids.end());
-				});
-
-				pq.clear();
-
-				calculate_lb(bound_updated);
+				bound_new.add(forbidden_subgraphs[fsid].begin(), forbidden_subgraphs[fsid].end());
 			}
 
-
-			if (bound_updated.size() > bound_new.size()) {
-				bound_new = bound_updated;
-			}
-
-			if (k > 0 && bound_new.size() > k) return;
-
+			bound_new.assert_valid(g, e);
 		}
 	};
 }
