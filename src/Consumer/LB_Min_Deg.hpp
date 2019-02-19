@@ -3,6 +3,11 @@
 
 #include <vector>
 #include <stdexcept>
+#include <fstream>
+#include <sstream>
+#include <cstdio>
+#include <iostream>
+#include <memory>
 
 #include "../config.hpp"
 
@@ -159,6 +164,106 @@ namespace Consumer
 
 			if (k > 0 && bound_new.size() > k) return;
 
+			Lower_Bound_Storage_type lb_pls;
+
+			{
+				std::vector<size_t> neighbor_begin;
+				std::vector<size_t> neighbors;
+
+				for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid)
+				{
+					neighbor_begin.push_back(neighbors.size());
+
+					enumerate_neighbor_ids(forbidden_subgraphs[fsid], [&neighbors, fsid](size_t ne) { if (ne != fsid) neighbors.push_back(ne); });
+					const auto start_it = neighbors.begin() + neighbor_begin.back();
+					std::sort(start_it, neighbors.end());
+					neighbors.erase(std::unique(start_it, neighbors.end()), neighbors.end());
+				}
+
+				neighbor_begin.push_back(neighbors.size());
+
+				std::stringstream fname;
+				fname << "/tmp/independent_set_" << k << "_" << forbidden_subgraphs.size() << "_" << neighbors.size()/2 << ".metis.graph";
+				{
+					std::ofstream of(fname.str());
+
+					of << forbidden_subgraphs.size() << " " << neighbors.size()/2 << " 1" << std::endl;
+
+					for (size_t u = 0; u < forbidden_subgraphs.size(); ++u)
+					{
+						const auto start_it = neighbors.begin() + neighbor_begin[u];
+						for (auto it = start_it; it != neighbors.begin() + neighbor_begin[u+1]; ++it)
+						{
+							if (it != start_it) { of << " "; }
+							of << (*it + 1);
+						}
+
+						of << std::endl;
+					}
+				}
+
+				std::string bound_fname = "/tmp/independent_set_solution" + std::to_string(k) + ".txt";
+
+				if (false) {
+					const auto &base_lb = bound_new.size() > bound_updated.size() ? bound_new : bound_updated;
+					std::ofstream of(bound_fname);
+					for (const auto fs : base_lb.get_bound())
+					{
+						for (size_t i = 0; i < forbidden_subgraphs.size(); ++i)
+						{
+							if (forbidden_subgraphs[i] == fs)
+							{
+								of << i << std::endl;
+								break;
+							}
+						}
+					}
+				}
+
+				std::string cmd = "../open-pls/bin/pls --algorithm=mis --timeout=10  --input-file=" + fname.str() + " --verbose --no-reduce";
+				if (k > 0)
+				{
+					cmd += " --target-weight=" +	std::to_string(k + 1);
+				}
+
+				std::array<char, 128> buffer;
+				std::stringstream result;
+				std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+				if (!pipe) {
+					throw std::runtime_error("popen() failed!");
+				}
+				while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+					result << buffer.data();
+				}
+
+				std::string line;
+				while (std::getline(result, line))
+				{
+					std::cout << line << std::endl;
+					if (line.find("best-solution") == 0)
+					{
+						std::stringstream solution(line.substr(17, line.size() - 17));
+						size_t fsid;
+						while (solution >> fsid)
+						{
+							lb_pls.add(forbidden_subgraphs[fsid].begin(), forbidden_subgraphs[fsid].end());
+						}
+					}
+				}
+
+				lb_pls.assert_valid(g, e);
+			}
+
+			if (lb_pls.size() > bound_new.size())
+			{
+				std::cout << "pls better than bound_new" << std::endl;
+				bound_new = lb_pls;
+				if (k > 0 && bound_new.size() > k) {
+					std::cout << "pruned by pls" << std::endl;
+					return;
+				}
+			}
+
 			// update existing lower bound
 			// Mark all node pairs that are used as used
 			for (const auto& fs : bound_updated.get_bound()) {
@@ -202,6 +307,9 @@ namespace Consumer
 			if (bound_updated.size() > bound_new.size()) {
 				bound_new = bound_updated;
 			}
+
+			if (k > 0 && bound_new.size() > k) return;
+
 		}
 	};
 }
