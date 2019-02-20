@@ -75,6 +75,11 @@ namespace Lower_Bound
 			return bound;
 		}
 
+		std::vector<subgraph_t>& get_bound()
+		{
+			return bound;
+		}
+
 		const subgraph_t& operator[](size_t i) const
 		{
 			return bound[i];
