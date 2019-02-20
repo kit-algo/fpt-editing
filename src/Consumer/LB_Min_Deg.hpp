@@ -35,11 +35,12 @@ namespace Consumer
 		bool bound_calculated;
 
 		Graph_Edits used_updated;
+		bool used_updated_initialized;
 
 		Lower_Bound_Storage_type bound_updated;
 		Lower_Bound_Storage_type bound_new;
 	public:
-		Min_Deg(VertexID graph_size) : subgraphs_per_edge(graph_size), sum_subgraphs_per_edge(0), bound_calculated(false), used_updated(graph_size) {;}
+		Min_Deg(VertexID graph_size) : subgraphs_per_edge(graph_size), sum_subgraphs_per_edge(0), bound_calculated(false), used_updated(graph_size), used_updated_initialized(false) {;}
 
 		void prepare(size_t, const Lower_Bound_Storage_type& lower_bound)
 		{
@@ -48,6 +49,7 @@ namespace Consumer
 
 			bound_calculated = false;
 			used_updated.clear();
+			used_updated_initialized = false;
 			bound_new.clear();
 			bound_updated = lower_bound;
 			sum_subgraphs_per_edge = 0;
@@ -55,15 +57,42 @@ namespace Consumer
 
 		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
 		{
+			if (!used_updated_initialized)
+			{
+				for (const auto fs : bound_updated.get_bound())
+				{
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, fs.begin(), fs.end(), [&](auto uit, auto vit)
+					{
+						used_updated.set_edge(*uit, *vit);
+						return false;
+					});
+				}
+
+				used_updated_initialized = true;
+			}
+
 			const size_t forbidden_index = forbidden_subgraphs.size();
 			forbidden_subgraphs.emplace_back(Util::to_array<VertexID, length>(b));
+
+			bool touches_bound = false;
 
 			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
 				subgraphs_per_edge.at(*uit, *vit).push_back(forbidden_index);
 				sum_subgraphs_per_edge++;
 
+				touches_bound |= used_updated.has_edge(*uit, *vit);
 				return false;
 			});
+
+			if (!touches_bound)
+			{
+				bound_updated.add(b, e);
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
+					used_updated.set_edge(*uit, *vit);
+					return false;
+				});
+			}
 
 			return false;
 		}
@@ -225,7 +254,14 @@ namespace Consumer
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			bound_new = initialize_lb_min_deg(k, g, e);
+			if (k > 0 && bound_updated.size() > k)
+			{
+				bound_new = bound_updated;
+			}
+			else
+			{
+				bound_new = initialize_lb_min_deg(k, g, e);
+			}
 		}
 	};
 }
