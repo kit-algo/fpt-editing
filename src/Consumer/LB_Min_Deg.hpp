@@ -81,16 +81,34 @@ namespace Consumer
 		}
 
 	private:
-		std::vector<size_t> initialize_independent_set_min_deg(size_t max_size, const std::vector<size_t>& first_neighbor, const std::vector<size_t>& neighbors)
+		Lower_Bound_Storage_type initialize_lb_min_deg(size_t k, const Graph& g, const Graph_Edits& e)
 		{
-			std::vector<size_t> result;
+			Lower_Bound_Storage_type result;
 
-			const size_t n = first_neighbor.size() - 1;
+			auto enumerate_neighbor_ids = [&subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, auto callback) {
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+					const auto& new_neighbors = subgraphs_per_edge.at(*uit, *vit);
+					for (size_t ne : new_neighbors)
+					{
+						callback(ne);
+					}
 
-			BucketPQ pq(n, 42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
+					return false;
+				});
+			};
 
-			for (size_t u = 0; u < n; ++u) {
-				pq.insert(u, first_neighbor[u+1] - first_neighbor[u]);
+			BucketPQ pq(forbidden_subgraphs.size(), 42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
+
+			for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid) {
+				const typename Lower_Bound_Storage_type::subgraph_t& fs = forbidden_subgraphs[fsid];
+
+				size_t neighbor_count = 0;
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&neighbor_count, &subgraphs_per_edge = subgraphs_per_edge](auto uit, auto vit) {
+					neighbor_count += subgraphs_per_edge.at(*uit, *vit).size();
+					return false;
+				});
+
+				pq.insert(fsid, neighbor_count);
 			}
 
 			if (!pq.empty()) {
@@ -99,37 +117,53 @@ namespace Consumer
 				while (!pq.empty()) {
 					auto idkey = pq.pop();
 
-					size_t u = idkey.first;
+					const auto& fs = forbidden_subgraphs[idkey.first];
 
-					result.push_back(u);
+					result.add(fs.begin(), fs.end());
+					if (k > 0 && result.size() > k) break;
 
-					if (max_size > 0 && result.size() > max_size) break;
-
-					if (idkey.second > 0) {
-						for (auto itv = neighbors.begin() + first_neighbor[u]; itv != neighbors.begin() + first_neighbor[u+1]; ++itv)
+					if (idkey.second > 1) {
+						enumerate_neighbor_ids(fs, [&pq, &enumerate_neighbor_ids, &forbidden_subgraphs = forbidden_subgraphs](size_t nfsid)
 						{
-							if (pq.contains(*itv)) {
-								pq.erase(*itv);
-								for (auto itw = neighbors.begin() + first_neighbor[*itv]; itw != neighbors.begin() + first_neighbor[(*itv) + 1]; ++itw)
+							if (pq.contains(nfsid)) {
+								pq.erase(nfsid);
+								enumerate_neighbor_ids(forbidden_subgraphs[nfsid], [&pq](size_t nnfsid)
 								{
-									if (pq.contains(*itw)) {
-										pq.decrease_key_by_one(*itw);
+									if (pq.contains(nnfsid)) {
+										pq.decrease_key_by_one(nnfsid);
 									}
-								}
+								});
 							}
-						}
+						});
 					}
 				}
 			}
 
+			result.assert_valid(g, e);
+
 			return result;
 		}
 
-		std::vector<size_t> independent_set_pls(size_t max_size, const std::vector<size_t>& first_neighbor, const std::vector<size_t>& neighbors)
+		std::vector<size_t> independent_set_pls(size_t k, const Graph &g, const Graph_Edits &e)
 		{
+			std::vector<size_t> first_neighbor;
+			std::vector<size_t> neighbors;
+
+			for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid)
+			{
+				first_neighbor.push_back(neighbors.size());
+
+				enumerate_neighbor_ids(forbidden_subgraphs[fsid], [&neighbors, fsid](size_t ne) { if (ne != fsid) neighbors.push_back(ne); });
+				const auto start_it = neighbors.begin() + first_neighbor.back();
+				std::sort(start_it, neighbors.end());
+				neighbors.erase(std::unique(start_it, neighbors.end()), neighbors.end());
+			}
+
+			first_neighbor.push_back(neighbors.size());
+
 			std::stringstream fname;
 			const size_t n = first_neighbor.size() - 1;
-			fname << "/tmp/independent_set_" << max_size << "_" << n << "_" << neighbors.size()/2 << ".metis.graph";
+			fname << "/tmp/independent_set_" << k << "_" << n << "_" << neighbors.size()/2 << ".metis.graph";
 			{
 				std::ofstream of(fname.str());
 
@@ -149,9 +183,9 @@ namespace Consumer
 			}
 
 			std::string cmd = "../open-pls/bin/pls --algorithm=mis --timeout=10  --input-file=" + fname.str() + " --verbose --no-reduce";
-			if (max_size > 0)
+			if (k > 0)
 			{
-				cmd += " --target-weight=" + std::to_string(max_size + 1);
+				cmd += " --target-weight=" + std::to_string(k + 1);
 			}
 
 			std::array<char, 128> buffer;
@@ -164,7 +198,7 @@ namespace Consumer
 				output << buffer.data();
 			}
 
-			std::vector<size_t> result;
+			Lower_Bound_Storage_type result;
 
 			std::string line;
 			while (std::getline(output, line))
@@ -176,10 +210,12 @@ namespace Consumer
 					size_t fsid;
 					while (solution >> fsid)
 					{
-						result.push_back(fsid);
+						result.add(forbidden_subgraphs[fsid].begin(), forbidden_subgraphs[fsid].end());
 					}
 				}
 			}
+
+			result.assert_valid(g, e);
 
 			return result;
 		}
@@ -189,97 +225,7 @@ namespace Consumer
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			std::vector<size_t> first_neighbor;
-			std::vector<size_t> neighbors;
-
-			std::vector<std::pair<std::vector<size_t>::const_iterator, std::vector<size_t>::const_iterator>> neighbor_lists;
-			std::vector<size_t> tmp1, tmp2;
-
-			for (size_t u = 0; u < forbidden_subgraphs.size(); ++u)
-			{
-				neighbor_lists.clear();
-				const auto fs = forbidden_subgraphs[u];
-
-				first_neighbor.push_back(neighbors.size());
-
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					const auto& new_neighbors = subgraphs_per_edge.at(*uit, *vit);
-					if (new_neighbors.size() > 1)
-					{
-						neighbor_lists.emplace_back(new_neighbors.begin(), new_neighbors.end());
-					}
-
-					return false;
-				});
-
-				if (neighbor_lists.size() == 1)
-				{
-					std::copy(neighbor_lists.front().first, neighbor_lists.front().second, std::back_inserter(neighbors));
-				}
-				else if (neighbor_lists.size() == 2)
-				{
-					std::set_union(neighbor_lists.front().first, neighbor_lists.front().second, neighbor_lists.back().first, neighbor_lists.back().second, std::back_inserter(neighbors));
-				}
-				else if (neighbor_lists.size() > 2)
-				{
-				    std::sort(neighbor_lists.begin(), neighbor_lists.end(), [](const auto& a, const auto& b) { return std::distance(a.first, a.second) < std::distance(b.first, b.second); });
-
-				    tmp1.clear();
-
-				    std::set_union(neighbor_lists[0].first, neighbor_lists[0].second, neighbor_lists[1].first, neighbor_lists[1].second, std::back_inserter(tmp1));
-
-				    for (auto it = neighbor_lists.begin() + 2; it + 1 != neighbor_lists.end(); ++it)
-				    {
-					    std::swap(tmp1, tmp2);
-					    tmp1.clear();
-					    std::set_union(it->first, it->second, tmp2.begin(), tmp2.end(), std::back_inserter(tmp1));
-				    }
-
-				    std::set_union(neighbor_lists.back().first, neighbor_lists.back().second, tmp1.begin(), tmp1.end(), std::back_inserter(neighbors));
-				}
-
-				neighbors.erase(std::remove(neighbors.begin() + first_neighbor[u], neighbors.end(), u), neighbors.end());
-
-				assert(std::is_sorted(neighbors.begin() + first_neighbor[u], neighbors.end()));
-			}
-
-			first_neighbor.push_back(neighbors.size());
-
-			std::vector<size_t> best_is(initialize_independent_set_min_deg(k, first_neighbor, neighbors));
-
-			{
-				std::vector<size_t> existing_independent_set;
-				existing_independent_set.reserve(bound_updated.size());
-
-				for (size_t i = 0; i < forbidden_subgraphs.size(); ++i)
-				{
-					if (std::find(bound_updated.get_bound().begin(), bound_updated.get_bound().end(), forbidden_subgraphs[i]) != bound_updated.get_bound().end())
-					{
-						existing_independent_set.push_back(i);
-					}
-				}
-
-				if (existing_independent_set.size() > best_is.size())
-				{
-					best_is = std::move(existing_independent_set);
-				}
-			}
-
-			if (false && best_is.size() <= k)
-			{
-				std::vector<size_t> is_pls(independent_set_pls(k, first_neighbor, neighbors));
-				if (is_pls.size() >= best_is.size())
-				{
-					best_is = std::move(is_pls);
-				}
-			}
-
-			for (size_t fsid : best_is)
-			{
-				bound_new.add(forbidden_subgraphs[fsid].begin(), forbidden_subgraphs[fsid].end());
-			}
-
-			bound_new.assert_valid(g, e);
+			bound_new = initialize_lb_min_deg(k, g, e);
 		}
 	};
 }
