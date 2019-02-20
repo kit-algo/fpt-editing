@@ -129,6 +129,10 @@ namespace Editor
 					{
 						break;
 					}
+					else
+					{
+						updated_lower_bound = std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update());
+					}
 				}
 
 				// Update lower bound

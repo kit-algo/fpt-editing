@@ -208,6 +208,7 @@ namespace Editor
 			{
 				ProblemSet problem;
 				Lower_Bound_Storage_type lower_bound;
+				std::vector<Lower_Bound_Storage_type> updated_lower_bounds;
 				size_t edges_done = 0;
 
 				Path(ProblemSet problem, Lower_Bound_Storage_type lower_bound) : problem(problem), lower_bound(lower_bound) {;}
@@ -362,6 +363,8 @@ namespace Editor
 				{
 					ProblemSet &problem = path.back().problem;
 
+					size_t lb_counter = 0;
+
 					for (size_t i = 0; i < problem.vertex_pairs.size(); ++i)
 					{
 						auto [u,v,updateLB] = problem.vertex_pairs[i];
@@ -373,11 +376,16 @@ namespace Editor
 							++calls[k];
 							++extra_lbs[k];
 #endif
-							feeder.feed(k, graph, edited, no_edits_left, path.back().lower_bound);
+							feeder.feed(k, graph, edited, no_edits_left, lb_counter > 0 ? path.back().updated_lower_bounds.back() : path.back().lower_bound);
 							if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 							{
 								problem.vertex_pairs.erase(problem.vertex_pairs.begin() + i, problem.vertex_pairs.end());
 								break;
+							}
+							else
+							{
+								path.back().updated_lower_bounds.emplace_back(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
+								++lb_counter;
 							}
 						}
 
@@ -408,6 +416,8 @@ namespace Editor
 						ProblemSet const &problem = path.front().problem;
 						auto const &edges_done = path.front().edges_done;
 
+						size_t lb_counter = 0;
+
 						// For non-redundant editing, we need to mark all node pairs as edited whose
 						// branches were already processed.
 						if(std::is_same<Restriction, Options::Restrictions::Redundant>::value)
@@ -417,8 +427,10 @@ namespace Editor
 								auto [u,v,lb] = problem.vertex_pairs[i];
 								assert(!edited.has_edge(u, v));
 								edited.set_edge(u, v);
+								lb_counter += lb;
 							}
 						}
+
 
 						// For all node pairs after the current node pair, create a work package for editing
 						// the node pairs.
@@ -426,9 +438,19 @@ namespace Editor
 						{
 							auto [u,v,lb] = problem.vertex_pairs[i];
 							assert(!edited.has_edge(u, v));
+							lb_counter += lb;
 
 							// Update lower bound for recursion
-							Lower_Bound_Storage_type new_lower_bound(lower_bound);
+							Lower_Bound_Storage_type new_lower_bound;
+							if (lb_counter > 0)
+							{
+								new_lower_bound = path.front().updated_lower_bounds[lb_counter - 1];
+							}
+							else
+							{
+								new_lower_bound = lower_bound;
+							}
+
 							new_lower_bound.remove(graph, edited, u, v);
 
 							// Both for no-undo and for non-redundant, mark the node pair as edited
@@ -497,15 +519,28 @@ namespace Editor
 				}
 
 				if(path.empty()) {return false;}
+
+				size_t lb_counter = 0;
 				for (ProblemSet::VertexPair vertex_pair : path.back().problem.vertex_pairs)
 				{
-					if(edited.has_edge(vertex_pair.first, vertex_pair.second))
+					auto [u,v,lb] = vertex_pair;
+					lb_counter += lb;
+
+					if(edited.has_edge(u, v))
 					{
 						abort();
 					}
 
 					// make sure the path contains the correct state so if those edits should be stolen they get the correct edits
-					lower_bound = path.back().lower_bound;
+					if (lb_counter > 0)
+					{
+						lower_bound = path.back().updated_lower_bounds[lb_counter - 1];
+					}
+					else
+					{
+						lower_bound = path.back().lower_bound;
+					}
+
 					lower_bound.remove(graph, edited, vertex_pair.first, vertex_pair.second);
 					if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
