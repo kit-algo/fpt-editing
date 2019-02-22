@@ -379,8 +379,20 @@ namespace Consumer
 
 		}
 
-		Lower_Bound_Storage_type independent_set_pls(size_t k, const Graph &g, const Graph_Edits &e)
+		Lower_Bound_Storage_type independent_set_kamis(size_t k, const Graph &g, const Graph_Edits &e)
 		{
+			auto enumerate_neighbor_ids = [&subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, auto callback) {
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+					const auto& new_neighbors = subgraphs_per_edge.at(*uit, *vit);
+					for (size_t ne : new_neighbors)
+					{
+						callback(ne);
+					}
+
+					return false;
+				});
+			};
+
 			std::vector<size_t> first_neighbor;
 			std::vector<size_t> neighbors;
 
@@ -402,7 +414,83 @@ namespace Consumer
 			{
 				std::ofstream of(fname.str());
 
-				of << n << " " << neighbors.size()/2 << " 1" << std::endl;
+				of << n << " " << neighbors.size()/2 << " 0" << std::endl;
+
+				for (size_t u = 0; u < n; ++u)
+				{
+					const auto start_it = neighbors.begin() + first_neighbor[u];
+					for (auto it = start_it; it != neighbors.begin() + first_neighbor[u+1]; ++it)
+					{
+						if (it != start_it) { of << " "; }
+						of << (*it + 1);
+					}
+
+					of << std::endl;
+				}
+			}
+
+			std::string out_name = "/tmp/kamis.out.txt";
+
+			std::string cmd = "../KaMIS/deploy/redumis --time_limit=25  " + fname.str() + " --console_log --output=" + out_name;
+
+			std::system(cmd.c_str());
+
+			Lower_Bound_Storage_type result;
+
+			std::ifstream output(out_name);
+
+			std::string line;
+			for (size_t i = 0; i < n; ++i)
+			{
+				if (!std::getline(output, line)) { throw std::runtime_error("Error, premature output file end"); }
+				size_t in_set = std::stoull(line);
+				if (in_set == 1)
+				{
+					result.add(forbidden_subgraphs[i].begin(), forbidden_subgraphs[i].end());
+				}
+			}
+
+			result.assert_valid(g, e);
+
+			return result;
+		}
+
+		Lower_Bound_Storage_type independent_set_pls(size_t k, const Graph &g, const Graph_Edits &e)
+		{
+			auto enumerate_neighbor_ids = [&subgraphs_per_edge = subgraphs_per_edge, &g, &e](const typename Lower_Bound_Storage_type::subgraph_t& fs, auto callback) {
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+					const auto& new_neighbors = subgraphs_per_edge.at(*uit, *vit);
+					for (size_t ne : new_neighbors)
+					{
+						callback(ne);
+					}
+
+					return false;
+				});
+			};
+
+			std::vector<size_t> first_neighbor;
+			std::vector<size_t> neighbors;
+
+			for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid)
+			{
+				first_neighbor.push_back(neighbors.size());
+
+				enumerate_neighbor_ids(forbidden_subgraphs[fsid], [&neighbors, fsid](size_t ne) { if (ne != fsid) neighbors.push_back(ne); });
+				const auto start_it = neighbors.begin() + first_neighbor.back();
+				std::sort(start_it, neighbors.end());
+				neighbors.erase(std::unique(start_it, neighbors.end()), neighbors.end());
+			}
+
+			first_neighbor.push_back(neighbors.size());
+
+			std::stringstream fname;
+			const size_t n = first_neighbor.size() - 1;
+			fname << "/tmp/independent_set_" << k << "_" << n << "_" << neighbors.size()/2 << ".metis.graph";
+			{
+				std::ofstream of(fname.str());
+
+				of << n << " " << neighbors.size()/2 << " 0" << std::endl;
 
 				for (size_t u = 0; u < n; ++u)
 				{
@@ -472,6 +560,15 @@ namespace Consumer
 				if (bound_updated.size() < bound_new.size())
 				{
 					bound_updated = bound_new;
+				}
+			}
+
+			if (false) {
+				Lower_Bound_Storage_type bound_kamis = independent_set_kamis(k, g, e);
+
+				if (bound_updated.size() < bound_kamis.size())
+				{
+					bound_updated = bound_kamis;
 				}
 			}
 
