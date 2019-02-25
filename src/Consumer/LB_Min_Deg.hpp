@@ -180,6 +180,8 @@ namespace Consumer
 			std::vector<std::vector<size_t>> candidates_per_pair;
 			std::vector<std::pair<VertexID, VertexID>> pairs;
 
+			std::vector<bool> is_candidate(forbidden_subgraphs.size(), false);
+
 			std::mt19937_64 gen(42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
 			std::uniform_real_distribution prob(.0, 1.0);
 
@@ -234,6 +236,8 @@ namespace Consumer
 							candidates_per_pair.emplace_back();
 							for (size_t cand : subgraphs_per_edge.at(p.first, p.second))
 							{
+								if (is_candidate[cand]) continue;
+
 								const auto cand_fs = forbidden_subgraphs[cand];
 								if (cand_fs == fs) continue;
 
@@ -246,7 +250,16 @@ namespace Consumer
 								{
 									candidates_per_pair.back().push_back(cand);
 									++num_candidates;
+									is_candidate[cand] = true;
 								}
+							}
+						}
+
+						for (const auto& candidates : candidates_per_pair)
+						{
+							for (size_t c : candidates)
+							{
+								is_candidate[c] = false;
 							}
 						}
 
