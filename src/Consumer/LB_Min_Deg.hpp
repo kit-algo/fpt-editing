@@ -110,7 +110,7 @@ namespace Consumer
 		}
 
 	private:
-		Lower_Bound_Storage_type initialize_lb_min_deg(size_t k, const Graph& g, const Graph_Edits& e, const std::vector<bool>& can_use)
+		Lower_Bound_Storage_type initialize_lb_min_deg(size_t k, const Graph& g, const Graph_Edits& e)
 		{
 			Lower_Bound_Storage_type result;
 
@@ -129,7 +129,6 @@ namespace Consumer
 			BucketPQ pq(forbidden_subgraphs.size(), 42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
 
 			for (size_t fsid = 0; fsid < forbidden_subgraphs.size(); ++fsid) {
-				if (!can_use[fsid]) continue;
 				const typename Lower_Bound_Storage_type::subgraph_t& fs = forbidden_subgraphs[fsid];
 
 				size_t neighbor_count = 0;
@@ -549,134 +548,56 @@ namespace Consumer
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			bool found_something = false;
-			size_t num_removed = 0;
-			Lower_Bound_Storage_type lb_offset;
-			std::vector<bool> can_use(forbidden_subgraphs.size(), true);
+			size_t num_cleared = 0;
+			subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, std::vector<size_t>& subgraphs) {
+				if (subgraphs.empty()) return;
 
-			do
-			{
+				auto fs = forbidden_subgraphs[subgraphs.front()];
 
-				found_something = false;
-				size_t num_cleared = 0;
-				subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, std::vector<size_t>& subgraphs) {
-					if (subgraphs.empty()) return;
+				if (u > v) std::swap(u, v);
 
-					auto fs = forbidden_subgraphs[subgraphs.front()];
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto xit, auto yit) {
+					size_t x = *xit, y = *yit;
+					if (x > y) std::swap(x, y);
+					if (u == x && v == y) return false;
 
-					if (u > v) std::swap(u, v);
-
-					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto xit, auto yit) {
-						size_t x = *xit, y = *yit;
-						if (x > y) std::swap(x, y);
-						if (u == x && v == y) return false;
-
-						std::vector<size_t> &inner_subgraphs = subgraphs_per_edge.at(x, y);
-						if (subgraphs.size() <= inner_subgraphs.size() && std::includes(inner_subgraphs.begin(), inner_subgraphs.end(), subgraphs.begin(), subgraphs.end()))
-						{
-							subgraphs.clear();
-							++num_cleared;
-							return true;
-						}
-
-						return false;
-					});
-				});
-
-
-				for (size_t i = 0; i < forbidden_subgraphs.size(); ++i)
-				{
-					if (!can_use[i]) continue;
-					auto fs = forbidden_subgraphs[i];
-
-					size_t num_pairs = 0;
-					std::pair<VertexID, VertexID> single_pair;
-					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-						if (!subgraphs_per_edge.at(*uit, *vit).empty())
-						{
-							++num_pairs;
-							single_pair = {*uit, *vit};
-						}
-
-						return false;
-					});
-
-					if (num_pairs == 1)
+					std::vector<size_t> &inner_subgraphs = subgraphs_per_edge.at(x, y);
+					if (subgraphs.size() <= inner_subgraphs.size() && std::includes(inner_subgraphs.begin(), inner_subgraphs.end(), subgraphs.begin(), subgraphs.end()))
 					{
-						lb_offset.get_bound().push_back(fs);
-
-						for (size_t fnid : subgraphs_per_edge.at(single_pair.first, single_pair.second))
-						{
-							num_removed += can_use[fnid];
-							can_use[fnid] = false;
-						}
-
-						found_something = true;
+						subgraphs.clear();
+						++num_cleared;
+						return true;
 					}
-				}
 
-				if (found_something)
-				{
-					subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, std::vector<size_t>& subgraphs) {
-						subgraphs.erase(std::remove_if(subgraphs.begin(), subgraphs.end(), [&](size_t fsid) { return !can_use[fsid]; }), subgraphs.end());
-					});
-				}
-			} while (found_something);
-
-			//std::cout << "k = " << k << ", lb offset: " << lb_offset.size() << ", removed " << num_removed << " of " << forbidden_subgraphs.size() << std::endl;
-
-			used_updated.clear();
-
-			for (const auto fs : lb_offset.get_bound())
-			{
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit)
-				{
-					used_updated.set_edge(*uit, *vit);
 					return false;
 				});
-			}
+			});
 
-			for (const auto fs : bound_updated.get_bound())
+			size_t num_single_pair = 0;
+			for (auto fs : forbidden_subgraphs)
 			{
-				if (!Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) { return used_updated.has_edge(*uit, *vit); }))
-				{
-					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit)
+				size_t num_pairs = 0;
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+					if (!subgraphs_per_edge.at(*uit, *vit).empty())
 					{
-						used_updated.set_edge(*uit, *vit);
-						return false;
-					});
+						++num_pairs;
+					}
 
-					lb_offset.get_bound().push_back(fs);
-				}
+					return false;
+				});
+				if (num_pairs == 1) ++num_single_pair;
 			}
 
-			bound_updated = lb_offset;
-
-			for (size_t i = 0; i < forbidden_subgraphs.size(); ++i)
-			{
-				if (!can_use[i]) continue;
-				auto fs = forbidden_subgraphs[i];
-
-				if (!Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) { return used_updated.has_edge(*uit, *vit); }))
-				{
-					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit)
-					{
-						used_updated.set_edge(*uit, *vit);
-						return false;
-					});
-
-					bound_updated.get_bound().push_back(fs);
-				}
-			}
+			std::cout << "k = " << k << ", cleared " << num_cleared << " node pairs, " << num_single_pair << " forbidden subgraphs share only a single pair" << std::endl;
 
 			if (k == 0 || bound_updated.size() <= k)
 			{
 				find_lb_2_improvements(k, g, e);
 			}
 
-			if (false)
+			if (initial_bound_empty)
 			{
-				Lower_Bound_Storage_type bound_new = initialize_lb_min_deg(k, g, e, can_use);
+				Lower_Bound_Storage_type bound_new = initialize_lb_min_deg(k, g, e);
 
 				if (bound_updated.size() < bound_new.size())
 				{
