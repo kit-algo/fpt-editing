@@ -264,7 +264,6 @@ namespace Consumer
 						}
 
 						const double prob_switch = 1.0 / num_candidates;
-						const double prob_noswitch = 0.5;
 
 						bool found_partner = false;
 
@@ -288,7 +287,7 @@ namespace Consumer
 									return false;
 								});
 
-								if (cand_pairs == 1 || (min_pairs > 1 && ((cand_neighbors < min_candidate_neighbors && prob(gen) > prob_noswitch) || prob(gen) < prob_switch )))
+								if (cand_pairs == 1 || (min_pairs > 1 && (cand_neighbors < min_candidate_neighbors || prob(gen) < prob_switch )))
 								{
 									min_pairs = cand_pairs;
 									min_candidate = cand_fs;
