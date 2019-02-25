@@ -548,48 +548,6 @@ namespace Consumer
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			size_t num_cleared = 0;
-			subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, std::vector<size_t>& subgraphs) {
-				if (subgraphs.empty()) return;
-
-				auto fs = forbidden_subgraphs[subgraphs.front()];
-
-				if (u > v) std::swap(u, v);
-
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto xit, auto yit) {
-					size_t x = *xit, y = *yit;
-					if (x > y) std::swap(x, y);
-					if (u == x && v == y) return false;
-
-					std::vector<size_t> &inner_subgraphs = subgraphs_per_edge.at(x, y);
-					if (subgraphs.size() <= inner_subgraphs.size() && std::includes(inner_subgraphs.begin(), inner_subgraphs.end(), subgraphs.begin(), subgraphs.end()))
-					{
-						subgraphs.clear();
-						++num_cleared;
-						return true;
-					}
-
-					return false;
-				});
-			});
-
-			size_t num_single_pair = 0;
-			for (auto fs : forbidden_subgraphs)
-			{
-				size_t num_pairs = 0;
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-					if (!subgraphs_per_edge.at(*uit, *vit).empty())
-					{
-						++num_pairs;
-					}
-
-					return false;
-				});
-				if (num_pairs == 1) ++num_single_pair;
-			}
-
-			std::cout << "k = " << k << ", cleared " << num_cleared << " node pairs, " << num_single_pair << " forbidden subgraphs share only a single pair" << std::endl;
-
 			if (k == 0 || bound_updated.size() <= k)
 			{
 				find_lb_2_improvements(k, g, e);
