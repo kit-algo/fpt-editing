@@ -565,7 +565,7 @@ namespace Consumer
 				find_lb_2_improvements(k, g, e);
 			}
 
-			if (initial_bound_empty)
+			if (false)
 			{
 				Lower_Bound_Storage_type bound_new = initialize_lb_min_deg(k, g, e);
 
