@@ -18,3 +18,4 @@ doc/**/*.blg
 doc/**/*.pdf
 doc/**/*.nav
 doc/**/*.snm
+/.ccls-cache
