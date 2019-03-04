@@ -29,6 +29,7 @@ namespace Consumer
 
 	private:
 		std::vector<typename Lower_Bound_Storage_type::subgraph_t> forbidden_subgraphs;
+		std::vector<bool> is_candidate;
 		Value_Matrix<std::vector<size_t>> subgraphs_per_edge;
 		size_t sum_subgraphs_per_edge;
 
@@ -180,7 +181,8 @@ namespace Consumer
 			std::vector<std::vector<size_t>> candidates_per_pair;
 			std::vector<std::pair<VertexID, VertexID>> pairs;
 
-			std::vector<bool> is_candidate(forbidden_subgraphs.size(), false);
+			is_candidate.clear();
+			is_candidate.resize(forbidden_subgraphs.size(), false);
 
 			std::mt19937_64 gen(42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
 			std::uniform_real_distribution prob(.0, 1.0);
