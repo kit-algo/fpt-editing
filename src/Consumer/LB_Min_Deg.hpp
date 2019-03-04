@@ -216,7 +216,7 @@ namespace Consumer
 					});
 
 					// Skip if this forbidden subgraph if it is the only one we can add.
-					if (pairs.size() > 1)
+					if (num_pairs > 1)
 					{
 						// Remove fs from lower bound
 						for (auto p : pairs)
