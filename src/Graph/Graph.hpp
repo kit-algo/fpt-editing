@@ -37,8 +37,6 @@ namespace Graph
 			g.set_edge(u, v);
 		}
 
-		std::cout << "n " << n << " m " << g.count_edges() << std::endl;
-
 		g.verify();
 		return g;
 	}
