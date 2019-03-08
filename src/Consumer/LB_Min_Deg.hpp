@@ -562,6 +562,34 @@ namespace Consumer
 			return result;
 		}
 
+		void clean_graph_structure(Graph const&g, Graph_Edits const &e)
+		{
+			size_t num_cleared = 0;
+			subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, std::vector<size_t>& subgraphs) {
+				if (subgraphs.empty()) return;
+
+				auto fs = forbidden_subgraphs[subgraphs.front()];
+
+				if (u > v) std::swap(u, v);
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto xit, auto yit) {
+					size_t x = *xit, y = *yit;
+					if (x > y) std::swap(x, y);
+					if (u == x && v == y) return false;
+
+					std::vector<size_t> &inner_subgraphs = subgraphs_per_edge.at(x, y);
+					if (subgraphs.size() <= inner_subgraphs.size() && std::includes(inner_subgraphs.begin(), inner_subgraphs.end(), subgraphs.begin(), subgraphs.end()))
+					{
+						subgraphs.clear();
+						++num_cleared;
+						return true;
+					}
+
+					return false;
+				});
+			});
+		}
+
 		void prepare_result(size_t k, Graph const &g, Graph_Edits const &e)
 		{
 			if (bound_calculated) return;
@@ -569,6 +597,8 @@ namespace Consumer
 
 			if (k == 0 || bound_updated.size() <= k)
 			{
+				// Seems to make results worse
+				//clean_graph_structure(g, e);
 				find_lb_2_improvements(k, g, e);
 			}
 
