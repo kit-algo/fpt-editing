@@ -226,10 +226,6 @@ namespace Consumer
 							used_updated.clear_edge(p.first, p.second);
 						}
 
-						size_t min_candidate_neighbors = num_neighbors;
-						auto min_candidate = fs;
-						size_t min_pairs = num_pairs;
-
 						size_t num_candidates = 0;
 
 						// Collect candidates
@@ -265,7 +261,12 @@ namespace Consumer
 							}
 						}
 
-						const double prob_switch = 1.0 / num_candidates;
+						const bool random_switch = prob(gen) < 0.3;
+						size_t min_candidate_neighbors = num_neighbors;
+						size_t num_candidates_considered = 0;
+
+						auto min_candidate = fs;
+						size_t min_pairs = num_pairs;
 
 						bool found_partner = false;
 
@@ -289,7 +290,11 @@ namespace Consumer
 									return false;
 								});
 
-								if (cand_pairs == 1 || (min_pairs > 1 && (cand_neighbors < min_candidate_neighbors || prob(gen) < prob_switch )))
+								++num_candidates_considered;
+
+								if (cand_pairs == 1 || (min_pairs > 1 && (
+													  (!random_switch && cand_neighbors < min_candidate_neighbors) ||
+													  (random_switch && prob(gen) < 1.0 / num_candidates_considered))))
 								{
 									min_pairs = cand_pairs;
 									min_candidate = cand_fs;
