@@ -21,7 +21,7 @@ void run(CMDOptions const &options)
 {
 	for(auto const &filename : options.filenames)
 	{
-		size_t graph_size = Graph::get_size(filename);
+		size_t graph_size = Graph::get_size(filename, options.edgelist);
 		for(auto const &e: options.combinations_edit) for(auto const &m: e.second) for(auto const &r: m.second) for(auto const &c: r.second) for(auto const &f: c.second) for(auto const &g: f.second) for(auto const &consumers: g.second)
 		{{
 			auto const &editor = e.first;
@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
 		{"threads", required_argument, NULL, 'j'},
 		{"repeat", required_argument, NULL, 'n'},
 		{"repeat-time", required_argument, NULL, 'N'},
+		// input
+		{"edgelist", no_argument, NULL, 'l'},
 		// output
 		{"no-write", no_argument, NULL, 'W'},
 		{"json", no_argument, NULL, 'J'},
@@ -85,7 +87,7 @@ int main(int argc, char *argv[])
 
 		{NULL, 0, NULL, 0}
 	};
-	char const *shortopts = "?k:K:at:T:j:n:N:WSJDX:{,}M:R:C:e:h:f:c:g:_";
+	char const *shortopts = "?k:K:at:T:j:n:N:lWSJDX:{,}M:R:C:e:h:f:c:g:_";
 
 	CMDOptions options;
 	bool usage = false;
@@ -206,6 +208,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'N':
 			options.repeat_time = std::stoull(optarg);
+			break;
+		case 'l':
+			options.edgelist = true;
 			break;
 		case 'W':
 			options.no_write = true;

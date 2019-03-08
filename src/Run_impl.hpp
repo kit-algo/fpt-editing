@@ -30,6 +30,7 @@
 
 #include "Editor/Editor.hpp"
 #include "Consumer/S_Single.hpp"
+#include "Graph/Graph.hpp"
 
 /* Helper template to remove Consumers without effect */
 template<bool S, bool LB, typename... TCon>
@@ -182,7 +183,7 @@ public:
 	{
 		using E = _E<F, G, GE, M, R, C, Con<G, GE, M, R, C, F::length>...>;
 
-		G graph = Graph::readMetis<G>(filename);
+		G graph = options.edgelist ? Graph::readEdgeList<G>(filename) : Graph::readMetis<G>(filename);
 		Graph::writeDot(filename + ".gv", graph);
 		G g_orig = graph;
 		GE edited(graph.size());

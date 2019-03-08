@@ -14,7 +14,34 @@
 namespace Graph
 {
 	/** Number of vertices in the graph stored in filename */
-	uint64_t get_size(std::string const &filename);
+	uint64_t get_size(std::string const &filename, bool edgelist);
+
+	/** reads a graph in METIS format */
+	template<typename Graph>
+	Graph readEdgeList(std::string const &filename)
+	{
+		size_t n = get_size(filename, true);
+
+		if(n > std::numeric_limits<VertexID>::max())
+		{
+			throw std::range_error(std::string("Graph has too many vertices: ") + filename);
+		}
+
+		Graph g(n);
+
+		std::ifstream f(filename);
+
+		uint64_t u, v;
+		while(f >> u >> v)
+		{
+			g.set_edge(u, v);
+		}
+
+		std::cout << "n " << n << " m " << g.count_edges() << std::endl;
+
+		g.verify();
+		return g;
+	}
 
 	/** reads a graph in METIS format */
 	template<typename Graph>

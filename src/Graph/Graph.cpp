@@ -7,7 +7,7 @@
 
 #include "Graph.hpp"
 
-uint64_t Graph::get_size(std::string const &filename)
+uint64_t Graph::get_size(std::string const &filename, bool edgelist)
 {
 	std::ifstream f(filename);
 	std::string line;
@@ -16,6 +16,18 @@ uint64_t Graph::get_size(std::string const &filename)
 	if(!f)
 	{
 		throw std::runtime_error(std::string("Error opening file: ") + filename);
+	}
+
+	if (edgelist)
+	{
+		uint64_t n = 0;
+		uint64_t u, v;
+		while(f >> u >> v)
+		{
+			n = std::max(n, std::max(u, v));
+		}
+
+		return n + 1;
 	}
 
 	while(std::getline(f, line))
