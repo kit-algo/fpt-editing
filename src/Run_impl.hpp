@@ -261,6 +261,7 @@ public:
 				{
 					std::ostringstream json;
 					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"permutation\":" << options.permutation << ",";
+					json << "\"n\":" << static_cast<size_t>(input_graph.size()) << ",\"m\":" << input_graph.count_edges() << ",";
 					json << "\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"k\":" << +k << ",";
 					json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed_print;
 #ifdef STATS
