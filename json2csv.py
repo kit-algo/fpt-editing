@@ -19,8 +19,13 @@ algos = {'MT-Edit-Redundant-Skip-Center_Edits_Sparse_4-Single_Heur-Matrix' : 'Si
          'MT-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
          'ST-Edit-None-Normal-Center_4-First-No-Matrix' : 'Base',
          'ST-Edit-Redundant-Normal-Center_4-First-Updated-Matrix' : 'Lower Bound',
+         'ST-Edit-Redundant-Normal-Center_4-First-Min_Deg-Matrix' : 'Lower Bound',
          'ST-Edit-Redundant-Skip-Center_4-First-Updated-Matrix' : 'Skip Conversion',
          'ST-Edit-Redundant-Skip-Center_4-Least-Updated-Matrix' : 'Least Editable',
+         'ST-Edit-Redundant-Skip-Center_4-Least-Min_Deg-Matrix' : 'Least Editable',
+         'ST-Edit-Redundant-Skip-Center_4-Most-Min_Deg-Matrix' : 'Most Forbidden',
+         'ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Min_Deg-Matrix' : 'Early Pruning',
+         'ST-Edit-Redundant-Skip-Center_4-Single_Most-Min_Deg-Matrix' : 'Single (Most Forbidden)',
          #'ST-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
          #'ST-Edit-Redundant-Skip-Center_5-Single_Heur-Matrix' : 'Single',
          'ST-Edit-Redundant-Skip-Center_4-Single_Heur-Matrix' : 'Single',
@@ -39,29 +44,22 @@ def load_json(jsonfile):
         if not 'k' in experiment or not 'time' in experiment['results'] or not 'solved' in experiment['results']:
             continue
 
-
-        exp_dict = dict()
-
-        g = experiment['graph']
-
-        gm = re.match("(graphs|data)/(.*).permutate.*\.n([0-9]*)\..*$", g)
-        exp_dict["Graph"] = gm[2]
-        exp_dict["Permutation"] = int(gm[3])
-
         a = experiment['algo']
         if not a in algos:
             continue
 
-        g_path = g.replace(gm[1], "{}/data".format(json_dir))
-        with open(g_path, 'r') as f:
-            n, m, _ = f.readline().strip().split(maxsplit=3)
-
-        exp_dict["n"] = int(n)
-        exp_dict["m"] = int(m)
-
-        exp_dict["l"] = 4 if "4" in a else 5
-
+        exp_dict = dict()
         exp_dict["Algorithm"] = algos[a]
+        exp_dict["l"] = 4 if "4" in a else 5
+        exp_dict['MT'] = ('MT' in a)
+
+        g = experiment['graph']
+
+        exp_dict["Graph"], _ = os.path.splitext(os.path.basename(g))
+        exp_dict["Permutation"] = experiment['permutation']
+
+        exp_dict["n"] = experiment['n']
+        exp_dict["m"] = experiment['m']
 
         exp_dict["Threads"] = experiment['threads']
         exp_dict["k"] = experiment['k']
@@ -82,18 +80,15 @@ def get_scaling(row, df, measure):
     if row is None or not 'k' in row:
         return math.nan
 
-    previous = df[(df.Graph == row['Graph']) &
-                  (df.Permutation == row['Permutation']) &
-                  (df.Algorithm == row['Algorithm']) &
-                  (df.Threads == row['Threads']) &
-                  (df.l == row['l']) &
-                  (df.k == (row['k'] - 1))]
+    key = (row['Graph'], row['Permutation'], row['Algorithm'], row['MT'], row['Threads'], row['l'], row['k'] - 1)
 
-    if len(previous) > 1:
-        print("Found too many rows: {}".format(previous))
-        return math.nan
+    if key in df.groups:
+        previous = df.get_group(key)
 
-    if len(previous) > 0:
+        if len(previous) > 1:
+            print("Found too many rows: {}".format(previous))
+            return math.nan
+
         return row[measure] / previous[measure].values[0]
 
     return math.nan
@@ -102,15 +97,7 @@ def get_speedup(row, df):
     if row is None or not 'k' in row:
         return math.nan
 
-    if row['Threads'] == 1:
-        return 1
-
-    st_row = df[(df.Graph == row['Graph']) &
-                (df.Permutation == row['Permutation']) &
-                (df.Algorithm == row['Algorithm']) &
-                (df.Threads == 1) &
-                (df.l == row['l']) &
-                (df.k == row['k'])]
+    st_row = df.get_group((row['Graph'], row['Permutation'], row['Algorithm'], False, 1, row['l'], row['k']))
 
     if len(st_row) == 0:
         return math.nan
@@ -129,9 +116,11 @@ if __name__ == "__main__":
 
     df = load_json(args.json)
 
-    df['Scaling Factor Time'] = df.apply(get_scaling, axis=1, df=df, measure="Time [s]")
-    df['Scaling Factor Calls'] = df.apply(get_scaling, axis=1, df=df, measure="Calls")
-    df['Speedup'] = df.apply(get_speedup, axis=1, df=df)
+    grouped_df = df.groupby(['Graph', 'Permutation', 'Algorithm', 'MT', 'Threads', 'l', 'k'])
+
+    df['Scaling Factor Time'] = df.apply(get_scaling, axis=1, df=grouped_df, measure="Time [s]")
+    df['Scaling Factor Calls'] = df.apply(get_scaling, axis=1, df=grouped_df, measure="Calls")
+    df['Speedup'] = df.apply(get_speedup, axis=1, df=grouped_df)
     df['Efficiency'] = df['Speedup']/df['Threads']
 
     df.to_csv(args.csv)
