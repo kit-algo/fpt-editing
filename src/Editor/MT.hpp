@@ -376,7 +376,7 @@ namespace Editor
 							++calls[k];
 							++extra_lbs[k];
 #endif
-							feeder.feed(k, graph, edited, no_edits_left, lb_counter > 0 ? path.back().updated_lower_bounds.back() : path.back().lower_bound);
+							lb_feeder.feed(k, graph, edited, no_edits_left, lb_counter > 0 ? path.back().updated_lower_bounds.back() : path.back().lower_bound);
 							if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 							{
 								problem.vertex_pairs.erase(problem.vertex_pairs.begin() + i, problem.vertex_pairs.end());
