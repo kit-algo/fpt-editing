@@ -193,35 +193,23 @@ public:
 		std::tuple<Con<G, GE, M, R, C, F::length> &...> consumer_ref = Util::MakeTupleRef(consumer);
 		E editor(finder, graph, consumer_ref, options.threads);
 
-		// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
-		Finder::Feeder<F, G, GE, typename E::Lower_Bound_type> feeder(finder, std::get<E::lb>(consumer));
-		feeder.feed(0, graph, edited, 0, typename E::Lower_Bound_Storage_type());
-		size_t bound = std::get<E::lb>(consumer).result(0, graph, edited, Options::Tag::Lower_Bound());
-
 		// warmup
 		if(options.do_warmup)
 		{
 			/* CPUs are weird...
 			 * executing dry runs or even NOPs(!) for a few seconds reduces the running time significantly
 			 */
+			std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 			std::chrono::steady_clock::duration repeat_total_time(0);
 			do
 			{
-				std::chrono::steady_clock::time_point t1, t2;
-				auto writegraph = [](G const &, GE const &) -> bool
-				{
-					return true;
-				};
-				t1 = std::chrono::steady_clock::now();
-				editor.edit(bound, writegraph);
-				t2 = std::chrono::steady_clock::now();
-				auto time_passed = t2 - t1;
-				repeat_total_time += time_passed;
+				std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+				repeat_total_time = t2 - t1;
 			} while(std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < 10);
 		}
 
-		// actual experiment
-		for(size_t k = std::max(bound, options.k_min); !options.k_max || k <= options.k_max; k++)
+                // actual experiment
+		for(size_t k = options.k_min; !options.k_max || k <= options.k_max; k++)
 		{
 			bool repeat_solved = false;
 			size_t repeat_n = 0;

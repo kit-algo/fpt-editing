@@ -595,7 +595,7 @@ namespace Consumer
 			if (bound_calculated) return;
 			bound_calculated = true;
 
-			if (k == 0 || bound_updated.size() <= k)
+			if (bound_updated.size() <= k)
 			{
 				// Seems to make results worse
 				//clean_graph_structure(g, e);
