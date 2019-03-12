@@ -183,9 +183,18 @@ public:
 	{
 		using E = _E<F, G, GE, M, R, C, Con<G, GE, M, R, C, F::length>...>;
 
-		G graph = options.edgelist ? Graph::readEdgeList<G>(filename) : Graph::readMetis<G>(filename);
-		Graph::writeDot(filename + ".gv", graph);
-		G g_orig = graph;
+		G input_graph = options.edgelist ? Graph::readEdgeList<G>(filename) : Graph::readMetis<G>(filename);
+		if (!options.no_write)
+		{
+			Graph::writeDot(filename + ".gv", input_graph);
+		}
+
+		// permute node ids
+		const std::vector<VertexID> permutation = Graph::generate_permutation(input_graph, options.permutation);
+		const std::vector<VertexID> reverse_permutation = Graph::invert_permutation(permutation);
+		G graph = Graph::apply_permutation(input_graph, permutation);
+
+		const G g_orig = graph;
 		GE edited(graph.size());
 
 		F finder(graph.size());
@@ -225,11 +234,14 @@ public:
 					{
 						std::ostringstream fname;
 						fname << filename << ".e." << name() << ".k" << k << ".w" << writecount;
-						Graph::writeMetis(fname.str(), graph);
-						Graph::writeDot(fname.str() + ".gv", graph);
-						Graph::writeMetis(fname.str() + ".edits", edited);
-						Graph::writeDot(fname.str() + ".edits.gv", edited);
-						Graph::writeDotCombined(fname.str() + ".combined.gv", graph, edited, g_orig);
+
+						G graph_orig_ids = Graph::apply_permutation(graph, reverse_permutation);
+						GE edited_orig_ids = Graph::apply_permutation(edited, reverse_permutation);
+						Graph::writeMetis(fname.str(), graph_orig_ids);
+						Graph::writeDot(fname.str() + ".gv", graph_orig_ids);
+						Graph::writeMetis(fname.str() + ".edits", edited_orig_ids);
+						Graph::writeDot(fname.str() + ".edits.gv", edited_orig_ids);
+						Graph::writeDotCombined(fname.str() + ".combined.gv", graph_orig_ids, edited_orig_ids, input_graph);
 					}
 					writecount++;
 					return options.all_solutions;
@@ -248,7 +260,8 @@ public:
 				if(options.stats_json)
 				{
 					std::ostringstream json;
-					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"k\":" << +k << ",";
+					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"permutation\":" << options.permutation << ",";
+					json << "\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"k\":" << +k << ",";
 					json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed_print;
 #ifdef STATS
 					json << ",\"counters\":{";
@@ -278,7 +291,7 @@ public:
 					if(!stats.empty())
 					{
 						// print stats table with aligned columns
-						std::cout << '\n' << filename << ": (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << '\n';
+						std::cout << '\n' << filename << " (permutation: " << options.permutation << "): (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << '\n';
 						std::map<std::string, std::ostringstream> output;
 						{
 							// header cloumn: find longest name
@@ -320,7 +333,7 @@ public:
 						}
 					}
 #endif
-					std::cout << filename << ": (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]\n";
+					std::cout << filename << " (permutation: " << options.permutation << "): (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]\n";
 					if(solved && options.all_solutions)
 					{
 						std::cout << writecount << " solutions\n";

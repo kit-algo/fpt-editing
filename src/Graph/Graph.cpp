@@ -44,3 +44,15 @@ uint64_t Graph::get_size(std::string const &filename, bool edgelist)
 	linestream >> n;
 	return n;
 }
+
+std::vector<VertexID> Graph::invert_permutation(const std::vector<VertexID> &permutation)
+{
+	std::vector<VertexID> result(permutation.size());
+
+	for (VertexID u = 0; u < permutation.size(); ++u)
+	{
+		result[permutation[u]] = u;
+	}
+
+	return result;
+}

@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
 		{"repeat-time", required_argument, NULL, 'N'},
 		// input
 		{"edgelist", no_argument, NULL, 'l'},
+		{"permutation", required_argument, NULL, 'P'},
 		// output
 		{"no-write", no_argument, NULL, 'W'},
 		{"json", no_argument, NULL, 'J'},
@@ -87,7 +88,7 @@ int main(int argc, char *argv[])
 
 		{NULL, 0, NULL, 0}
 	};
-	char const *shortopts = "?k:K:at:T:j:n:N:lWSJDX:{,}M:R:C:e:h:f:c:g:_";
+	char const *shortopts = "?k:K:at:T:j:n:N:lP:WSJDX:{,}M:R:C:e:h:f:c:g:_";
 
 	CMDOptions options;
 	bool usage = false;
@@ -212,6 +213,9 @@ int main(int argc, char *argv[])
 		case 'l':
 			options.edgelist = true;
 			break;
+		case 'P':
+			options.permutation = std::stoull(optarg);
+			break;
 		case 'W':
 			options.no_write = true;
 			break;
@@ -284,6 +288,8 @@ int main(int argc, char *argv[])
 			<< "  -n --repeats <number>: Repeat each experiment n times\n"
 			<< "  -N --repeat-time <number>: Repeat each experiment for N seconds\n"
 			<< "  -D --warmup: Spend some time before each set of experiments in dry-runs\n"
+			<< "  -l --edge-list: Graph is in edge list format \n"
+			<< "  -P --permutation <number>: Seed for the random permutation of node ids, 0 (default) disables permutation. \n"
 			<< "  -a --all: Find all solutions, not just the first one\n"
 			<< "  -W --no-write: Do not write solutions to disk\n"
 			<< "  -J --json: Output results as JSON fragment\n\n"
@@ -291,7 +297,7 @@ int main(int argc, char *argv[])
 			//<< "    Select an algorithm\n"
 			<< "    All options take the name of an algorithm as argument; use \"list\" to show available ones, \"all\" to select all\n"
 			<< "  You can group algorithm choices with -{ --{ / -, --, / -} --} in a shell-like manner\n"
-			<< "Graphs need to be in METIS format.\n"
+			<< "Graphs need to be in METIS format unless -l is given.\n"
 		;
 		std::cerr << std::endl;
 	}

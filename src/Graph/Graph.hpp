@@ -3,6 +3,9 @@
 
 #include <assert.h>
 
+#include <vector>
+#include <random>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -194,6 +197,48 @@ namespace Graph
 		}
 		f << "}\n";
 	}
+
+	/**
+	 * Generate a random permutation of node ids for the given Graph @a g and seed @as seed.
+	 *
+	 * @param g    The graph to generate the permutation for.
+	 * @param seed The random seed to use. 0 generates the identity permutation.
+	 */
+	template <typename Graph>
+	std::vector<VertexID> generate_permutation(const Graph &g, size_t seed)
+	{
+		std::vector<VertexID> result(g.size());
+		for (VertexID u = 0; u < g.size(); ++u)
+		{
+			result[u] = u;
+		}
+
+		if (seed != 0)
+		{
+			std::mt19937_64 gen(seed);
+			std::shuffle(result.begin(), result.end(), gen);
+		}
+
+		return result;
+	}
+
+	template <typename Graph>
+	Graph apply_permutation(const Graph &g, const std::vector<VertexID> &permutation)
+	{
+		Graph result(g.size());
+
+		for (VertexID u = 0; u < g.size(); ++u)
+		{
+			for (VertexID v : g.get_neighbours(u))
+			{
+				result.set_edge(permutation[u], permutation[v]);
+			}
+		}
+
+		return result;
+	}
+
+	std::vector<VertexID> invert_permutation(const std::vector<VertexID> &permutation);
 }
 
 #endif

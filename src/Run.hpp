@@ -30,6 +30,7 @@ struct CMDOptions {
 	// graphs
 	std::vector<std::string> filenames;
 	bool edgelist = false;
+	size_t permutation = 0;
 	// used to show current experiment in child's cmdline
 	int argc = 0;
 	char **argv = NULL;
