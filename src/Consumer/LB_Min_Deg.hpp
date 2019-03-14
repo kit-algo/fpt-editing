@@ -29,7 +29,6 @@ namespace Consumer
 
 	private:
 		std::vector<typename Lower_Bound_Storage_type::subgraph_t> forbidden_subgraphs;
-		std::vector<bool> is_candidate;
 		Value_Matrix<std::vector<size_t>> subgraphs_per_edge;
 		size_t sum_subgraphs_per_edge;
 
@@ -181,9 +180,6 @@ namespace Consumer
 			std::vector<std::vector<size_t>> candidates_per_pair;
 			std::vector<std::pair<VertexID, VertexID>> pairs;
 
-			is_candidate.clear();
-			is_candidate.resize(forbidden_subgraphs.size(), false);
-
 			std::mt19937_64 gen(42 * forbidden_subgraphs.size() + sum_subgraphs_per_edge);
 			std::uniform_real_distribution prob(.0, 1.0);
 
@@ -234,8 +230,6 @@ namespace Consumer
 							candidates_per_pair.emplace_back();
 							for (size_t cand : subgraphs_per_edge.at(p.first, p.second))
 							{
-								if (is_candidate[cand]) continue;
-
 								const auto cand_fs = forbidden_subgraphs[cand];
 								if (cand_fs == fs) continue;
 
@@ -248,17 +242,18 @@ namespace Consumer
 								{
 									candidates_per_pair.back().push_back(cand);
 									++num_candidates;
-									is_candidate[cand] = true;
 								}
 							}
+
+							// Set node pair to avoid getting the same candidates twice.
+							// WARNING: this assumes all candidates are listed for all node pairs, i.e., clean_graph_structure has not been called!
+							used_updated.set_edge(p.first, p.second);
 						}
 
-						for (const auto& candidates : candidates_per_pair)
+						// Remove fs again from lower bound
+						for (auto p : pairs)
 						{
-							for (size_t c : candidates)
-							{
-								is_candidate[c] = false;
-							}
+							used_updated.clear_edge(p.first, p.second);
 						}
 
 						const bool random_switch = prob(gen) < 0.3;
