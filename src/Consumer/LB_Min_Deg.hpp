@@ -222,8 +222,6 @@ namespace Consumer
 							used_updated.clear_edge(p.first, p.second);
 						}
 
-						size_t num_candidates = 0;
-
 						// Collect candidates
 						for (auto p : pairs)
 						{
@@ -241,7 +239,6 @@ namespace Consumer
 								if (!touches_bound)
 								{
 									candidates_per_pair.back().push_back(cand);
-									++num_candidates;
 								}
 							}
 
