@@ -31,29 +31,47 @@ namespace Finder
 			std::vector<VertexID> path(length);
 
 			Packed *f = forbidden.data() + (length / 2 - 2) * graph.get_row_length();
-			if(length & 1U)
+			if(length & 1U) // uneven length
 			{
 				// does not work for length == 3
 				for(VertexID u = 0; u < graph.size(); u++)
 				{
+					// Mark u and neighbors of u in f
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
 						f[i] = graph.get_row(u)[i];
 					}
 					f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
+					// Store u as central node
 					path[length / 2] = u;
+					// For all neighbors vf of u
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(u)[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+						for(Packed curf = graph.get_row(u)[i]; curf;)
 						{
-							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
+							const VertexID lzcurf = PACKED_CTZ(curf);
+							const VertexID vf = lzcurf + i * Packed_Bits;
+							// Remove the bit of vf from curf
+							curf &= ~(Packed(1) << lzcurf);
+
 							path[length / 2 - 1] = vf;
+							// For all neighbors vb of u with vf < vb and (vf, vb) is not an edge
+							// Start iteration at block j = i
 							for(size_t j = i; j < graph.get_row_length(); j++)
 							{
-								for(Packed curb = j == i? curf & ~(Packed(1) << PACKED_CTZ(curf)) : graph.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+								// For the first block, we can use curf (vf is already removed), otherwise get the block
+								Packed curb = j == i? curf : graph.get_row(u)[j];
+
+								// Exclude neighbors of vf
+								curb &= ~(graph.get_row(vf)[j]);
+
+								while (curb)
 								{
-									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-									if(graph.has_edge(vf, vb)) {continue;}
+									const VertexID lzcurb = PACKED_CTZ(curb);
+									const VertexID vb = lzcurb + j * Packed_Bits;
+									// Remove the bit of vb from curb
+									curb &= ~(Packed(1) << lzcurb);
+
 									path[length / 2 + 1] = vb;
 									if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1, false>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
 								}
@@ -64,18 +82,27 @@ namespace Finder
 			}
 			else
 			{
-				for(VertexID u = 0; u < graph.size(); u++)
+				for(VertexID u = 0; u < graph.size(); u++) // outer loop: first node u
 				{
+					// Set bit u in f
 					f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 					path[length / 2 - 1] = u;
+					// Second loop: second node v with u < v
+					// First half of outer loop: explore packed neighbors >= u
 					for(size_t i = u / Packed_Bits; i < graph.get_row_length(); i++)// double exploration: i = 0  cur = graph.get_row(u)[i]
 					{
+						// Second half: explore actual neighbors v.
+						// For first Packed item (i == u / Packed_Bits) (that contains u), mask all bits up to (and including) position u (% Packed_Bits)
+						// So basically these two loops are graph.next_neighbor(u, v), where v is initially u.
 						for(Packed cur = i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 						{
 							VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
+							// Set bit v in f
 							f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
+							// Path now contains the two node u and v
 							if(Find_Rec<Feeder, length / 2 - 1, length / 2, false>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
+							// Unset v in f
 							f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 						}
 					}
@@ -241,18 +268,27 @@ namespace Finder
 				if(lf == 1)
 				{
 					/* last vertices */
+					// Find two vertices vf/vb that are adjacent to uf/ub but not adjacent to ub/uf and that are not marked in f
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf;)
 						{
-							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
+							const VertexID lzcurf = PACKED_CTZ(curf);
+							// Unset bit of vf in curf to advance loop
+							curf &= ~(Packed(1) << lzcurf);
+							const VertexID vf = lzcurf + i * Packed_Bits;
+
 							path[lf - 1] = vf;
 							for(size_t j = 0; j < graph.get_row_length(); j++)
 							{
-								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb;)
 								{
-									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-									if(vf == vb) {continue;}
+									const VertexID lzcurb = PACKED_CTZ(curb);
+									// Unset bit of vb in curb to advance loop
+									curb &= ~(Packed(1) << lzcurb);
+									const VertexID vb = lzcurb + j * Packed_Bits;
+									// Due to the exclusion of the neighborhood of ub/uf, the two vertices cannot be adjacent
+									assert (vf != vb);
 									path[lb + 1] = vb;
 									if(feeder.callback(graph, edited, path.cbegin(), path.cend())) {return true;}
 								}
