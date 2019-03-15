@@ -228,29 +228,52 @@ namespace Finder
 		public:
 			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
 			{
+				static_assert(lf > 0);
 				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
-				Packed *nf = f - graph.get_row_length();
 				VertexID &uf = path[lf];
 				VertexID &ub = path[lb];
 
 				{
-					for(size_t i = 0; i < graph.get_row_length(); i++)
+					if constexpr (lf > 1)
 					{
-						nf[i] = graph.get_row(uf)[i] | graph.get_row(ub)[i] | f[i];
-					}
-					for(size_t i = 0; i < graph.get_row_length(); i++)
-					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
+						Packed *nf = f - graph.get_row_length();
+						for(size_t i = 0; i < graph.get_row_length(); i++)
 						{
-							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
+							nf[i] = graph.get_row(uf)[i] | graph.get_row(ub)[i] | f[i];
+						}
+					}
+
+					// Find two vertices vf/vb that are adjacent to uf/ub but not adjacent to ub/uf and that are not marked in f
+					for(size_t i = 0; i < graph.get_row_length(); i++)
+					{
+						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf;)
+						{
+							const VertexID lzcurf = PACKED_CTZ(curf);
+							// Unset bit of vf in curf to advance loop
+							curf &= ~(Packed(1) << lzcurf);
+							const VertexID vf = lzcurf + i * Packed_Bits;
+
 							path[lf - 1] = vf;
 							for(size_t j = 0; j < graph.get_row_length(); j++)
 							{
-								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
+								Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j];
+								if constexpr (lf > 1)
 								{
-									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-									if(vf == vb || graph.has_edge(vf, vb)) {continue;}
+									// ensure there is no edge vf, vb by excluding neighbors of vf
+									curb &= ~graph.get_row(vf)[j];
+								}
+								while (curb)
+								{
+									const VertexID lzcurb = PACKED_CTZ(curb);
+									// Unset bit of vb in curb to advance loop
+									curb &= ~(Packed(1) << lzcurb);
+									const VertexID vb = lzcurb + j * Packed_Bits;
+
+									// Due to the exclusion of the neighborhood of ub/uf, the two vertices cannot be the same
+									// Further, we have ensured that there is no edge between ub and uf if lf > 1.
+									assert(vf != vb && (lf == 1 || !graph.has_edge(vf, vb)));
 									path[lb + 1] = vb;
+
 									if(Find_Rec<F, lf - 1, lb + 1>::find_rec(graph, path, forbidden, callback))
 									{
 										return true;
@@ -265,51 +288,15 @@ namespace Finder
 		};
 
 		template<typename F, size_t lb>
-		class Find_Rec<F, 1, lb>
+		class Find_Rec<F, 0, lb>
 		{
 		public:
-			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
+			static bool find_rec(Graph const &, std::vector<VertexID> &path, std::vector<Packed> &, F &callback)
 			{
-				constexpr size_t lf = 1;
-				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
-				//Packed *nf = f - graph.get_row_length();
-				VertexID &uf = path[lf];
-				VertexID &ub = path[lb];
-
-				if(lf == 1)
-				{
-					/* last vertices */
-					// Find two vertices vf/vb that are adjacent to uf/ub but not adjacent to ub/uf and that are not marked in f
-					for(size_t i = 0; i < graph.get_row_length(); i++)
-					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf;)
-						{
-							const VertexID lzcurf = PACKED_CTZ(curf);
-							// Unset bit of vf in curf to advance loop
-							curf &= ~(Packed(1) << lzcurf);
-							const VertexID vf = lzcurf + i * Packed_Bits;
-
-							path[lf - 1] = vf;
-							for(size_t j = 0; j < graph.get_row_length(); j++)
-							{
-								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb;)
-								{
-									const VertexID lzcurb = PACKED_CTZ(curb);
-									// Unset bit of vb in curb to advance loop
-									curb &= ~(Packed(1) << lzcurb);
-									const VertexID vb = lzcurb + j * Packed_Bits;
-									// Due to the exclusion of the neighborhood of ub/uf, the two vertices cannot be adjacent
-									assert (vf != vb);
-									path[lb + 1] = vb;
-									if(callback(path.cbegin(), path.cend())) {return true;}
-								}
-							}
-						}
-					}
-				}
-				return false;
+				return callback(path.cbegin(), path.cend());
 			}
 		};
+
 	};
 
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
