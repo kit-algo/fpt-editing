@@ -12,7 +12,7 @@ namespace Finder
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t _length>
 	class Center
 	{
-		static_assert(_length > 3, "Can only detect path/cycles with at least 4 vertices");
+		static_assert(_length > 1, "Can only detect path/cycles with at least 2 vertices");
 
 	public:
 		static constexpr char const *name = "Center";
@@ -42,12 +42,15 @@ namespace Finder
 				// does not work for length == 3
 				for(VertexID u = 0; u < graph.size(); u++)
 				{
-					// Mark u and neighbors of u in f
-					for(size_t i = 0; i < graph.get_row_length(); i++)
+					if constexpr (length > 3)
 					{
-						f[i] = graph.get_row(u)[i];
+						// Mark u and neighbors of u in f
+						for(size_t i = 0; i < graph.get_row_length(); i++)
+						{
+							f[i] = graph.get_row(u)[i];
+						}
+						f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 					}
-					f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 					// Store u as central node
 					path[length / 2] = u;
 					// For all neighbors vf of u
@@ -91,7 +94,7 @@ namespace Finder
 				for(VertexID u = 0; u < graph.size(); u++) // outer loop: first node u
 				{
 					// Set bit u in f
-					f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
+					if constexpr (length > 2) f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 					path[length / 2 - 1] = u;
 					// Second loop: second node v with u < v
 					// First half of outer loop: explore packed neighbors >= u
@@ -104,15 +107,15 @@ namespace Finder
 						{
 							VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
 							// Set bit v in f
-							f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
+							if constexpr (length > 2) f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
 							// Path now contains the two node u and v
 							if(Find_Rec<decltype(callback), length / 2 - 1, length / 2>::find_rec(graph, path, forbidden, callback)) {return;}
 							// Unset v in f
-							f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
+							if constexpr (length > 2) f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 						}
 					}
-					f[u / Packed_Bits] = 0;
+					if constexpr (length > 2) f[u / Packed_Bits] = 0;
 				}
 			}
 		}
