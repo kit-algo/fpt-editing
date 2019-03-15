@@ -36,7 +36,8 @@ namespace Finder
 					};
 
 			Packed *f = forbidden.data() + (length / 2 - 2) * graph.get_row_length();
-			if(length & 1U) // uneven length
+			// Note: if constexpr here avoids instantiation of the wrong recursion with wrong base case
+			if constexpr (length & 1U) // uneven length
 			{
 				// does not work for length == 3
 				for(VertexID u = 0; u < graph.size(); u++)
@@ -159,7 +160,7 @@ namespace Finder
 				}
 			}
 
-			if(length & 1U)
+			if constexpr (length & 1U)
 			{
 				// does not work for length == 3
 				for(size_t ii = 0; ii < graph.get_row_length(); ii++)
@@ -287,8 +288,8 @@ namespace Finder
 			}
 		};
 
-		template<typename F, size_t lb>
-		class Find_Rec<F, 0, lb>
+		template<typename F>
+		class Find_Rec<F, 0, length - 1>
 		{
 		public:
 			static bool find_rec(Graph const &, std::vector<VertexID> &path, std::vector<Packed> &, F &callback)
