@@ -30,6 +30,11 @@ namespace Finder
 			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
 			std::vector<VertexID> path(length);
 
+			auto callback = [&feeder, &graph, &edited](std::vector<VertexID>::const_iterator uit, std::vector<VertexID>::const_iterator vit) -> bool
+					{
+						return feeder.callback(graph, edited, uit, vit);
+					};
+
 			Packed *f = forbidden.data() + (length / 2 - 2) * graph.get_row_length();
 			if(length & 1U) // uneven length
 			{
@@ -73,7 +78,7 @@ namespace Finder
 									curb &= ~(Packed(1) << lzcurb);
 
 									path[length / 2 + 1] = vb;
-									if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1, false>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
+									if(Find_Rec<decltype(callback), length / 2 - 1, length / 2 + 1>::find_rec(graph, path, forbidden, callback)) {return;}
 								}
 							}
 						}
@@ -101,7 +106,7 @@ namespace Finder
 							f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
 							// Path now contains the two node u and v
-							if(Find_Rec<Feeder, length / 2 - 1, length / 2, false>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
+							if(Find_Rec<decltype(callback), length / 2 - 1, length / 2>::find_rec(graph, path, forbidden, callback)) {return;}
 							// Unset v in f
 							f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 						}
@@ -116,6 +121,12 @@ namespace Finder
 		{
 			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
 			std::vector<VertexID> path(length);
+
+			auto callback = [&feeder, &graph, &edited](std::vector<VertexID>::const_iterator uit, std::vector<VertexID>::const_iterator vit) -> bool
+					{
+						return feeder.callback_near(graph, edited, uit, vit);
+					};
+
 
 			Packed *f = forbidden.data() + (length / 2 - 2) * graph.get_row_length();
 			/* only search for forbidden subgraphs near u-v
@@ -175,7 +186,7 @@ namespace Finder
 										VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 										if(graph.has_edge(vf, vb)) {continue;}
 										path[length / 2 + 1] = vb;
-										if(Find_Rec<Feeder, length / 2 - 1, length / 2 + 1, true>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
+										if(Find_Rec<decltype(callback), length / 2 - 1, length / 2 + 1>::find_rec(graph, path, forbidden, callback)) {return;}
 									}
 								}
 							}
@@ -199,7 +210,7 @@ namespace Finder
 								VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
 								f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 								path[length / 2] = v;
-								if(Find_Rec<Feeder, length / 2 - 1, length / 2, true>::find_rec(graph, edited, path, forbidden, feeder)) {return;}
+								if(Find_Rec<decltype(callback), length / 2 - 1, length / 2>::find_rec(graph, path, forbidden, callback)) {return;}
 								f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 							}
 						}
@@ -211,11 +222,11 @@ namespace Finder
 
 	private:
 
-		template<typename Feeder, size_t lf, size_t lb, bool near>
+		template<typename F, size_t lf, size_t lb>
 		class Find_Rec
 		{
 		public:
-			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder)
+			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
 			{
 				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
 				Packed *nf = f - graph.get_row_length();
@@ -240,7 +251,7 @@ namespace Finder
 									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
 									if(vf == vb || graph.has_edge(vf, vb)) {continue;}
 									path[lb + 1] = vb;
-									if(Find_Rec<Feeder, lf - 1, lb + 1, near>::find_rec(graph, edited, path, forbidden, feeder))
+									if(Find_Rec<F, lf - 1, lb + 1>::find_rec(graph, path, forbidden, callback))
 									{
 										return true;
 									}
@@ -253,11 +264,11 @@ namespace Finder
 			}
 		};
 
-		template<typename Feeder, size_t lb>
-		class Find_Rec<Feeder, 1, lb, false>
+		template<typename F, size_t lb>
+		class Find_Rec<F, 1, lb>
 		{
 		public:
-			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder)
+			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
 			{
 				constexpr size_t lf = 1;
 				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
@@ -290,45 +301,7 @@ namespace Finder
 									// Due to the exclusion of the neighborhood of ub/uf, the two vertices cannot be adjacent
 									assert (vf != vb);
 									path[lb + 1] = vb;
-									if(feeder.callback(graph, edited, path.cbegin(), path.cend())) {return true;}
-								}
-							}
-						}
-					}
-				}
-				return false;
-			}
-		};
-
-		template<typename Feeder, size_t lb>
-		class Find_Rec<Feeder, 1, lb, true>
-		{
-		public:
-			static bool find_rec(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID> &path, std::vector<Packed> &forbidden, Feeder &feeder)
-			{
-				constexpr size_t lf = 1;
-				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
-				//Packed *nf = f - graph.get_row_length();
-				VertexID &uf = path[lf];
-				VertexID &ub = path[lb];
-
-				if(lf == 1)
-				{
-					/* last vertices */
-					for(size_t i = 0; i < graph.get_row_length(); i++)
-					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
-						{
-							VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
-							path[lf - 1] = vf;
-							for(size_t j = 0; j < graph.get_row_length(); j++)
-							{
-								for(Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
-								{
-									VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-									if(vf == vb) {continue;}
-									path[lb + 1] = vb;
-									if(feeder.callback_near(graph, edited, path.cbegin(), path.cend())) {return true;}
+									if(callback(path.cbegin(), path.cend())) {return true;}
 								}
 							}
 						}
