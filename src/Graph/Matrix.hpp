@@ -49,7 +49,7 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if(small) {return matrix.data()[u] & (Packed(1) << v);}
+			if constexpr (small) {return matrix.data()[u] & (Packed(1) << v);}
 			else {return (matrix.data() + row_length * u)[v / Packed_Bits] & (Packed(1) << (v % Packed_Bits));}
 		}
 
@@ -58,7 +58,7 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if(small)
+			if constexpr (small)
 			{
 				matrix.data()[u] |= (Packed(1) << v);
 				matrix.data()[v] |= (Packed(1) << u);
@@ -75,7 +75,7 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if(small)
+			if constexpr (small)
 			{
 				matrix.data()[u] &= ~(Packed(1) << v);
 				matrix.data()[v] &= ~(Packed(1) << u);
@@ -92,7 +92,7 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if(small)
+			if constexpr (small)
 			{
 				matrix.data()[u] ^= (Packed(1) << v);
 				matrix.data()[v] ^= (Packed(1) << u);
@@ -144,7 +144,8 @@ namespace Graph
 
 		size_t get_row_length() const
 		{
-			return small? 1 : row_length;
+			if constexpr (small) return 1;
+			else return row_length;
 		}
 
 		static std::vector<Packed> alloc_rows(VertexID graph_size, size_t rows)
