@@ -6,17 +6,21 @@
 #include <vector>
 
 #include "../config.hpp"
+#include "../Options.hpp"
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t _length>
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t _length, bool _with_cycles = (_length > 3)>
 	class Center
 	{
 		static_assert(_length > 1, "Can only detect path/cycles with at least 2 vertices");
+		static_assert(_length > 3 || !_with_cycles, "Cycles are only supported with length at least 4");
+		static_assert(_with_cycles || !std::is_same<Conversion, Options::Conversions::Skip>::value, "Without cycles, there is no conversion and thus nothing must be skipped");
 
 	public:
 		static constexpr char const *name = "Center";
 		static constexpr size_t length = _length;
+		static constexpr bool with_cycles = _with_cycles;
 
 	private:
 		std::vector<Packed> forbidden;
@@ -143,6 +147,10 @@ namespace Finder
 			Packed *adding = start.data() + 2 * graph.get_row_length();
 			area[uu / Packed_Bits] |= Packed(1) << (uu % Packed_Bits);
 			area[vv / Packed_Bits] |= Packed(1) << (vv % Packed_Bits);
+
+			// BFS of depth	length/2 starting at uu/vv. All visited nodes are marked in area.
+			// included contains all vertices already seen.
+			// adding contains the next layer(s)
 			for(size_t rounds = 0; rounds < length / 2; rounds++)
 			{
 				for(size_t i = 0; i < graph.get_row_length(); i++)
@@ -151,6 +159,8 @@ namespace Finder
 					{
 						VertexID add = PACKED_CTZ(cur) + i * Packed_Bits;
 						included[add / Packed_Bits] |= Packed(1) << (add % Packed_Bits);
+
+						// Explore neighbors  of "add" for adding
 						for(size_t j = 0; j < graph.get_row_length(); j++)
 						{
 							adding[j] |= graph.get_row(add)[j];
@@ -261,7 +271,7 @@ namespace Finder
 							for(size_t j = 0; j < graph.get_row_length(); j++)
 							{
 								Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j];
-								if constexpr (lf > 1)
+								if constexpr (lf > 1 || !with_cycles)
 								{
 									// ensure there is no edge vf, vb by excluding neighbors of vf
 									curb &= ~graph.get_row(vf)[j];
@@ -304,23 +314,76 @@ namespace Finder
 	};
 
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Center_4 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>
+	class Center_P2 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 2, false>
 	{
-	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4>;
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 2, false>;
+	public:
+		static constexpr char const *name = "Center_P2";
+		Center_P2(VertexID graph_size) : Parent(graph_size) {;}
+	};
+
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_P3 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 3, false>
+	{
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 3, false>;
+	public:
+		static constexpr char const *name = "Center_P3";
+		Center_P3(VertexID graph_size) : Parent(graph_size) {;}
+	};
+
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_4 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4, true>
+	{
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4, true>;
 	public:
 		static constexpr char const *name = "Center_4";
 		Center_4(VertexID graph_size) : Parent(graph_size) {;}
 	};
 
 	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
-	class Center_5 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5>
+	class Center_P4 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4, false>
 	{
-	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5>;
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 4, false>;
+	public:
+		static constexpr char const *name = "Center_P4";
+		Center_P4(VertexID graph_size) : Parent(graph_size) {;}
+	};
+
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_5 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5, true>
+	{
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5, true>;
 	public:
 		static constexpr char const *name = "Center_5";
 		Center_5(VertexID graph_size) : Parent(graph_size) {;}
 	};
 
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_P5 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5, false>
+	{
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 5, false>;
+	public:
+		static constexpr char const *name = "Center_P5";
+		Center_P5(VertexID graph_size) : Parent(graph_size) {;}
+	};
+
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_6 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 6, true>
+	{
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 6, true>;
+	public:
+		static constexpr char const *name = "Center_6";
+		Center_6(VertexID graph_size) : Parent(graph_size) {;}
+	};
+
+	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion>
+	class Center_P6 : public Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 6, false>
+	{
+	private: using Parent = Center<Graph, Graph_Edits, Mode, Restriction, Conversion, 6, false>;
+	public:
+		static constexpr char const *name = "Center_P6";
+		Center_P6(VertexID graph_size) : Parent(graph_size) {;}
+	};
 }
 
 #endif
