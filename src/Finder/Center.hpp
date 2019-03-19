@@ -26,12 +26,12 @@ namespace Finder
 		std::vector<Packed> forbidden;
 
 	public:
-		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length / 2 - 1)) {;}
+		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length)) {;}
 
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
 		{
-			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
+			assert(forbidden.size() / graph.get_row_length() == length);
 			std::vector<VertexID> path(length);
 
 			auto callback = [&feeder, &graph, &edited](std::vector<VertexID>::const_iterator uit, std::vector<VertexID>::const_iterator vit) -> bool
@@ -39,9 +39,10 @@ namespace Finder
 						return feeder.callback(graph, edited, uit, vit);
 					};
 
-			Packed *f = forbidden.data() + (length / 2 - 2) * graph.get_row_length();
+			constexpr bool length_even = (length % 2 == 0);
+			Packed *f = forbidden.data() + (length_even ? 1 : 2) * graph.get_row_length();
 			// Note: if constexpr here avoids instantiation of the wrong recursion with wrong base case
-			if constexpr (length & 1U) // uneven length
+			if constexpr (!length_even) // uneven length
 			{
 				// does not work for length == 3
 				for(VertexID u = 0; u < graph.size(); u++)
@@ -242,57 +243,61 @@ namespace Finder
 		public:
 			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
 			{
-				static_assert(lf > 0);
-				Packed *f = forbidden.data() + (lf - 1) * graph.get_row_length();
-				VertexID &uf = path[lf];
-				VertexID &ub = path[lb];
+				static_assert(lf > 0 || lb < length - 1);
+				constexpr size_t remaining_length = length - (lb - lf) - 1;
+				static_assert(remaining_length  > 0);
+				constexpr size_t depth = lb - lf;
+				constexpr bool expand_front = (length - lb - 1 <= lf);
+				constexpr size_t next_lf = expand_front ? lf - 1 : lf;
+				constexpr size_t next_lb = expand_front ? lb : lb + 1;
+				constexpr size_t base_index = expand_front ? lf : lb;
+				constexpr size_t opposed_index = expand_front ? lb : lf;
+				constexpr size_t next_index = expand_front ? next_lf : next_lb;
+				const VertexID base_node = path[base_index];
+				const VertexID opposed_node = path[opposed_index];
+
+
+				Packed *f = forbidden.data() + depth * graph.get_row_length();
 
 				{
-					if constexpr (lf > 1)
+					if constexpr (remaining_length > 1)
 					{
-						Packed *nf = f - graph.get_row_length();
+						Packed *nf = f + graph.get_row_length();
 						for(size_t i = 0; i < graph.get_row_length(); i++)
 						{
-							nf[i] = graph.get_row(uf)[i] | graph.get_row(ub)[i] | f[i];
+							nf[i] = graph.get_row(base_node)[i] | f[i];
 						}
 					}
 
-					// Find two vertices vf/vb that are adjacent to uf/ub but not adjacent to ub/uf and that are not marked in f
+					// Find the next node that is adjacent to base_node but not opposed_node unless this is the last node and we allow cycles
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(uf)[i] & ~graph.get_row(ub)[i] & ~f[i]; curf;)
+						Packed curf = graph.get_row(base_node)[i] & ~f[i];
+						if constexpr (remaining_length > 1 || !with_cycles)
+						{
+							// ensure there is no edge vf, opposed_node by excluding neighbors of opposed_node
+							curf &= ~graph.get_row(opposed_node)[i];
+						}
+
+						(void)opposed_node;
+
+						while(curf)
 						{
 							const VertexID lzcurf = PACKED_CTZ(curf);
 							// Unset bit of vf in curf to advance loop
 							curf &= ~(Packed(1) << lzcurf);
 							const VertexID vf = lzcurf + i * Packed_Bits;
 
-							path[lf - 1] = vf;
-							for(size_t j = 0; j < graph.get_row_length(); j++)
+							path[next_index] = vf;
+
+							// Due to the exclusion of f, and f containing all already selected nodes, the two nodes cannot be the same
+							assert(vf != opposed_node);
+							// Further, we have ensured that there is no edge between uf and opposed_node if lf > 1.
+							assert(remaining_length == 1 || !graph.has_edge(vf, opposed_node));
+
+							if(Find_Rec<F, next_lf, next_lb>::find_rec(graph, path, forbidden, callback))
 							{
-								Packed curb = graph.get_row(ub)[j] & ~graph.get_row(uf)[j] & ~f[j];
-								if constexpr (lf > 1 || !with_cycles)
-								{
-									// ensure there is no edge vf, vb by excluding neighbors of vf
-									curb &= ~graph.get_row(vf)[j];
-								}
-								while (curb)
-								{
-									const VertexID lzcurb = PACKED_CTZ(curb);
-									// Unset bit of vb in curb to advance loop
-									curb &= ~(Packed(1) << lzcurb);
-									const VertexID vb = lzcurb + j * Packed_Bits;
-
-									// Due to the exclusion of the neighborhood of ub/uf, the two vertices cannot be the same
-									// Further, we have ensured that there is no edge between ub and uf if lf > 1.
-									assert(vf != vb && (lf == 1 || !graph.has_edge(vf, vb)));
-									path[lb + 1] = vb;
-
-									if(Find_Rec<F, lf - 1, lb + 1>::find_rec(graph, path, forbidden, callback))
-									{
-										return true;
-									}
-								}
+								return true;
 							}
 						}
 					}
@@ -305,8 +310,19 @@ namespace Finder
 		class Find_Rec<F, 0, length - 1>
 		{
 		public:
-			static bool find_rec(Graph const &, std::vector<VertexID> &path, std::vector<Packed> &, F &callback)
+			static bool find_rec(Graph const &g, std::vector<VertexID> &path, std::vector<Packed> &, F &callback)
 			{
+				(void)g;
+
+				for (VertexID u = 0; u < length - 1; ++u)
+				{
+					assert(g.has_edge(path[u], path[u+1]));
+					for (VertexID v = u + 2; v < length; ++v)
+					{
+						assert((u == 0 && v == length -1 && with_cycles) || !g.has_edge(path[u], path[v]));
+					}
+				}
+
 				return callback(path.cbegin(), path.cend());
 			}
 		};
