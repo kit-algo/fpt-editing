@@ -14,7 +14,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length, bool pruned = false>
+	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length, bool pruned = false>
 	class Most : Options::Tag::Selector
 	{
 	public:
@@ -125,11 +125,11 @@ namespace Consumer
 		}
 	};
 
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
-	class Most_Pruned : public Most<Graph, Graph_Edits, Mode, Restriction, Conversion, length, true> {
+	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
+	class Most_Pruned : public Most<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, true> {
 	public:
 		static constexpr char const *name = "Most_Pruned";
-		using Most<Graph, Graph_Edits, Mode, Restriction, Conversion, length, true>::Most;
+		using Most<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, true>::Most;
 	};
 }
 

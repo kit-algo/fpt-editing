@@ -22,7 +22,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
+	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
 	class Single_First_Edits_Sparse : Options::Tag::Selector, Options::Tag::Lower_Bound
 	{
 	public:
@@ -50,12 +50,12 @@ namespace Consumer
 				std::vector<VertexID> edge;
 			} best;
 
-			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
+			Finder_impl finder;
 
 			M(VertexID graph_size) : used(graph_size), new_use(graph_size), finder(graph_size) {;}
 		} m;
 
-		Finder::Feeder<decltype(m.finder), Graph, Graph_Edits, Single_First_Edits_Sparse> feeder;
+		Finder::Feeder<Finder_impl, Graph, Graph_Edits, Single_First_Edits_Sparse> feeder;
 
 	public:
 		// manual {copy,move} {constructor,assignment} implementations due to feeder

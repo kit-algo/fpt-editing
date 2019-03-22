@@ -25,7 +25,7 @@
 
 namespace Consumer
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
+	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
 	class Single_Heur : Options::Tag::Selector, Options::Tag::Lower_Bound
 	{
 	public:
@@ -38,14 +38,14 @@ namespace Consumer
 		// so the {copy,move} {constructor,assignment} doesn't have to mention every single member.
 		struct M
 		{
-			Updated<Graph, Graph_Edits, Mode, Restriction, Conversion, length> updated_lb;
+			Updated<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length> updated_lb;
 
 			Value_Matrix<size_t> bounds_single;
 			bool searching_single = false;
 			ProblemSet problem;
 			size_t no_edits_left;
 
-			Finder::Center<Graph, Graph_Edits, Mode, Restriction, Conversion, length> finder;
+			Finder_impl finder;
 
 			M(VertexID graph_size) : updated_lb(graph_size), bounds_single(graph_size), finder(graph_size) {;}
 		} m;

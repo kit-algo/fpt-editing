@@ -10,7 +10,7 @@
 
 namespace Finder
 {
-	template<typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t _length, bool _with_cycles = (_length > 3)>
+	template<typename Graph, typename Graph_Edits, typename _Mode, typename _Restriction, typename _Conversion, size_t _length, bool _with_cycles>
 	class Center
 	{
 		static_assert(_length > 1, "Can only detect path/cycles with at least 2 vertices");

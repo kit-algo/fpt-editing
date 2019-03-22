@@ -92,14 +92,14 @@ struct Namer<C>
 template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, typename TCon>
 struct Run_impl;
 
-template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, size_t> typename... Con>
-struct Run_impl<_E, _F, _G, _GE, small, M, R, C, std::tuple<Con<_G<small>, _GE<small>, M, R, C, _F<_G<small>, _GE<small>, M, R, C>::length>...>>
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, typename, size_t> typename... Con>
+struct Run_impl<_E, _F, _G, _GE, small, M, R, C, std::tuple<Con<_F<_G<small>, _GE<small>, M, R, C>, _G<small>, _GE<small>, M, R, C, _F<_G<small>, _GE<small>, M, R, C>::length>...>>
 {
 private:
 	using G = _G<small>;
 	using GE = _GE<small>;
 	using F = _F<G, GE, M, R, C>;
-	static constexpr bool valid = Editor::Consumer_valid<Con<G, GE, M, R, C, F::length>...>::value;
+	static constexpr bool valid = Editor::Consumer_valid<Con<F, G, GE, M, R, C, F::length>...>::value;
 
 public:
 	template<bool v = valid>
@@ -181,7 +181,7 @@ public:
 
 	static void run_nowatch(CMDOptions const &options, std::string const &filename)
 	{
-		using E = _E<F, G, GE, M, R, C, Con<G, GE, M, R, C, F::length>...>;
+		using E = _E<F, G, GE, M, R, C, Con<F, G, GE, M, R, C, F::length>...>;
 
 		G input_graph = options.edgelist ? Graph::readEdgeList<G>(filename) : Graph::readMetis<G>(filename);
 		if (!options.no_write)
@@ -198,8 +198,8 @@ public:
 		GE edited(graph.size());
 
 		F finder(graph.size());
-		std::tuple<Con<G, GE, M, R, C, F::length>...> consumer{Con<G, GE, M, R, C, F::length>(graph.size())...};
-		std::tuple<Con<G, GE, M, R, C, F::length> &...> consumer_ref = Util::MakeTupleRef(consumer);
+		std::tuple<Con<F, G, GE, M, R, C, F::length>...> consumer{Con<F, G, GE, M, R, C, F::length>(graph.size())...};
+		std::tuple<Con<F, G, GE, M, R, C, F::length> &...> consumer_ref = Util::MakeTupleRef(consumer);
 		E editor(finder, graph, consumer_ref, options.threads);
 
 		// warmup
@@ -351,27 +351,29 @@ public:
 	static std::string name()
 	{
 		/* Editor must be valid to be able to access Editor::name */
-		using E = _E<F, G, GE, M, R, C, Consumer::Single<G, GE, M, R, C, F::length>>;
-		return Namer<E, M, R, C, F, Con<G, GE, M, R, C, F::length>..., G>::name();
+		using E = _E<F, G, GE, M, R, C, Consumer::Single<F, G, GE, M, R, C, F::length>>;
+		return Namer<E, M, R, C, F, Con<F, G, GE, M, R, C, F::length>..., G>::name();
 	}
 };
 
 
-template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, size_t> typename... Con>
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, typename, size_t> typename... Con>
 void Run<_E, _F, _G, _GE, small, M, R, C, Con...>::run(CMDOptions const &options, std::string const &filename)
 {
 	using G = _G<small>;
 	using GE = _GE<small>;
+	using F = _F<G, GE, M, R, C>;
 
-	Run_impl<_E, _F, _G, _GE, small, M, R, C, typename Minimize<Con<G, GE, M, R, C, _F<G, GE, M, R, C>::length>...>::type>::run_watch(options, filename);
+	Run_impl<_E, _F, _G, _GE, small, M, R, C, typename Minimize<Con<F, G, GE, M, R, C, F::length>...>::type>::run_watch(options, filename);
 }
 
-template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, size_t> typename... Con>
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename _E, template<typename, typename, typename, typename, typename> typename _F, template<bool> typename _G, template<bool> typename _GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, typename, size_t> typename... Con>
 std::string Run<_E, _F, _G, _GE, small, M, R, C, Con...>::name()
 {
 	using G = _G<small>;
 	using GE = _GE<small>;
-	return Run_impl<_E, _F, _G, _GE, small, M, R, C, typename Minimize<Con<G, GE, M, R, C, _F<G, GE, M, R, C>::length>...>::type>::name();
+	using F = _F<G, GE, M, R, C>;
+	return Run_impl<_E, _F, _G, _GE, small, M, R, C, typename Minimize<Con<F, G, GE, M, R, C, F::length>...>::type>::name();
 }
 
 #endif

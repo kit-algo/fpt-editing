@@ -36,7 +36,7 @@ struct CMDOptions {
 	char **argv = NULL;
 };
 
-template<template<typename, typename, typename, typename, typename, typename, typename...> typename E, template<typename, typename, typename, typename, typename> typename F, template<bool> typename G, template<bool> typename GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, size_t> typename... Con>
+template<template<typename, typename, typename, typename, typename, typename, typename...> typename E, template<typename, typename, typename, typename, typename> typename F, template<bool> typename G, template<bool> typename GE, bool small, typename M, typename R, typename C, template<typename, typename, typename, typename, typename, typename, size_t> typename... Con>
 struct Run
 {
 	static void run(CMDOptions const &options, std::string const &filename);
