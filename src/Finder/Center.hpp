@@ -7,20 +7,24 @@
 
 #include "../config.hpp"
 #include "../Options.hpp"
+#include "../util.hpp"
 
 namespace Finder
 {
 	template<typename Graph, typename Graph_Edits, typename _Mode, typename _Restriction, typename _Conversion, size_t _length, bool _with_cycles>
 	class Center
 	{
-		static_assert(_length > 1, "Can only detect path/cycles with at least 2 vertices");
-		static_assert(_length > 3 || !_with_cycles, "Cycles are only supported with length at least 4");
-		static_assert(_with_cycles || !std::is_same<Conversion, Options::Conversions::Skip>::value, "Without cycles, there is no conversion and thus nothing must be skipped");
-
 	public:
 		static constexpr char const *name = "Center";
 		static constexpr size_t length = _length;
 		static constexpr bool with_cycles = _with_cycles;
+		using Mode = _Mode;
+		using Restriction = _Restriction;
+		using Conversion = _Conversion;
+
+		static_assert(_length > 1, "Can only detect path/cycles with at least 2 vertices");
+		static_assert(_length > 3 || !_with_cycles, "Cycles are only supported with length at least 4");
+		static_assert(_with_cycles || !std::is_same<Conversion, Options::Conversions::Skip>::value, "Without cycles, there is no conversion and thus nothing must be skipped");
 
 	private:
 		std::vector<Packed> forbidden;
@@ -31,16 +35,22 @@ namespace Finder
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
 		{
-			assert(forbidden.size() / graph.get_row_length() == length);
-			std::vector<VertexID> path(length);
-
 			auto callback = [&feeder, &graph, &edited](std::vector<VertexID>::const_iterator uit, std::vector<VertexID>::const_iterator vit) -> bool
 					{
 						return feeder.callback(graph, edited, uit, vit);
 					};
 
+			find(graph, callback);
+		}
+
+		template <typename F>
+		void find(Graph const &graph, F& callback)
+		{
+			assert(forbidden.size() / graph.get_row_length() == length);
+			std::vector<VertexID> path(length);
+
 			constexpr bool length_even = (length % 2 == 0);
-			Packed *f = forbidden.data() + (length_even ? 1 : 2) * graph.get_row_length();
+			Packed *f = forbidden.data();
 			// Note: if constexpr here avoids instantiation of the wrong recursion with wrong base case
 			if constexpr (!length_even) // uneven length
 			{
@@ -87,7 +97,7 @@ namespace Finder
 									curb &= ~(Packed(1) << lzcurb);
 
 									path[length / 2 + 1] = vb;
-									if(Find_Rec<decltype(callback), length / 2 - 1, length / 2 + 1>::find_rec(graph, path, forbidden, callback)) {return;}
+									if(Find_Rec<decltype(callback), length / 2 - 1, length / 2 + 1, 0>::find_rec(graph, path, forbidden, callback)) {return;}
 								}
 							}
 						}
@@ -96,6 +106,13 @@ namespace Finder
 			}
 			else
 			{
+				if constexpr (length > 2) {
+					for (size_t i = 0; i < graph.get_row_length(); ++i)
+					{
+						f[i] = 0;
+					}
+				}
+
 				for(VertexID u = 0; u < graph.size(); u++) // outer loop: first node u
 				{
 					// Set bit u in f
@@ -115,7 +132,7 @@ namespace Finder
 							if constexpr (length > 2) f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
 							// Path now contains the two node u and v
-							if(Find_Rec<decltype(callback), length / 2 - 1, length / 2>::find_rec(graph, path, forbidden, callback)) {return;}
+							if(Find_Rec<decltype(callback), length / 2 - 1, length / 2, 0>::find_rec(graph, path, forbidden, callback)) {return;}
 							// Unset v in f
 							if constexpr (length > 2) f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 						}
@@ -125,128 +142,275 @@ namespace Finder
 			}
 		}
 
+		/**
+		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
+		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the given @a callback for all found subgraphs.
+		 * The algorithm lists each path that contains the two nodes exactly once and each cycles that contains the two nodes exactly length times.
+		 *
+		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
+		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
+		 */
+		template<typename F>
+		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback)
+		{
+			std::vector<VertexID> path(length);
+
+			if constexpr (length > 2)
+			{
+				Packed *f = forbidden.data();
+
+				for (size_t i = 0; i < graph.get_row_length(); ++i)
+				{
+					f[i] = 0;
+				}
+
+				f[uu / Packed_Bits] |= (Packed(1) << (uu % Packed_Bits));
+				f[vv / Packed_Bits] |= (Packed(1) << (vv % Packed_Bits));
+			}
+
+			bool shall_return = false;
+			if (graph.has_edge(uu, vv))
+			{
+				// The easy case: the node pair is an edge. Just place uu, vv as initial node pair at all positions.
+				Util::for_<length - 1>([&](auto i)
+				{
+					if (shall_return) return;
+
+					path[i.value] = uu;
+					path[i.value + 1] = vv;
+
+					if (Find_Rec<decltype(callback), i.value, i.value + 1, 0>::find_rec(graph, path, forbidden, callback))
+					{
+						shall_return = true;
+					}
+				});
+
+				// TODO: this is only necessary because we list all Cs length times.
+				// Eliminate the extra listings from the regular listing!
+				if constexpr (with_cycles)
+				{
+					if (!shall_return)
+					{
+						path[0] = uu;
+						path[length - 1] = vv;
+
+						auto cb = [&]() -> bool
+							{
+								return callback(path.cbegin(), path.cend());
+							};
+
+						Find_Inner_Rec<decltype(cb), 0, length - 1, 0>::find_inner_rec(graph, path, forbidden, cb);
+					}
+				}
+			}
+			else if constexpr (length > 2)
+			{
+				Util::for_<length - 2>([&](auto i)
+				{
+					if (shall_return) return;
+
+					constexpr size_t distance = i.value + 2;
+
+					if constexpr (std::is_same<Conversion, Options::Conversions::Skip>::value && distance == length - 1)
+					{
+						return;
+					}
+
+					constexpr size_t lf = 0;
+					constexpr size_t lb = lf + distance;
+					path[lf] = uu;
+					path[lb] = vv;
+
+					auto cb = [&forbidden = forbidden, &graph, &path, &callback]() -> bool
+					{
+						// Mark all nodes in the found part + all neighbors of all inner nodes as forbidden
+						// First: inner nodes
+						Packed *f = forbidden.data() + (lb - lf) * graph.get_row_length();
+						for (size_t i = 0; i < graph.get_row_length(); ++i)
+						{
+							f[i] = 0;
+
+							for (size_t j = lf + 1; j < lb; ++j)
+							{
+								f[i] |= graph.get_row(path[j])[i];
+							}
+						}
+
+						// All nodes in the found part
+						for (size_t i = lf; i <= lb; ++i)
+						{
+							VertexID x = path[i];
+							f[x / Packed_Bits] |= (Packed(1) << (x % Packed_Bits));
+						}
+
+						bool shall_return = false;
+
+						// Move the found inner part at every possible position in the path and complete outer part
+						Util::for_<length - distance>([&](auto j)
+						{
+							if (shall_return) return;
+
+							constexpr size_t inner_lf = lf + j.value;
+							constexpr size_t inner_lb = lb + j.value;
+
+							// Move to the right (right to left to avoid overriding the nodes still to copy
+							if constexpr (j.value > 0)
+							{
+								for (size_t x = lb + j.value; x >= lf + j.value; --x)
+								{
+									path[x] = path[x - j.value];
+								}
+							}
+
+							// Recursion to find the outer part
+							shall_return = Find_Rec<decltype(callback), inner_lf, inner_lb, (lb - lf)>::find_rec(graph, path, forbidden, callback);
+
+							// Move back to the start (left to right)
+							if constexpr (j.value > 0)
+							{
+								for (size_t x = lf + j.value; x <= lb + j.value; ++x)
+								{
+									path[x - j.value] = path[x];
+								}
+							}
+						});
+
+						return shall_return;
+					};
+
+					if (Find_Inner_Rec<decltype(cb), lf, lb, 0>::find_inner_rec(graph, path, forbidden, cb))
+					{
+						shall_return = true;
+					}
+				});
+			}
+
+			if constexpr (length > 2)
+			{
+				Packed *f = forbidden.data();
+				f[uu / Packed_Bits] = 0;
+				f[vv / Packed_Bits] = 0;
+			}
+		}
+
+		/**
+		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
+		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the feeder for all node pairs.
+		 *
+		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
+		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
+		 */
 		template<typename Feeder>
 		void find_near(Graph const &graph, Graph_Edits const &edited, VertexID uu, VertexID vv, Feeder &feeder, Graph_Edits const *)
 		{
-			assert(forbidden.size() / graph.get_row_length() == length / 2 - 1);
-			std::vector<VertexID> path(length);
-
 			auto callback = [&feeder, &graph, &edited](std::vector<VertexID>::const_iterator uit, std::vector<VertexID>::const_iterator vit) -> bool
 					{
 						return feeder.callback_near(graph, edited, uit, vit);
 					};
 
-
-			Packed *f = forbidden.data() + (length / 2 - 2) * graph.get_row_length();
-			/* only search for forbidden subgraphs near u-v
-			 * -> both vertices of starting edge must be within length / 2 of u or v
-			 */
-
-			std::vector<Packed> start = graph.alloc_rows(3);//start vertices and neighbourhoods included
-			Packed *area = start.data();
-			Packed *included = start.data() + graph.get_row_length();
-			Packed *adding = start.data() + 2 * graph.get_row_length();
-			area[uu / Packed_Bits] |= Packed(1) << (uu % Packed_Bits);
-			area[vv / Packed_Bits] |= Packed(1) << (vv % Packed_Bits);
-
-			// BFS of depth	length/2 starting at uu/vv. All visited nodes are marked in area.
-			// included contains all vertices already seen.
-			// adding contains the next layer(s)
-			for(size_t rounds = 0; rounds < length / 2; rounds++)
-			{
-				for(size_t i = 0; i < graph.get_row_length(); i++)
-				{
-					for(Packed cur = area[i] & ~included[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
-					{
-						VertexID add = PACKED_CTZ(cur) + i * Packed_Bits;
-						included[add / Packed_Bits] |= Packed(1) << (add % Packed_Bits);
-
-						// Explore neighbors  of "add" for adding
-						for(size_t j = 0; j < graph.get_row_length(); j++)
-						{
-							adding[j] |= graph.get_row(add)[j];
-						}
-					}
-				}
-				for(size_t i = 0; i < graph.get_row_length(); i++)
-				{
-					area[i] |= adding[i];
-				}
-			}
-
-			if constexpr (length & 1U)
-			{
-				// does not work for length == 3
-				for(size_t ii = 0; ii < graph.get_row_length(); ii++)
-				{
-					for(Packed cur = area[ii]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
-					{
-						VertexID u = PACKED_CTZ(cur) + ii * Packed_Bits;
-						for(size_t i = 0; i < graph.get_row_length(); i++)
-						{
-							f[i] = graph.get_row(u)[i];
-						}
-						f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
-						path[length / 2] = u;
-						for(size_t i = 0; i < graph.get_row_length(); i++)
-						{
-							for(Packed curf = graph.get_row(u)[i] & area[i]; curf; curf &= ~(Packed(1) << PACKED_CTZ(curf)))
-							{
-								VertexID vf = PACKED_CTZ(curf) + i * Packed_Bits;
-								path[length / 2 - 1] = vf;
-								for(size_t j = i; j < graph.get_row_length(); j++)
-								{
-									for(Packed curb = j == i? curf & ~(Packed(1) << PACKED_CTZ(curf)) : graph.get_row(u)[j]; curb; curb &= ~(Packed(1) << PACKED_CTZ(curb)))
-									{
-										VertexID vb = PACKED_CTZ(curb) + j * Packed_Bits;
-										if(graph.has_edge(vf, vb)) {continue;}
-										path[length / 2 + 1] = vb;
-										if(Find_Rec<decltype(callback), length / 2 - 1, length / 2 + 1>::find_rec(graph, path, forbidden, callback)) {return;}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-			else
-			{
-				for(size_t ii = 0; ii < graph.get_row_length(); ii++)
-				{
-					for(Packed curs = area[ii]; curs; curs &= ~(Packed(1) << PACKED_CTZ(curs)))
-					{
-						VertexID u = PACKED_CTZ(curs) + ii * Packed_Bits;
-						f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
-						path[length / 2 - 1] = u;
-						for(size_t i = u / Packed_Bits; i < graph.get_row_length(); i++)// double exploration: i = 0  cur = graph.get_row(u)[i]
-						{
-							for(Packed cur = i == u / Packed_Bits? graph.get_row(u)[i] & ~area[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i] & ~area[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
-							{
-								VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
-								f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
-								path[length / 2] = v;
-								if(Find_Rec<decltype(callback), length / 2 - 1, length / 2>::find_rec(graph, path, forbidden, callback)) {return;}
-								f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
-							}
-						}
-						f[u / Packed_Bits] = 0;
-					}
-				}
-			}
+			find_near(graph, uu, vv, callback);
 		}
 
 	private:
 
-		template<typename F, size_t lf, size_t lb>
+		template <typename F, size_t lf, size_t lb, size_t depth>
+		class Find_Inner_Rec
+		{
+		public:
+			/**
+			 * Extend a subgraph from two (unconnected) boundary nodes into the center, i.e., find all paths with a certain number of inner nodes but no shortcuts between two given nodes.
+			 * Currently the path is only expanded from the node at the front, i.e., lf.
+			 * The algorithm needs to maintain an exclude list for all nodes that are already there apart from the innermost two nodes.
+			 * For the expansion from one side, the innermost node of the other side needs to be excluded.
+			 * In the last step, if there is only a single node left, common neighbors are enumerated.
+			 * The given callback @a callback is called without parameters.
+			 */
+			static bool find_inner_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
+			{
+				constexpr size_t remaining_length = lb - lf;
+
+				static_assert(remaining_length > 1, "find_inner_rec called with no space left in path");
+				Packed *f = forbidden.data() + depth * graph.get_row_length();
+
+
+				// Base case: find a common neighbor
+				if constexpr (lb - lf == 2)
+				{
+					for (size_t i = 0; i < graph.get_row_length(); ++i)
+					{
+						Packed cur = graph.get_row(path[lf])[i] & graph.get_row(path[lb])[i] & ~f[i];
+
+						while (cur)
+						{
+							const VertexID lzcur = PACKED_CTZ(cur);
+							// Unset bit of vf in curf to advance loop
+							cur &= ~(Packed(1) << lzcur);
+							const VertexID v = lzcur + i * Packed_Bits;
+
+							path[lf + 1] = v;
+
+							if(callback())
+							{
+								return true;
+							}
+						}
+
+					}
+
+				}
+				else
+				{
+					// TODO: this generically goes lf -> lf+1. However, similar to bidirectional dijkstra, it would be better to recurse also with lb -> lb + 1 (note that this is only useful for length > 4 though).
+					Packed *nf = f + graph.get_row_length();
+
+					for (size_t i = 0; i < graph.get_row_length(); ++i)
+					{
+						nf[i] = f[i] | graph.get_row(path[lf])[i];
+					}
+
+					for (size_t i = 0; i < graph.get_row_length(); ++i)
+					{
+						Packed cur = graph.get_row(path[lf])[i] & ~graph.get_row(path[lb])[i] & ~f[i];
+
+						while (cur)
+						{
+							const VertexID lzcur = PACKED_CTZ(cur);
+							// Unset bit of vf in curf to advance loop
+							cur &= ~(Packed(1) << lzcur);
+							const VertexID v = lzcur + i * Packed_Bits;
+
+							path[lf + 1] = v;
+
+							if (Find_Inner_Rec<F, lf + 1, lb, depth + 1>::find_inner_rec(graph, path, forbidden, callback))
+							{
+								return true;
+							}
+						}
+					}
+				}
+
+				return false;
+			}
+
+		};
+
+		template<typename F, size_t lf, size_t lb, size_t depth>
 		class Find_Rec
 		{
 		public:
+			/*
+			 * Expand the inner part between path[lf]..path[lb] into all possible full forbidden subgraphs path[0]..path[length-1].
+			 * This works for arbitrary lf and lb, only a single initial edge is required.
+			 * Every recursive call extends the path in one direction by a single node, the expansion always happens in the direction
+			 * where more nodes are missing. The function assumes that all nodes that shall be excluded, in particular the nodes
+			 * already in the path path[lf]..path[lb] and all neighbors of all inner nodes are marked in forbidden in the row at
+			 * depth (template parameter). The function uses the next row in forbidden for the next recursive call.
+			 */
 			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
 			{
 				static_assert(lf > 0 || lb < length - 1);
 				constexpr size_t remaining_length = length - (lb - lf) - 1;
 				static_assert(remaining_length  > 0);
-				constexpr size_t depth = lb - lf;
 				constexpr bool expand_front = (length - lb - 1 <= lf);
 				constexpr size_t next_lf = expand_front ? lf - 1 : lf;
 				constexpr size_t next_lb = expand_front ? lb : lb + 1;
@@ -295,7 +459,7 @@ namespace Finder
 							// Further, we have ensured that there is no edge between uf and opposed_node if lf > 1.
 							assert(remaining_length == 1 || !graph.has_edge(vf, opposed_node));
 
-							if(Find_Rec<F, next_lf, next_lb>::find_rec(graph, path, forbidden, callback))
+							if(Find_Rec<F, next_lf, next_lb, depth + 1>::find_rec(graph, path, forbidden, callback))
 							{
 								return true;
 							}
@@ -306,8 +470,8 @@ namespace Finder
 			}
 		};
 
-		template<typename F>
-		class Find_Rec<F, 0, length - 1>
+		template<typename F, size_t depth>
+		class Find_Rec<F, 0, length - 1, depth>
 		{
 		public:
 			static bool find_rec(Graph const &g, std::vector<VertexID> &path, std::vector<Packed> &, F &callback)

@@ -10,26 +10,32 @@ LDFLAGS := -lpthread
 
 TARGET := graphedit
 
-SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp"))
+SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp" -not -name test_finder.cpp))
+TEST_SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp" -not -name main.cpp))
 HEADER_FILES := $(sort $(shell find src/ -name "*.hpp"))
 
 all: release
 
 ifneq ($(MAKECMDGOALS), clean)
 -include $(SOURCE_FILES:src/%.cpp=build/%.d)
+-include $(TEST_SOURCE_FILES:src/%.cpp=build/%.d)
 -include build/generated/generated.d
 -include build/generated/list.d
 endif
 
 debug: TYPEFLAGS := $(DEBUGFLAGS)
-debug: $(TARGET)
+debug: $(TARGET) test_finder
 profile: TYPEFLAGS := $(PROFILEFLAGS)
-profile: $(TARGET)
+profile: $(TARGET) test_finder
 release: TYPEFLAGS := $(RELEASEFLAGS)
-release: $(TARGET)
+release: $(TARGET) test_finder
 
 clean:
 	rm -rf $(TARGET) build gmon.out *~
+
+test_finder: $(TEST_SOURCE_FILES:src/%.cpp=build/%.o)
+	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o test_finder
+
 
 $(TARGET): $(SOURCE_FILES:src/%.cpp=build/%.o) | build build/generated/list.d
 	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o $(TARGET)

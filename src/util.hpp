@@ -2,6 +2,8 @@
 #define UTIL_HPP
 
 #include <utility>
+#include <tuple>
+#include <functional>
 #include <array>
 
 namespace std
@@ -40,6 +42,21 @@ namespace Util
 	template<typename T, std::size_t N, typename Iter>
 	std::array<T, N> to_array(Iter iter) {
 		return to_array<T>(std::move(iter), std::make_index_sequence<N>{});
+	}
+
+	template<std::size_t N>
+	struct num { static const constexpr auto value = N; };
+
+	template <class F, std::size_t... Is>
+	void for_(F func, std::index_sequence<Is...>)
+	{
+		(func(num<Is>{}), ...);
+	}
+
+	template <std::size_t N, typename F>
+	void for_(F func)
+	{
+		for_(func, std::make_index_sequence<N>());
 	}
 }
 
