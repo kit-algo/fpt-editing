@@ -325,6 +325,15 @@ namespace Editor
 				feeder.feed(k, graph, edited, no_edits_left, lower_bound);
 
 				{
+					if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+					{
+						// lower bound too high
+#ifdef STATS
+						prunes[k]++;
+#endif
+						return false;
+					}
+
 					// graph solved?
 					ProblemSet problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
 					if(problem.found_solution)
@@ -333,10 +342,9 @@ namespace Editor
 						editor.found_soulution = true;
 						return !editor.write(graph, edited);
 					}
-					else if(k == 0 || k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+					else if(k == 0)
 					{
 						// used all edits but graph still unsolved
-						// or lower bound too high
 #ifdef STATS
 						prunes[k]++;
 #endif

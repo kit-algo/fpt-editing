@@ -90,6 +90,15 @@ namespace Editor
 			// start finder and feed into selector and lb
 			feeder.feed(k, graph, edited, no_edits_left, lower_bound);
 
+			if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+			{
+#ifdef STATS
+				prunes[k]++;
+#endif
+				// lower bound too high
+				return false;
+			}
+
 			// graph solved?
 			ProblemSet problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
 
@@ -98,13 +107,12 @@ namespace Editor
 				found_soulution = true;
 				return !write(graph, edited);
 			}
-			else if(k == 0 || k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+			else if(k == 0)
 			{
 #ifdef STATS
 				prunes[k]++;
 #endif
 				// used all edits but graph still unsolved
-				// or lower bound too high
 				return false;
 			}
 
