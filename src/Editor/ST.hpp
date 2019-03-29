@@ -205,8 +205,10 @@ namespace Editor
 
 			if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 			{
-				for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
+
+				for (auto it = problem.vertex_pairs.crbegin(); it != problem.vertex_pairs.crend(); ++it)
 				{
+					const auto vertex_pair = *it;
 					if (edited.has_edge(vertex_pair.first, vertex_pair.second))
 					{
 						Util::for_<sizeof...(Consumer)>([&](auto i)
