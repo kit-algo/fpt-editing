@@ -37,12 +37,15 @@ namespace Consumer
 		bool bound_calculated;
 		Graph_Edits bound_uses;
 
+		Graph_Edits candidate_pairs_used;
+
+
 		Finder_impl finder;
 
 		std::vector<size_t> counter_before_mark;
 		std::vector<Lower_Bound_Storage_type> lb_before_mark_and_edit;
 	public:
-		ARW(VertexID graph_size) : num_subgraphs_per_edge(graph_size), num_subgraphs(0), sum_subgraphs_per_edge(0), bound_calculated(false), bound_uses(graph_size), finder(graph_size) {;}
+		ARW(VertexID graph_size) : num_subgraphs_per_edge(graph_size), num_subgraphs(0), sum_subgraphs_per_edge(0), bound_calculated(false), bound_uses(graph_size), candidate_pairs_used(graph_size), finder(graph_size) {;}
 
 		void initialize(size_t k, Graph const &graph, Graph_Edits const &edited)
 		{
@@ -315,6 +318,7 @@ namespace Consumer
 						for (auto p : pairs)
 						{
 							bound_uses.clear_edge(p.first, p.second);
+							candidate_pairs_used.set_edge(p.first, p.second);
 						}
 
 						// Collect candidates
@@ -335,7 +339,19 @@ namespace Consumer
 								assert(!touches_bound);
 								#endif
 
-								candidates_per_pair[pi].push_back(sg);
+								size_t pairs_covered = 0;
+
+								Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&](auto cuit, auto cvit)
+								{
+									pairs_covered += candidate_pairs_used.has_edge(*cuit, *cvit);
+
+									return false;
+								});
+
+								if (pairs_covered < pairs.size())
+								{
+									candidates_per_pair[pi].push_back(sg);
+								}
 
 								return false;
 							};
@@ -349,12 +365,14 @@ namespace Consumer
 
 								auto debug_cb = [&](const subgraph_t& sg)
 								{
-									bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&bound_uses = bound_uses](auto cuit, auto cvit)
+									size_t pairs_covered = 0;
+									bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&](auto cuit, auto cvit)
 									{
+										pairs_covered += candidate_pairs_used.has_edge(*cuit, *cvit);
 										return bound_uses.has_edge(*cuit, *cvit);
 									});
 
-									if (!touches_bound)
+									if (!touches_bound && pairs_covered < pairs.size())
 									{
 										debug_subgraphs.push_back(sg);
 									}
@@ -400,6 +418,7 @@ namespace Consumer
 						for (auto p : pairs)
 						{
 							bound_uses.clear_edge(p.first, p.second);
+							candidate_pairs_used.clear_edge(p.first, p.second);
 						}
 
 						const bool random_switch = prob(gen) < 0.3;
