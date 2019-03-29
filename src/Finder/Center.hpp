@@ -28,9 +28,10 @@ namespace Finder
 
 	private:
 		std::vector<Packed> forbidden;
+		std::vector<VertexID> path;
 
 	public:
-		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length)) {;}
+		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length)), path(length) {;}
 
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
@@ -47,14 +48,15 @@ namespace Finder
 		void find(Graph const &graph, F& callback)
 		{
 			assert(forbidden.size() / graph.get_row_length() == length);
-			std::vector<VertexID> path(length);
+
+			auto get_neighbors = [&graph](VertexID u, size_t i) { return graph.get_row(u)[i]; };
+			auto get_non_neighbors = [&graph](VertexID u, size_t i) { return ~graph.get_row(u)[i]; };
 
 			constexpr bool length_even = (length % 2 == 0);
 			Packed *f = forbidden.data();
 			// Note: if constexpr here avoids instantiation of the wrong recursion with wrong base case
 			if constexpr (!length_even) // uneven length
 			{
-				// does not work for length == 3
 				for(VertexID u = 0; u < graph.size(); u++)
 				{
 					if constexpr (length > 3)
@@ -97,7 +99,7 @@ namespace Finder
 									curb &= ~(Packed(1) << lzcurb);
 
 									path[length / 2 + 1] = vb;
-									if(Find_Rec<decltype(callback), length / 2 - 1, length / 2 + 1, 0>::find_rec(graph, path, forbidden, callback)) {return;}
+									if(Find_Rec<decltype(callback), decltype(get_neighbors), decltype(get_non_neighbors), length / 2 - 1, length / 2 + 1, 0>::find_rec(graph, path, forbidden, callback, get_neighbors, get_non_neighbors)) {return;}
 								}
 							}
 						}
@@ -132,7 +134,7 @@ namespace Finder
 							if constexpr (length > 2) f[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
 							path[length / 2] = v;
 							// Path now contains the two node u and v
-							if(Find_Rec<decltype(callback), length / 2 - 1, length / 2, 0>::find_rec(graph, path, forbidden, callback)) {return;}
+							if(Find_Rec<decltype(callback), decltype(get_neighbors), decltype(get_non_neighbors), length / 2 - 1, length / 2, 0>::find_rec(graph, path, forbidden, callback, get_neighbors, get_non_neighbors)) {return;}
 							// Unset v in f
 							if constexpr (length > 2) f[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
 						}
@@ -153,8 +155,42 @@ namespace Finder
 		template<typename F>
 		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback)
 		{
-			std::vector<VertexID> path(length);
+			auto get_neighbors = [&graph](VertexID u, size_t i) { return graph.get_row(u)[i]; };
+			auto get_non_neighbors = [&graph](VertexID u, size_t i) { return ~graph.get_row(u)[i]; };
 
+			find_near(graph, uu, vv, callback, get_neighbors, get_non_neighbors);
+		}
+
+		/**
+		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
+		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the given @a callback for all found subgraphs.
+		 * The algorithm lists each path that contains the two nodes exactly once and each cycles that contains the two nodes exactly length times.
+		 *
+		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
+		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
+		 */
+		template<typename F>
+		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback, Graph_Edits &forbidden_pairs)
+		{
+
+			assert(!forbidden_pairs.has_edge(uu, vv));
+			auto get_neighbors = [&graph, &forbidden_pairs](VertexID u, size_t i) { return graph.get_row(u)[i] & ~forbidden_pairs.get_row(u)[i]; };
+			auto get_non_neighbors = [&graph, &forbidden_pairs](VertexID u, size_t i) { return ~graph.get_row(u)[i] & ~forbidden_pairs.get_row(u)[i]; };
+
+			find_near(graph, uu, vv, callback, get_neighbors, get_non_neighbors);
+		}
+
+		/**
+		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
+		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the given @a callback for all found subgraphs.
+		 * The algorithm lists each path that contains the two nodes exactly once and each cycles that contains the two nodes exactly length times.
+		 *
+		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
+		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
+		 */
+		template<typename F, typename G, typename H>
+		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback, G &get_neighbors, H &get_non_neighbors)
+		{
 			if constexpr (length > 2)
 			{
 				Packed *f = forbidden.data();
@@ -179,7 +215,7 @@ namespace Finder
 					path[i.value] = uu;
 					path[i.value + 1] = vv;
 
-					if (Find_Rec<decltype(callback), i.value, i.value + 1, 0>::find_rec(graph, path, forbidden, callback))
+					if (Find_Rec<F, G, H, i.value, i.value + 1, 0>::find_rec(graph, path, forbidden, callback, get_neighbors, get_non_neighbors))
 					{
 						shall_return = true;
 					}
@@ -199,7 +235,7 @@ namespace Finder
 								return callback(path.cbegin(), path.cend());
 							};
 
-						Find_Inner_Rec<decltype(cb), 0, length - 1, 0>::find_inner_rec(graph, path, forbidden, cb);
+						Find_Inner_Rec<decltype(cb), G, H, 0, length - 1, 0>::find_inner_rec(graph, path, forbidden, cb, get_neighbors, get_non_neighbors);
 					}
 				}
 			}
@@ -221,7 +257,7 @@ namespace Finder
 					path[lf] = uu;
 					path[lb] = vv;
 
-					auto cb = [&forbidden = forbidden, &graph, &path, &callback]() -> bool
+					auto cb = [&]() -> bool
 					{
 						// Mark all nodes in the found part + all neighbors of all inner nodes as forbidden
 						// First: inner nodes
@@ -232,7 +268,7 @@ namespace Finder
 
 							for (size_t j = lf + 1; j < lb; ++j)
 							{
-								f[i] |= graph.get_row(path[j])[i];
+								f[i] |= ~get_non_neighbors(path[j], i);
 							}
 						}
 
@@ -263,7 +299,7 @@ namespace Finder
 							}
 
 							// Recursion to find the outer part
-							shall_return = Find_Rec<decltype(callback), inner_lf, inner_lb, (lb - lf)>::find_rec(graph, path, forbidden, callback);
+							shall_return = Find_Rec<F, G, H, inner_lf, inner_lb, (lb - lf)>::find_rec(graph, path, forbidden, callback, get_neighbors, get_non_neighbors);
 
 							// Move back to the start (left to right)
 							if constexpr (j.value > 0)
@@ -278,7 +314,7 @@ namespace Finder
 						return shall_return;
 					};
 
-					if (Find_Inner_Rec<decltype(cb), lf, lb, 0>::find_inner_rec(graph, path, forbidden, cb))
+					if (Find_Inner_Rec<decltype(cb), G, H, lf, lb, 0>::find_inner_rec(graph, path, forbidden, cb, get_neighbors, get_non_neighbors))
 					{
 						shall_return = true;
 					}
@@ -313,7 +349,7 @@ namespace Finder
 
 	private:
 
-		template <typename F, size_t lf, size_t lb, size_t depth>
+		template <typename F, typename G, typename H, size_t lf, size_t lb, size_t depth>
 		class Find_Inner_Rec
 		{
 		public:
@@ -325,7 +361,7 @@ namespace Finder
 			 * In the last step, if there is only a single node left, common neighbors are enumerated.
 			 * The given callback @a callback is called without parameters.
 			 */
-			static bool find_inner_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
+			static bool find_inner_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback, G &get_neighbors, H &get_non_neighbors)
 			{
 				constexpr size_t remaining_length = lb - lf;
 
@@ -338,7 +374,7 @@ namespace Finder
 				{
 					for (size_t i = 0; i < graph.get_row_length(); ++i)
 					{
-						Packed cur = graph.get_row(path[lf])[i] & graph.get_row(path[lb])[i] & ~f[i];
+						Packed cur = get_neighbors(path[lf], i) & get_neighbors(path[lb], i) & ~f[i];
 
 						while (cur)
 						{
@@ -365,12 +401,12 @@ namespace Finder
 
 					for (size_t i = 0; i < graph.get_row_length(); ++i)
 					{
-						nf[i] = f[i] | graph.get_row(path[lf])[i];
+						nf[i] = f[i] | ~get_non_neighbors(path[lf], i);
 					}
 
 					for (size_t i = 0; i < graph.get_row_length(); ++i)
 					{
-						Packed cur = graph.get_row(path[lf])[i] & ~graph.get_row(path[lb])[i] & ~f[i];
+						Packed cur = get_neighbors(path[lf], i) & get_non_neighbors(path[lb], i) & ~f[i];
 
 						while (cur)
 						{
@@ -381,7 +417,7 @@ namespace Finder
 
 							path[lf + 1] = v;
 
-							if (Find_Inner_Rec<F, lf + 1, lb, depth + 1>::find_inner_rec(graph, path, forbidden, callback))
+							if (Find_Inner_Rec<F, G, H, lf + 1, lb, depth + 1>::find_inner_rec(graph, path, forbidden, callback, get_neighbors, get_non_neighbors))
 							{
 								return true;
 							}
@@ -394,7 +430,7 @@ namespace Finder
 
 		};
 
-		template<typename F, size_t lf, size_t lb, size_t depth>
+		template<typename F, typename G, typename H, size_t lf, size_t lb, size_t depth>
 		class Find_Rec
 		{
 		public:
@@ -406,7 +442,7 @@ namespace Finder
 			 * already in the path path[lf]..path[lb] and all neighbors of all inner nodes are marked in forbidden in the row at
 			 * depth (template parameter). The function uses the next row in forbidden for the next recursive call.
 			 */
-			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback)
+			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback, G& get_neighbors, H& get_non_neighbors)
 			{
 				static_assert(lf > 0 || lb < length - 1);
 				constexpr size_t remaining_length = length - (lb - lf) - 1;
@@ -429,21 +465,26 @@ namespace Finder
 						Packed *nf = f + graph.get_row_length();
 						for(size_t i = 0; i < graph.get_row_length(); i++)
 						{
-							nf[i] = graph.get_row(base_node)[i] | f[i];
+							nf[i] = ~get_non_neighbors(base_node, i) | f[i];
 						}
 					}
 
 					// Find the next node that is adjacent to base_node but not opposed_node unless this is the last node and we allow cycles
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						Packed curf = graph.get_row(base_node)[i] & ~f[i];
+						Packed curf = get_neighbors(base_node, i) & ~f[i];
 						if constexpr (remaining_length > 1 || !with_cycles)
 						{
 							// ensure there is no edge vf, opposed_node by excluding neighbors of opposed_node
-							curf &= ~graph.get_row(opposed_node)[i];
+							curf &= get_non_neighbors(opposed_node, i);
+						}
+						else if constexpr (!std::is_same<Conversion, Options::Conversions::Skip>::value)
+						{
+							// ensure that either there is an edge or there is no edge, this means the pair is not excluded
+							curf &= get_neighbors(opposed_node, i) | get_non_neighbors(opposed_node, i);
 						}
 
-						(void)opposed_node;
+						(void) opposed_node;
 
 						while(curf)
 						{
@@ -459,7 +500,7 @@ namespace Finder
 							// Further, we have ensured that there is no edge between uf and opposed_node if lf > 1.
 							assert(remaining_length == 1 || !graph.has_edge(vf, opposed_node));
 
-							if(Find_Rec<F, next_lf, next_lb, depth + 1>::find_rec(graph, path, forbidden, callback))
+							if(Find_Rec<F, G, H, next_lf, next_lb, depth + 1>::find_rec(graph, path, forbidden, callback, get_neighbors, get_non_neighbors))
 							{
 								return true;
 							}
@@ -470,11 +511,11 @@ namespace Finder
 			}
 		};
 
-		template<typename F, size_t depth>
-		class Find_Rec<F, 0, length - 1, depth>
+		template<typename F, typename G, typename H, size_t depth>
+		class Find_Rec<F, G, H, 0, length - 1, depth>
 		{
 		public:
-			static bool find_rec(Graph const &g, std::vector<VertexID> &path, std::vector<Packed> &, F &callback)
+			static bool find_rec(Graph const &g, std::vector<VertexID> &path, std::vector<Packed> &, F &callback, G&, H&)
 			{
 				(void)g;
 
