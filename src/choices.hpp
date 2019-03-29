@@ -25,6 +25,7 @@
 #include "Consumer/LB_Basic.hpp"
 #include "Consumer/LB_Updated.hpp"
 #include "Consumer/LB_Min_Deg.hpp"
+#include "Consumer/LB_ARW.hpp"
 #include "Consumer/Counter.hpp"
 #include "Graph/Matrix.hpp"
 
