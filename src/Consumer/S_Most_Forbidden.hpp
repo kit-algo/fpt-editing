@@ -20,10 +20,14 @@ namespace Consumer
 	public:
 		static constexpr char const *name = "Most";
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
+		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
 
 	private:
 		Value_Matrix<size_t> use_count;
-		std::vector<typename Lower_Bound_Storage_type::subgraph_t> forbidden_subgraphs;
+		size_t num_subgraphs;
+
+		std::vector<size_t> counter_before_mark;
+		Finder_impl finder;
 
 		struct forbidden_count
 		{
@@ -43,30 +47,88 @@ namespace Consumer
 			}
 		};
 	public:
-		Most(VertexID graph_size) : use_count(graph_size) {;}
+		Most(VertexID graph_size) : use_count(graph_size), num_subgraphs(0), finder(graph_size) {;}
 
-		void prepare(size_t, const Lower_Bound_Storage_type&)
+		void initialize(size_t, Graph const &graph, Graph_Edits const &edited)
 		{
-			use_count.forAllNodePairs([](VertexID, VertexID, size_t& v) { v = 0; });
-			forbidden_subgraphs.clear();
+			use_count.forAllNodePairs([&](VertexID, VertexID, size_t& v) { v = 0; });
+			counter_before_mark.clear();
+			num_subgraphs = 0;
+
+			finder.find(graph, [&](const subgraph_t& path)
+			{
+				++num_subgraphs;
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					++use_count.at(*uit, *vit);
+					return false;
+				});
+
+				return false;
+			});
 		}
 
-		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
+		void before_mark_and_edit(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
-			Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, b, e, [&](auto uit, auto vit) {
-				++use_count.at(*uit, *vit);
+			counter_before_mark.push_back(use_count.at(u, v));
+
+			before_undo_edit(graph, edited, u, v);
+
+			assert(use_count.at(u, v) == 0);
+		}
+
+		void after_mark_and_edit(size_t /*k*/, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		{
+			finder.find_near(graph, u, v, [&](const subgraph_t& path)
+			{
+				++num_subgraphs;
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					++use_count.at(*uit, *vit);
+					return false;
+				});
+
 				return false;
 			});
 
-			forbidden_subgraphs.emplace_back(Util::to_array<VertexID, length>(b));
+			assert(use_count.at(u, v) == 0);
+		}
 
-			return false;
+		void before_undo_edit(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		{
+			finder.find_near(graph, u, v, [&](const subgraph_t& path)
+			{
+				--num_subgraphs;
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit)
+				{
+					--use_count.at(*uit, *vit);
+					return false;
+				});
+
+				return false;
+			});
+		}
+
+		void after_undo_edit(size_t k, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		{
+			after_mark_and_edit(k, graph, edited, u, v);
+		}
+
+		void before_undo_mark(Graph const &, Graph_Edits const &, VertexID, VertexID)
+		{
+		}
+
+		void after_undo_mark(size_t /*k*/, Graph const &/* graph */, Graph_Edits const &/*edited*/, VertexID u, VertexID v)
+		{
+			use_count.at(u, v) = counter_before_mark.back();
+			counter_before_mark.pop_back();
 		}
 
 		ProblemSet result(size_t k, Graph const &graph, Graph const &edited, Options::Tag::Selector)
 		{
 			ProblemSet problem;
-			problem.found_solution = forbidden_subgraphs.empty();
+			problem.found_solution = (num_subgraphs == 0);
 			problem.needs_no_edit_branch = false;
 
 			// We only need to return an actual set of vertex pairs
@@ -76,7 +138,19 @@ namespace Consumer
 			{
 				std::vector<forbidden_count> best_pairs, current_pairs;
 
-				for (const auto& fs : forbidden_subgraphs)
+				size_t max_subgraphs = 0;
+				VertexID maxu = 0, maxv = 0;
+				use_count.forAllNodePairs([&](VertexID u, VertexID v, size_t& num_fbs) {
+					if (num_fbs > max_subgraphs) {
+						max_subgraphs = num_fbs;
+						maxu = u;
+						maxv = v;
+					}
+				});
+
+				// TODO: do this for multiple node pairs?
+
+				finder.find_near(graph, maxu, maxv, [&](const subgraph_t& fs)
 				{
 					current_pairs.clear();
 					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, fs.begin(), fs.end(), [&](auto uit, auto vit) {
@@ -87,7 +161,7 @@ namespace Consumer
 					if (current_pairs.empty())
 					{
 						best_pairs.clear();
-						break;
+						return true;
 					}
 
 					if (best_pairs.empty() || (current_pairs.size() == 1 && (best_pairs.size() > 1 || best_pairs.front().num_forbidden < current_pairs.front().num_forbidden)))
@@ -112,7 +186,9 @@ namespace Consumer
 							best_pairs = current_pairs;
 						}
 					}
-				}
+
+					return false;
+				});
 
 				for (size_t i = 0; i < best_pairs.size(); ++i)
 				{

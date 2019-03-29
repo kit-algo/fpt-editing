@@ -49,11 +49,11 @@ int main(int argc, char * argv[])
 		// Global listing
 		Value_Matrix<std::vector<subgraph_t>> subgraphs_per_pair(graph.size());
 
-		auto cb = [&](auto uit, auto vit)
+		auto cb = [&](const subgraph_t& sg)
 		{
-			Finder::for_all_edges_unordered<M, R, Conversion>(graph, edited, uit, vit, [&](auto u, auto v)
+			Finder::for_all_edges_unordered<M, R, Conversion>(graph, edited, sg.begin(), sg.end(), [&](auto u, auto v)
 			{
-				subgraphs_per_pair.at(*u, *v).push_back(Util::to_array<VertexID, length>(uit));
+				subgraphs_per_pair.at(*u, *v).push_back(sg);
 				return false;
 			});
 			return false;
@@ -65,9 +65,9 @@ int main(int argc, char * argv[])
 		{
 			std::vector<subgraph_t> local_subgraphs;
 
-			auto local_cb = [&](auto uit, auto)
+			auto local_cb = [&](const subgraph_t &sg)
 			{
-				local_subgraphs.push_back(Util::to_array<VertexID, length>(uit));
+				local_subgraphs.push_back(sg);
 
 				return false;
 			};

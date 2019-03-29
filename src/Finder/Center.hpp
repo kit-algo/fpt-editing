@@ -28,26 +28,26 @@ namespace Finder
 
 	private:
 		std::vector<Packed> forbidden;
-		std::vector<VertexID> path;
-
 	public:
-		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length)), path(length) {;}
+		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length)) {;}
 
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
 		{
-			auto callback = [&feeder, &graph, &edited](std::vector<VertexID>::const_iterator uit, std::vector<VertexID>::const_iterator vit) -> bool
+			auto callback = [&feeder, &graph, &edited](const std::array<VertexID, length>& subgraph) -> bool
 					{
-						return feeder.callback(graph, edited, uit, vit);
+						return feeder.callback(graph, edited, subgraph.begin(), subgraph.end());
 					};
 
 			find(graph, callback);
 		}
 
 		template <typename F>
-		void find(Graph const &graph, F& callback)
+		void find(Graph const &graph, F callback)
 		{
 			assert(forbidden.size() / graph.get_row_length() == length);
+
+			std::array<VertexID, length> path;
 
 			auto get_neighbors = [&graph](VertexID u, size_t i) { return graph.get_row(u)[i]; };
 			auto get_non_neighbors = [&graph](VertexID u, size_t i) { return ~graph.get_row(u)[i]; };
@@ -153,7 +153,7 @@ namespace Finder
 		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
 		 */
 		template<typename F>
-		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback)
+		void find_near(Graph const &graph, VertexID uu, VertexID vv, F callback)
 		{
 			auto get_neighbors = [&graph](VertexID u, size_t i) { return graph.get_row(u)[i]; };
 			auto get_non_neighbors = [&graph](VertexID u, size_t i) { return ~graph.get_row(u)[i]; };
@@ -170,7 +170,7 @@ namespace Finder
 		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
 		 */
 		template<typename F>
-		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback, Graph_Edits &forbidden_pairs)
+		void find_near(Graph const &graph, VertexID uu, VertexID vv, F callback, Graph_Edits &forbidden_pairs)
 		{
 
 			assert(!forbidden_pairs.has_edge(uu, vv));
@@ -191,6 +191,8 @@ namespace Finder
 		template<typename F, typename G, typename H>
 		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback, G &get_neighbors, H &get_non_neighbors)
 		{
+			std::array<VertexID, length> path;
+
 			if constexpr (length > 2)
 			{
 				Packed *f = forbidden.data();
@@ -232,7 +234,7 @@ namespace Finder
 
 						auto cb = [&]() -> bool
 							{
-								return callback(path.cbegin(), path.cend());
+								return callback(path);
 							};
 
 						Find_Inner_Rec<decltype(cb), G, H, 0, length - 1, 0>::find_inner_rec(graph, path, forbidden, cb, get_neighbors, get_non_neighbors);
@@ -246,11 +248,6 @@ namespace Finder
 					if (shall_return) return;
 
 					constexpr size_t distance = i.value + 2;
-
-					if constexpr (std::is_same<Conversion, Options::Conversions::Skip>::value && distance == length - 1)
-					{
-						return;
-					}
 
 					constexpr size_t lf = 0;
 					constexpr size_t lb = lf + distance;
@@ -361,7 +358,7 @@ namespace Finder
 			 * In the last step, if there is only a single node left, common neighbors are enumerated.
 			 * The given callback @a callback is called without parameters.
 			 */
-			static bool find_inner_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback, G &get_neighbors, H &get_non_neighbors)
+			static bool find_inner_rec(Graph const &graph, std::array<VertexID, length> &path, std::vector<Packed> &forbidden, F &callback, G &get_neighbors, H &get_non_neighbors)
 			{
 				constexpr size_t remaining_length = lb - lf;
 
@@ -442,7 +439,7 @@ namespace Finder
 			 * already in the path path[lf]..path[lb] and all neighbors of all inner nodes are marked in forbidden in the row at
 			 * depth (template parameter). The function uses the next row in forbidden for the next recursive call.
 			 */
-			static bool find_rec(Graph const &graph, std::vector<VertexID> &path, std::vector<Packed> &forbidden, F &callback, G& get_neighbors, H& get_non_neighbors)
+			static bool find_rec(Graph const &graph, std::array<VertexID, length>& path, std::vector<Packed> &forbidden, F &callback, G& get_neighbors, H& get_non_neighbors)
 			{
 				static_assert(lf > 0 || lb < length - 1);
 				constexpr size_t remaining_length = length - (lb - lf) - 1;
@@ -515,7 +512,7 @@ namespace Finder
 		class Find_Rec<F, G, H, 0, length - 1, depth>
 		{
 		public:
-			static bool find_rec(Graph const &g, std::vector<VertexID> &path, std::vector<Packed> &, F &callback, G&, H&)
+			static bool find_rec(Graph const &g, const std::array<VertexID, length> &path, std::vector<Packed> &, F &callback, G&, H&)
 			{
 				(void)g;
 
@@ -528,7 +525,7 @@ namespace Finder
 					}
 				}
 
-				return callback(path.cbegin(), path.cend());
+				return callback(path);
 			}
 		};
 

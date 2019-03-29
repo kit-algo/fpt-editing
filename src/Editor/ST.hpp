@@ -38,8 +38,6 @@ namespace Editor
 		Graph &graph;
 		Graph_Edits edited;
 
-		::Finder::Feeder<Finder, Graph, Graph_Edits, Consumer...> feeder;
-		::Finder::Feeder<Finder, Graph, Graph_Edits, Lower_Bound_type> lb_feeder;
 		bool found_soulution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
 
@@ -52,7 +50,7 @@ namespace Editor
 #endif
 
 	public:
-		ST(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), feeder(finder, consumer), lb_feeder(finder, std::get<lb>(consumer))
+		ST(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size())
 		{
 			;
 		}
@@ -69,7 +67,12 @@ namespace Editor
 			extra_lbs = decltype(extra_lbs)(k + 1, 0);
 #endif
 			found_soulution = false;
-			edit_rec(k, k, Lower_Bound_Storage_type());
+
+			Util::for_<sizeof...(Consumer)>([&](auto i){
+				std::get<i.value>(consumer).initialize(k, graph, edited);
+			});
+
+			edit_rec(k);
 			return found_soulution;
 		}
 
@@ -82,14 +85,11 @@ namespace Editor
 
 	private:
 
-		bool edit_rec(size_t k, size_t no_edits_left, const Lower_Bound_Storage_type& lower_bound)
+		bool edit_rec(size_t k)
 		{
 #ifdef STATS
 			calls[k]++;
 #endif
-			// start finder and feed into selector and lb
-			feeder.feed(k, graph, edited, no_edits_left, lower_bound);
-
 			if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 			{
 #ifdef STATS
@@ -116,9 +116,6 @@ namespace Editor
 				return false;
 			}
 
-			Lower_Bound_Storage_type updated_lower_bound(std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update()));
-
-
 			for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 			{
 				if(edited.has_edge(vertex_pair.first, vertex_pair.second))
@@ -132,20 +129,17 @@ namespace Editor
 					++calls[k];
 					++extra_lbs[k];
 #endif
-					lb_feeder.feed(k, graph, edited, no_edits_left, updated_lower_bound);
+
 					if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
 					{
 						break;
 					}
-					else
-					{
-						updated_lower_bound = std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound_Update());
-					}
 				}
 
-				// Update lower bound
-				Lower_Bound_Storage_type next_lower_bound(updated_lower_bound);
-				next_lower_bound.remove(graph, edited, vertex_pair.first, vertex_pair.second);
+				Util::for_<sizeof...(Consumer)>([&](auto i)
+				{
+					std::get<i.value>(consumer).before_mark_and_edit(graph, edited, vertex_pair.first, vertex_pair.second);
+				});
 
 				if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 				{
@@ -154,11 +148,39 @@ namespace Editor
 
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
-				if(edit_rec(k - 1, no_edits_left, next_lower_bound)) {return true;}
+				Util::for_<sizeof...(Consumer)>([&](auto i)
+				{
+					std::get<i.value>(consumer).after_mark_and_edit(k, graph, edited, vertex_pair.first, vertex_pair.second);
+				});
+
+				if(edit_rec(k - 1)) {return true;}
+
+				Util::for_<sizeof...(Consumer)>([&](auto i)
+				{
+					std::get<i.value>(consumer).before_undo_edit(graph, edited, vertex_pair.first, vertex_pair.second);
+				});
 
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
-				if(std::is_same<Restriction, Options::Restrictions::Undo>::value) {edited.clear_edge(vertex_pair.first, vertex_pair.second);}
+				Util::for_<sizeof...(Consumer)>([&](auto i)
+				{
+					std::get<i.value>(consumer).after_undo_edit(k, graph, edited, vertex_pair.first, vertex_pair.second);
+				});
+
+				if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value)
+				{
+					Util::for_<sizeof...(Consumer)>([&](auto i)
+					{
+						std::get<i.value>(consumer).before_undo_mark(graph, edited, vertex_pair.first, vertex_pair.second);
+					});
+
+					edited.clear_edge(vertex_pair.first, vertex_pair.second);
+
+					Util::for_<sizeof...(Consumer)>([&](auto i)
+					{
+						std::get<i.value>(consumer).after_undo_mark(k, graph, edited, vertex_pair.first, vertex_pair.second);
+					});
+				}
 			}
 
 			if (problem.needs_no_edit_branch)
@@ -172,7 +194,7 @@ namespace Editor
 				single[k]++;
 #endif
 
-				if(edit_rec(k, no_edits_left - 1, updated_lower_bound)) {return true;}
+				if(edit_rec(k)) {return true;}
 			}
 #ifdef STATS
 			else
@@ -181,11 +203,24 @@ namespace Editor
 			}
 #endif
 
-			if (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+			if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 			{
 				for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 				{
-					edited.clear_edge(vertex_pair.first, vertex_pair.second);
+					if (edited.has_edge(vertex_pair.first, vertex_pair.second))
+					{
+						Util::for_<sizeof...(Consumer)>([&](auto i)
+						{
+							std::get<i.value>(consumer).before_undo_mark(graph, edited, vertex_pair.first, vertex_pair.second);
+						});
+
+						edited.clear_edge(vertex_pair.first, vertex_pair.second);
+
+						Util::for_<sizeof...(Consumer)>([&](auto i)
+						{
+							std::get<i.value>(consumer).after_undo_mark(k, graph, edited, vertex_pair.first, vertex_pair.second);
+						});
+					}
 				}
 			}
 

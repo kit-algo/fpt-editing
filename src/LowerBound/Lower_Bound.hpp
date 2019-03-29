@@ -35,6 +35,11 @@ namespace Lower_Bound
 			if (it != end) abort();
 		}
 
+		void add(const subgraph_t& sg)
+		{
+			bound.emplace_back(sg);
+		}
+
 		/**
 		 * Removes any forbidden subgraphs that contain the given vertex pair (u, v).
 		 */
