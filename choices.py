@@ -90,6 +90,8 @@ for macro, arguments in need.items():
 			continue
 		if "Single" in combination[6] and (not combination[4] == "Redundant"):
 			continue
+		if "P" in combination[1] and combination[5] == "Skip":
+			continue
 		if not combination[4] == "Redundant" and (not combination[5] == "Normal" or not combination[6] == "First" or not combination[7] == "No"):
 			continue
 
