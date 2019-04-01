@@ -74,7 +74,7 @@ int main(int argc, char * argv[])
 
 			finder.find_near(graph, u, v, local_cb);
 
-			if (!subgraphs.size() == local_subgraphs.size())
+			if (subgraphs.size() != local_subgraphs.size())
 			{
 				std::cout << "(" << static_cast<size_t>(u) << ", " << static_cast<size_t>(v) << ")" << std::endl;
 
