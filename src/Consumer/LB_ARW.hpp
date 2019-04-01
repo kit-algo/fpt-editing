@@ -536,7 +536,7 @@ namespace Consumer
 								}
 							}
 						}
-						else if (k > 0 && k < current_bound.size())
+						else if (k < current_bound.size())
 						{
 							return;
 						}
