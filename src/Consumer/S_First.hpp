@@ -17,6 +17,7 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "First";
+		using State = typename Base_No_Updates<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>::State;
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
 
@@ -26,7 +27,7 @@ namespace Consumer
 	public:
 		First(VertexID graph_size) : finder(graph_size) {;}
 
-		ProblemSet const result(size_t, Graph const &graph, Graph const &edited, Options::Tag::Selector)
+		ProblemSet const result(State&, size_t, Graph const &graph, Graph const &edited, Options::Tag::Selector)
 		{
 			ProblemSet problem;
 			problem.found_solution = true;

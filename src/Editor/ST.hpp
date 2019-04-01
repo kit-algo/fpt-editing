@@ -32,13 +32,15 @@ namespace Editor
 		using Lower_Bound_type = typename std::tuple_element<lb, std::tuple<Consumer ...>>::type;
 		using Lower_Bound_Storage_type = Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, Finder::length>;
 
+		using State_Tuple_type = std::tuple<typename Consumer::State...>;
+
 	private:
 		Finder &finder;
 		std::tuple<Consumer &...> consumer;
 		Graph &graph;
 		Graph_Edits edited;
 
-		bool found_soulution;
+		bool found_solution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
 
 #ifdef STATS
@@ -66,14 +68,14 @@ namespace Editor
 			single = decltype(single)(k + 1, 0);
 			extra_lbs = decltype(extra_lbs)(k + 1, 0);
 #endif
-			found_soulution = false;
+			found_solution = false;
 
-			Util::for_<sizeof...(Consumer)>([&](auto i){
-				std::get<i.value>(consumer).initialize(k, graph, edited);
+			State_Tuple_type state = Util::for_make_tuple<sizeof...(Consumer)>([&](auto i){
+				return std::get<i.value>(consumer).initialize(k, graph, edited);
 			});
 
-			edit_rec(k);
-			return found_soulution;
+			edit_rec(k, std::move(state));
+			return found_solution;
 		}
 
 #ifdef STATS
@@ -85,12 +87,12 @@ namespace Editor
 
 	private:
 
-		bool edit_rec(size_t k)
+		bool edit_rec(size_t k, State_Tuple_type state)
 		{
 #ifdef STATS
 			calls[k]++;
 #endif
-			if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+			if (k < std::get<lb>(consumer).result(std::get<lb>(state), k, graph, edited, Options::Tag::Lower_Bound()))
 			{
 #ifdef STATS
 				prunes[k]++;
@@ -100,11 +102,11 @@ namespace Editor
 			}
 
 			// graph solved?
-			ProblemSet problem = std::get<selector>(consumer).result(k, graph, edited, Options::Tag::Selector());
+			ProblemSet problem = std::get<selector>(consumer).result(std::get<selector>(state), k, graph, edited, Options::Tag::Selector());
 
 			if(problem.found_solution)
 			{
-				found_soulution = true;
+				found_solution = true;
 				return !write(graph, edited);
 			}
 			else if(k == 0)
@@ -130,56 +132,48 @@ namespace Editor
 					++extra_lbs[k];
 #endif
 
-					if (k < std::get<lb>(consumer).result(k, graph, edited, Options::Tag::Lower_Bound()))
+					if (k < std::get<lb>(consumer).result(std::get<lb>(state), k, graph, edited, Options::Tag::Lower_Bound()))
 					{
 						break;
 					}
 				}
 
+				State_Tuple_type next_state(state);
+
 				Util::for_<sizeof...(Consumer)>([&](auto i)
 				{
-					std::get<i.value>(consumer).before_mark_and_edit(graph, edited, vertex_pair.first, vertex_pair.second);
+					std::get<i.value>(consumer).before_mark_and_edit(std::get<i.value>(next_state), graph, edited, vertex_pair.first, vertex_pair.second);
 				});
 
 				if(!std::is_same<Restriction, Options::Restrictions::None>::value)
 				{
+					Util::for_<sizeof...(Consumer)>([&](auto i)
+					{
+						std::get<i.value>(consumer).before_mark(std::get<i.value>(state), graph, edited, vertex_pair.first, vertex_pair.second);
+					});
+
 					edited.set_edge(vertex_pair.first, vertex_pair.second);
+
+					Util::for_<sizeof...(Consumer)>([&](auto i)
+					{
+						std::get<i.value>(consumer).after_mark(std::get<i.value>(state), graph, edited, vertex_pair.first, vertex_pair.second);
+					});
 				}
 
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
 				Util::for_<sizeof...(Consumer)>([&](auto i)
 				{
-					std::get<i.value>(consumer).after_mark_and_edit(k, graph, edited, vertex_pair.first, vertex_pair.second);
+					std::get<i.value>(consumer).after_mark_and_edit(std::get<i.value>(next_state), graph, edited, vertex_pair.first, vertex_pair.second);
 				});
 
-				if(edit_rec(k - 1)) {return true;}
-
-				Util::for_<sizeof...(Consumer)>([&](auto i)
-				{
-					std::get<i.value>(consumer).before_undo_edit(graph, edited, vertex_pair.first, vertex_pair.second);
-				});
+				if(edit_rec(k - 1, std::move(next_state))) {return true;}
 
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
-				Util::for_<sizeof...(Consumer)>([&](auto i)
-				{
-					std::get<i.value>(consumer).after_undo_edit(k, graph, edited, vertex_pair.first, vertex_pair.second);
-				});
-
 				if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value)
 				{
-					Util::for_<sizeof...(Consumer)>([&](auto i)
-					{
-						std::get<i.value>(consumer).before_undo_mark(graph, edited, vertex_pair.first, vertex_pair.second);
-					});
-
 					edited.clear_edge(vertex_pair.first, vertex_pair.second);
-
-					Util::for_<sizeof...(Consumer)>([&](auto i)
-					{
-						std::get<i.value>(consumer).after_undo_mark(k, graph, edited, vertex_pair.first, vertex_pair.second);
-					});
 				}
 			}
 
@@ -194,7 +188,7 @@ namespace Editor
 				single[k]++;
 #endif
 
-				if(edit_rec(k)) {return true;}
+				if(edit_rec(k, std::move(state))) {return true;}
 			}
 #ifdef STATS
 			else
@@ -206,23 +200,9 @@ namespace Editor
 			if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 			{
 
-				for (auto it = problem.vertex_pairs.crbegin(); it != problem.vertex_pairs.crend(); ++it)
+				for (auto vertex_pair : problem.vertex_pairs)
 				{
-					const auto vertex_pair = *it;
-					if (edited.has_edge(vertex_pair.first, vertex_pair.second))
-					{
-						Util::for_<sizeof...(Consumer)>([&](auto i)
-						{
-							std::get<i.value>(consumer).before_undo_mark(graph, edited, vertex_pair.first, vertex_pair.second);
-						});
-
-						edited.clear_edge(vertex_pair.first, vertex_pair.second);
-
-						Util::for_<sizeof...(Consumer)>([&](auto i)
-						{
-							std::get<i.value>(consumer).after_undo_mark(k, graph, edited, vertex_pair.first, vertex_pair.second);
-						});
-					}
+					edited.clear_edge(vertex_pair.first, vertex_pair.second);
 				}
 			}
 

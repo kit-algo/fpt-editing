@@ -16,31 +16,26 @@ namespace Consumer
 	class Base_No_Updates
 	{
 	public:
-		void initialize(size_t, Graph const &, Graph_Edits const &)
+		struct State {};
+
+		State initialize(size_t, Graph const &, Graph_Edits const &)
+		{
+			return State{};
+		};
+
+		void before_mark_and_edit(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		};
 
-		void before_mark_and_edit(Graph const &, Graph_Edits const &, VertexID, VertexID)
+		void after_mark_and_edit(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		};
 
-		void after_mark_and_edit(size_t, Graph const &, Graph_Edits const &, VertexID, VertexID)
+		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		};
 
-		void before_undo_edit(Graph const &, Graph_Edits const &, VertexID, VertexID)
-		{
-		};
-
-		void after_undo_edit(size_t /*k*/, Graph const &, Graph_Edits const &, VertexID, VertexID)
-		{
-		};
-
-		void before_undo_mark(Graph const &, Graph_Edits const &, VertexID, VertexID)
-		{
-		};
-
-		void after_undo_mark(size_t /*k*/, Graph const &, Graph_Edits const &, VertexID, VertexID)
+		void after_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		};
 	};

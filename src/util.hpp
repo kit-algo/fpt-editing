@@ -58,6 +58,18 @@ namespace Util
 	{
 		for_(func, std::make_index_sequence<N>());
 	}
+
+	template <class F, std::size_t... Is>
+	auto for_make_tuple(F func, std::index_sequence<Is...>)
+	{
+		return std::make_tuple(func(num<Is>{})...);
+	}
+
+	template <std::size_t N, typename F>
+	auto for_make_tuple(F func)
+	{
+		return for_make_tuple(func, std::make_index_sequence<N>());
+	}
 }
 
 #endif

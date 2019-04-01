@@ -29,7 +29,6 @@
 #include "util.hpp"
 
 #include "Editor/Editor.hpp"
-#include "Consumer/S_Single.hpp"
 #include "Graph/Graph.hpp"
 
 /* Helper template to remove Consumers without effect */
@@ -351,7 +350,7 @@ public:
 	static std::string name()
 	{
 		/* Editor must be valid to be able to access Editor::name */
-		using E = _E<F, G, GE, M, R, C, Consumer::Single<F, G, GE, M, R, C, F::length>>;
+		using E = _E<F, G, GE, M, R, C, Con<F, G, GE, M, R, C, F::length>...>;
 		return Namer<E, M, R, C, F, Con<F, G, GE, M, R, C, F::length>..., G>::name();
 	}
 };

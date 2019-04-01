@@ -16,19 +16,13 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "No";
-		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
-
+		using State = typename Base_No_Updates<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>::State;
 	public:
 		No(VertexID) {;}
 
-		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
+		size_t result(State&, size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound) const
 		{
 			return 0;
-		}
-
-		const Lower_Bound_Storage_type result(size_t, Graph const&, Graph_Edits const&, Options::Tag::Lower_Bound_Update) const
-		{
-			return Lower_Bound_Storage_type();
 		}
 	};
 }
