@@ -34,7 +34,7 @@ namespace Consumer
 			size_t num_subgraphs;
 			size_t sum_subgraphs_per_edge;
 
-			State(VertexID graph_size) : bound_uses(graph_size), num_subgraphs_per_edge(graph_size) {};
+			State(VertexID graph_size) : bound_uses(graph_size), num_subgraphs_per_edge(graph_size), num_subgraphs(0), sum_subgraphs_per_edge(0) {};
 		};
 	private:
 
@@ -253,7 +253,7 @@ namespace Consumer
 							auto cb = [&](const subgraph_t &sg)
 							{
 								#ifndef NDEBUG
-								bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&bound_uses = bound_uses](auto cuit, auto cvit)
+								bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&bound_uses = state.bound_uses](auto cuit, auto cvit)
 								{
 									return bound_uses.has_edge(*cuit, *cvit);
 								});
@@ -291,7 +291,7 @@ namespace Consumer
 									bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&](auto cuit, auto cvit)
 									{
 										pairs_covered += candidate_pairs_used.has_edge(*cuit, *cvit);
-										return bound_uses.has_edge(*cuit, *cvit);
+										return state.bound_uses.has_edge(*cuit, *cvit);
 									});
 
 									if (!touches_bound && pairs_covered < pairs.size())
@@ -304,7 +304,7 @@ namespace Consumer
 
 								finder.find_near(g, p.first, p.second, debug_cb);
 
-								if (!debug_subgraphs.size() == candidates_per_pair[pi].size())
+								if (debug_subgraphs.size() != candidates_per_pair[pi].size())
 								{
 									std::cout << "(" << static_cast<size_t>(p.first) << ", " << static_cast<size_t>(p.second) << ")" << std::endl;
 
@@ -362,7 +362,7 @@ namespace Consumer
 
 								Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, cand_fs.begin(), cand_fs.end(), [&](auto cuit, auto cvit)
 								{
-									assert(!bound_uses.has_edge(*cuit, *cvit));
+									assert(!state.bound_uses.has_edge(*cuit, *cvit));
 									state.bound_uses.set_edge(*cuit, *cvit);
 									size_t cn = state.num_subgraphs_per_edge.at(*cuit, *cvit);
 									cand_neighbors += cn;
