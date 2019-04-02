@@ -88,7 +88,7 @@ for macro, arguments in need.items():
 		# run-EDITOR-MT-Center_4-Matrix-Delete-None-Last-First-Basic.cpp
 		if ("Single" in combination[6] or "Single" in combination[7]) and not combination[6] == combination[7] and (not ("Most" in combination[6] and not "Single" in combination[7])):
 			continue
-		if "Single" in combination[6] and (not combination[4] == "Redundant"):
+		if "Single" in combination[6] and (not combination[4] == "Redundant" or combination[7] == "No"):
 			continue
 		if "P" in combination[1] and combination[5] == "Skip":
 			continue
