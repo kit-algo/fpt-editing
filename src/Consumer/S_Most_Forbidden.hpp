@@ -15,18 +15,21 @@
 namespace Consumer
 {
 	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length, bool pruned = false>
-	class Most : Options::Tag::Selector
+	class Most_Impl : Options::Tag::Selector
 	{
 	public:
 		static constexpr char const *name = "Most";
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
 
-	private:
-		Value_Matrix<size_t> use_count;
-		size_t num_subgraphs;
+		struct State {
+			Value_Matrix<size_t> use_count;
+			size_t num_subgraphs;
 
-		std::vector<size_t> counter_before_mark;
+			State(VertexID graph_size) : use_count(graph_size), num_subgraphs(0) {}
+                };
+
+        private:
 		Finder_impl finder;
 
 		struct forbidden_count
@@ -47,88 +50,75 @@ namespace Consumer
 			}
 		};
 	public:
-		Most(VertexID graph_size) : use_count(graph_size), num_subgraphs(0), finder(graph_size) {;}
+		Most_Impl(VertexID graph_size) : finder(graph_size) {;}
 
-		void initialize(size_t, Graph const &graph, Graph_Edits const &edited)
+		State initialize(size_t, Graph const &graph, Graph_Edits const &edited)
 		{
-			use_count.forAllNodePairs([&](VertexID, VertexID, size_t& v) { v = 0; });
-			counter_before_mark.clear();
-			num_subgraphs = 0;
+			State state(graph.size());
 
 			finder.find(graph, [&](const subgraph_t& path)
 			{
-				++num_subgraphs;
+				++state.num_subgraphs;
 
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					++use_count.at(*uit, *vit);
-					return false;
-				});
-
-				return false;
-			});
-		}
-
-		void before_mark_and_edit(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
-		{
-			counter_before_mark.push_back(use_count.at(u, v));
-
-			before_undo_edit(graph, edited, u, v);
-
-			assert(use_count.at(u, v) == 0);
-		}
-
-		void after_mark_and_edit(size_t /*k*/, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
-		{
-			finder.find_near(graph, u, v, [&](const subgraph_t& path)
-			{
-				++num_subgraphs;
-
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					++use_count.at(*uit, *vit);
+					++state.use_count.at(*uit, *vit);
 					return false;
 				});
 
 				return false;
 			});
 
-			assert(use_count.at(u, v) == 0);
+			return state;
 		}
 
-		void before_undo_edit(Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		void before_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
-				--num_subgraphs;
+				--state.num_subgraphs;
 
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit)
 				{
-					--use_count.at(*uit, *vit);
+					--state.use_count.at(*uit, *vit);
 					return false;
 				});
 
 				return false;
 			});
+
+			assert(state.use_count.at(u, v) == 0);
 		}
 
-		void after_undo_edit(size_t k, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		void after_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
-			after_mark_and_edit(k, graph, edited, u, v);
+			finder.find_near(graph, u, v, [&](const subgraph_t& path)
+			{
+				++state.num_subgraphs;
+
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					++state.use_count.at(*uit, *vit);
+					return false;
+				});
+
+				return false;
+			});
+
+			assert(state.use_count.at(u, v) == 0);
 		}
 
-		void before_undo_mark(Graph const &, Graph_Edits const &, VertexID, VertexID)
+		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		}
 
-		void after_undo_mark(size_t /*k*/, Graph const &/* graph */, Graph_Edits const &/*edited*/, VertexID u, VertexID v)
+		void after_mark(State& state, Graph const &/* graph */, Graph_Edits const &/*edited*/, VertexID u, VertexID v)
 		{
-			use_count.at(u, v) = counter_before_mark.back();
-			counter_before_mark.pop_back();
+			state.use_count.at(u, v) = 0;
 		}
 
-		ProblemSet result(size_t k, Graph const &graph, Graph const &edited, Options::Tag::Selector)
+		ProblemSet result(State& state, size_t k, Graph const &graph, Graph const &edited, Options::Tag::Selector)
 		{
 			ProblemSet problem;
-			problem.found_solution = (num_subgraphs == 0);
+			problem.found_solution = (state.num_subgraphs == 0);
 			problem.needs_no_edit_branch = false;
 
 			// We only need to return an actual set of vertex pairs
@@ -140,7 +130,7 @@ namespace Consumer
 
 				size_t max_subgraphs = 0;
 				VertexID maxu = 0, maxv = 0;
-				use_count.forAllNodePairs([&](VertexID u, VertexID v, size_t& num_fbs) {
+				state.use_count.forAllNodePairs([&](VertexID u, VertexID v, size_t& num_fbs) {
 					if (num_fbs > max_subgraphs) {
 						max_subgraphs = num_fbs;
 						maxu = u;
@@ -154,7 +144,7 @@ namespace Consumer
 				{
 					current_pairs.clear();
 					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-						current_pairs.emplace_back(std::make_pair(*uit, *vit), use_count.at(*uit, *vit));
+						current_pairs.emplace_back(std::make_pair(*uit, *vit), state.use_count.at(*uit, *vit));
 						return false;
 					});
 
@@ -202,10 +192,17 @@ namespace Consumer
 	};
 
 	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
-	class Most_Pruned : public Most<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, true> {
+	class Most: public Most_Impl<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, false> {
+	public:
+		static constexpr char const *name = "Most";
+		using Most_Impl<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, false>::Most_Impl;
+	};
+
+	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
+	class Most_Pruned : public Most_Impl<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, true> {
 	public:
 		static constexpr char const *name = "Most_Pruned";
-		using Most<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, true>::Most;
+		using Most_Impl<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length, true>::Most_Impl;
 	};
 }
 

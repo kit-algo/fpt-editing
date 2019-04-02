@@ -36,6 +36,12 @@ public:
 		return matrix[v * (v - 1) / 2 + u];
 	}
 
+	const value_type& at(VertexID u, VertexID v) const
+	{
+		if (u > v) std::swap(u, v);
+		return matrix[v * (v - 1) / 2 + u];
+	}
+
 	template<typename F>
 	void forAllNodePairs(F f) {
 		VertexID u = 0, v = 1;
