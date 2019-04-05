@@ -8,7 +8,7 @@
 #define STATS
 
 /* Type used for vertex identifiers */
-using VertexID = uint8_t;
+using VertexID = uint16_t;
 /* Type used for adjecency matrices */
 using Packed = uint64_t;
 /* Numer of bits in Packed */
