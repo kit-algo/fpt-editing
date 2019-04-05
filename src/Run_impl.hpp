@@ -191,9 +191,9 @@ public:
 		// permute node ids
 		const std::vector<VertexID> permutation = Graph::generate_permutation(input_graph, options.permutation);
 		const std::vector<VertexID> reverse_permutation = Graph::invert_permutation(permutation);
-		G graph = Graph::apply_permutation(input_graph, permutation);
+		const G g_orig = Graph::apply_permutation(input_graph, permutation);
 
-		const G g_orig = graph;
+		G graph = g_orig;
 		GE edited(graph.size());
 
 		F finder(graph.size());
@@ -216,8 +216,18 @@ public:
 			} while(std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < 10);
 		}
 
+		size_t k_min = options.k_min;
+
+		if (options.calculate_initial_bound)
+		{
+			// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
+			typename E::Lower_Bound_type::State state =  std::get<E::lb>(consumer).initialize(std::numeric_limits<size_t>::max(), graph, edited);
+			size_t bound = std::get<E::lb>(consumer).result(state, std::numeric_limits<size_t>::max(), graph, edited, Options::Tag::Lower_Bound());
+			if (bound > k_min) k_min = bound;
+		}
+
                 // actual experiment
-		for(size_t k = options.k_min; !options.k_max || k <= options.k_max; k++)
+		for(size_t k = k_min; !options.k_max || k <= options.k_max; k++)
 		{
 			bool repeat_solved = false;
 			size_t repeat_n = 0;
