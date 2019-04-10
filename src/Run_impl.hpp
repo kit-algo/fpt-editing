@@ -216,6 +216,9 @@ public:
 			} while(std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < 10);
 		}
 
+		// Reset time limit
+		std::cout << " " << std::flush;
+
 		size_t k_min = options.k_min;
 
 		if (options.calculate_initial_bound)
@@ -224,9 +227,11 @@ public:
 			typename E::Lower_Bound_type::State state =  std::get<E::lb>(consumer).initialize(std::numeric_limits<size_t>::max(), graph, edited);
 			size_t bound = std::get<E::lb>(consumer).result(state, std::numeric_limits<size_t>::max(), graph, edited, Options::Tag::Lower_Bound());
 			if (bound > k_min) k_min = bound;
+			// Reset time limit
+			std::cout << " " << std::flush;
 		}
 
-                // actual experiment
+		// actual experiment
 		for(size_t k = k_min; !options.k_max || k <= options.k_max; k++)
 		{
 			bool repeat_solved = false;
