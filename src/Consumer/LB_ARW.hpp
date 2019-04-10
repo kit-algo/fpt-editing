@@ -381,7 +381,8 @@ namespace Consumer
 									min_candidate_neighbors = cand_neighbors;
 								}
 
-								for (size_t ppi = 0; ppi < pairs.size(); ++ppi)
+								// Look only for later pairs - combinations with subgraphs listed for earlier pairs have already been considered!
+								for (size_t ppi = pi + 1; ppi < pairs.size(); ++ppi)
 								{
 									const auto partner_pair = pairs[ppi];
 
