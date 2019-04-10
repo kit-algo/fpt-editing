@@ -31,6 +31,40 @@ namespace Finder
 	public:
 		Center(VertexID graph_size) : forbidden(Graph::alloc_rows(graph_size, length)) {;}
 
+		bool is_subgraph_valid(Graph const &graph, const std::array<VertexID, length>& sg)
+		{
+			for (size_t i = 0; i < length - 1; ++i)
+			{
+				if (!graph.has_edge(sg[i], sg[i+1]))
+				{
+					return false;
+				}
+			}
+
+			if constexpr (!with_cycles)
+			{
+				if (graph.has_edge(sg.front(), sg.back()))
+				{
+					return false;
+				}
+			}
+
+			for (size_t i = 0; i + 2 < length; ++i)
+			{
+				for (size_t j = i + 2; j < length; ++j)
+				{
+					if (i == 0 && j + 1 == length) break;
+
+					if (graph.has_edge(sg[i], sg[j]))
+					{
+						return false;
+					}
+				}
+			}
+
+			return true;
+		}
+
 		template<typename Feeder>
 		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
 		{

@@ -23,8 +23,7 @@
 #include "Consumer/S_Single_First_Edits_Sparse.hpp"
 #include "Consumer/S_Single_Heur.hpp"
 */
-#include "Consumer/S_Single_Most.hpp"
-#include "Consumer/S_Most_Forbidden.hpp"
+#include "Consumer/S_Most.hpp"
 #include "Consumer/LB_No.hpp"
 /*
 #include "Consumer/LB_Basic.hpp"
