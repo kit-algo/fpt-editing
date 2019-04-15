@@ -264,14 +264,14 @@ namespace Consumer
 
 						assert(current_pairs.size() > 1);
 
+						std::sort(current_pairs.begin(), current_pairs.end());
+
 						if (best_pairs.empty() || (current_pairs.size() == 2 && (current_pairs.size() < best_pairs.size() || best_pairs.back().num_forbidden < current_pairs.back().num_forbidden)))
 						{
 							best_pairs = current_pairs;
 						}
 						else
 						{
-							std::sort(current_pairs.begin(), current_pairs.end());
-
 							auto bit = best_pairs.begin();
 							auto cit = current_pairs.begin();
 
