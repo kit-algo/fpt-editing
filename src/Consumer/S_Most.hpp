@@ -266,22 +266,21 @@ namespace Consumer
 
 						std::sort(current_pairs.begin(), current_pairs.end());
 
-						if (best_pairs.empty() || (current_pairs.size() == 2 && (current_pairs.size() < best_pairs.size() || best_pairs.back().num_forbidden < current_pairs.back().num_forbidden)))
+						if (best_pairs.empty())
 						{
 							best_pairs = current_pairs;
 						}
 						else
 						{
-							auto bit = best_pairs.begin();
-							auto cit = current_pairs.begin();
+							size_t bi = 0, ci = 0;
 
-							while (bit != best_pairs.end() && cit != current_pairs.end() && bit->num_forbidden == cit->num_forbidden)
+							while (bi + 1 < best_pairs.size() && ci + 1 < current_pairs.size() && best_pairs[bi].num_forbidden == current_pairs[ci].num_forbidden)
 							{
-								++bit;
-								++cit;
+								++bi;
+								++ci;
 							}
 
-							if (cit == current_pairs.end() || (bit != best_pairs.end() && bit->num_forbidden < cit->num_forbidden))
+							if (ci + 1 == current_pairs.size() || (bi + 1 != best_pairs.size() && best_pairs[bi].num_forbidden < current_pairs[ci].num_forbidden))
 							{
 								best_pairs = current_pairs;
 							}
