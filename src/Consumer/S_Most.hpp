@@ -64,11 +64,11 @@ namespace Consumer
 	public:
 		Most_Impl(VertexID graph_size) : finder(graph_size) {;}
 
-		State initialize(size_t k, Graph const &graph, Graph_Edits const &edited)
+		State initialize(size_t, Graph const &graph, Graph_Edits const &edited)
 		{
 			State state(graph.size());
 
-			state.num_single_left = k;
+			state.num_single_left = length;
 
 			finder.find(graph, [&](const subgraph_t& path)
 			{
@@ -170,6 +170,8 @@ namespace Consumer
 
 				return false;
 			});
+
+			state.num_single_left = length;
 
 			verify_num_subgraphs_per_edge(state, graph, edited);
 			assert(state.num_subgraphs_per_edge.at(u, v) == 0);
@@ -290,7 +292,7 @@ namespace Consumer
 					});
 				}
 
-				if (!use_single || state.num_single_left < 0 || max_subgraphs == 1 || best_pairs.size() == 2) // only use single editing if there is a node pair that is part of multiple forbidden subgraphs
+				if (!use_single || state.num_single_left <= 0 || max_subgraphs == 1 || best_pairs.size() == 2) // only use single editing if there is a node pair that is part of multiple forbidden subgraphs
 				{
 
 					for (size_t i = 0; i < best_pairs.size(); ++i)
