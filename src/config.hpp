@@ -33,7 +33,7 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define CHOICES_HEURISTIC
 #define CHOICES_FINDER Center_P3, Center_P4, Center_P5, Center_4, Center_5
 #define CHOICES_CONSUMER_SELECTOR First, Most, Most_Pruned, Single_Most
-#define CHOICES_CONSUMER_BOUND No, ARW
+#define CHOICES_CONSUMER_BOUND No, Basic, ARW
 #define CHOICES_CONSUMER_RESULT
 #define CHOICES_GRAPH Matrix
 #else
