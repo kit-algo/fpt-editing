@@ -52,7 +52,7 @@ namespace Consumer
 				++found;
 
 				return found > k;
-			});
+			}, used);
 
 			return found;
 		}

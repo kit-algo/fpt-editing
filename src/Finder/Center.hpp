@@ -79,12 +79,30 @@ namespace Finder
 		template <typename F>
 		void find(Graph const &graph, F callback)
 		{
+			auto get_neighbors = [&graph](VertexID u, size_t i) { return graph.get_row(u)[i]; };
+			auto get_non_neighbors = [&graph](VertexID u, size_t i) { return ~graph.get_row(u)[i]; };
+
+			find(graph, callback, get_neighbors, get_non_neighbors);
+		}
+
+		template<typename F>
+		void find(Graph const &graph, F callback, Graph_Edits &forbidden_pairs)
+		{
+
+			assert(!forbidden_pairs.has_edge(uu, vv));
+			auto get_neighbors = [&graph, &forbidden_pairs](VertexID u, size_t i) { return graph.get_row(u)[i] & ~forbidden_pairs.get_row(u)[i]; };
+			auto get_non_neighbors = [&graph, &forbidden_pairs](VertexID u, size_t i) { return ~graph.get_row(u)[i] & ~forbidden_pairs.get_row(u)[i]; };
+
+			find(graph, callback, get_neighbors, get_non_neighbors);
+		}
+
+
+		template <typename F, typename G, typename H>
+		void find(Graph const &graph, F callback, G& get_neighbors, H& get_non_neighbors)
+		{
 			assert(forbidden.size() / graph.get_row_length() == length);
 
 			std::array<VertexID, length> path;
-
-			auto get_neighbors = [&graph](VertexID u, size_t i) { return graph.get_row(u)[i]; };
-			auto get_non_neighbors = [&graph](VertexID u, size_t i) { return ~graph.get_row(u)[i]; };
 
 			constexpr bool length_even = (length % 2 == 0);
 			Packed *f = forbidden.data();
@@ -98,7 +116,7 @@ namespace Finder
 						// Mark u and neighbors of u in f
 						for(size_t i = 0; i < graph.get_row_length(); i++)
 						{
-							f[i] = graph.get_row(u)[i];
+							f[i] = ~get_non_neighbors(u, i);
 						}
 						f[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 					}
@@ -107,7 +125,7 @@ namespace Finder
 					// For all neighbors vf of u
 					for(size_t i = 0; i < graph.get_row_length(); i++)
 					{
-						for(Packed curf = graph.get_row(u)[i]; curf;)
+						for(Packed curf = get_neighbors(u, i); curf;)
 						{
 							const VertexID lzcurf = PACKED_CTZ(curf);
 							const VertexID vf = lzcurf + i * Packed_Bits;
@@ -120,10 +138,10 @@ namespace Finder
 							for(size_t j = i; j < graph.get_row_length(); j++)
 							{
 								// For the first block, we can use curf (vf is already removed), otherwise get the block
-								Packed curb = j == i? curf : graph.get_row(u)[j];
+								Packed curb = j == i? curf : get_neighbors(u, i);
 
 								// Exclude neighbors of vf
-								curb &= ~(graph.get_row(vf)[j]);
+								curb &= get_non_neighbors(vf, j);
 
 								while (curb)
 								{
@@ -161,7 +179,7 @@ namespace Finder
 						// Second half: explore actual neighbors v.
 						// For first Packed item (i == u / Packed_Bits) (that contains u), mask all bits up to (and including) position u (% Packed_Bits)
 						// So basically these two loops are graph.next_neighbor(u, v), where v is initially u.
-						for(Packed cur = i == u / Packed_Bits? graph.get_row(u)[i] & ~((Packed(2) << (u % Packed_Bits)) - 1) : graph.get_row(u)[i]; cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
+						for(Packed cur = i == u / Packed_Bits? get_neighbors(u, i) & ~((Packed(2) << (u % Packed_Bits)) - 1) : get_neighbors(u, i); cur; cur &= ~(Packed(1) << PACKED_CTZ(cur)))
 						{
 							VertexID v = PACKED_CTZ(cur) + i * Packed_Bits;
 							// Set bit v in f

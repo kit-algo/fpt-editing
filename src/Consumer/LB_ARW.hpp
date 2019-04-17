@@ -66,7 +66,7 @@ namespace Consumer
 
 				// Assumption: if the bound is too high, initialize will be called again anyway.
 				return state.lb.size() > k;
-			});
+			}, bound_uses);
 
 			return state;
 		}
