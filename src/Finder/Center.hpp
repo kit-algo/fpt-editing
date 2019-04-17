@@ -89,7 +89,6 @@ namespace Finder
 		void find(Graph const &graph, F callback, Graph_Edits &forbidden_pairs)
 		{
 
-			assert(!forbidden_pairs.has_edge(uu, vv));
 			auto get_neighbors = [&graph, &forbidden_pairs](VertexID u, size_t i) { return graph.get_row(u)[i] & ~forbidden_pairs.get_row(u)[i]; };
 			auto get_non_neighbors = [&graph, &forbidden_pairs](VertexID u, size_t i) { return ~graph.get_row(u)[i] & ~forbidden_pairs.get_row(u)[i]; };
 
@@ -138,7 +137,7 @@ namespace Finder
 							for(size_t j = i; j < graph.get_row_length(); j++)
 							{
 								// For the first block, we can use curf (vf is already removed), otherwise get the block
-								Packed curb = j == i? curf : get_neighbors(u, i);
+								Packed curb = j == i? curf : get_neighbors(u, j);
 
 								// Exclude neighbors of vf
 								curb &= get_non_neighbors(vf, j);
