@@ -72,28 +72,32 @@ namespace Consumer
 
 			state.num_single_left = length;
 
-			finder.find(graph, [&](const subgraph_t& path)
+			if (edited.count_edges() > 0)
 			{
-				size_t free = 0;
+				finder.find(graph, [&](const subgraph_t& path)
+				{
+					size_t free = 0;
 
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto, auto) {
-					++free;
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto, auto) {
+						++free;
+						return false;
+					});
+
+					if (free == 1)
+					{
+						state.one_left_subgraphs.push_back(path);
+					}
+					else if (free == 0)
+					{
+						state.impossible_to_solve = true;
+					}
+
+					if(free == 0) {return true;} // completly edited subgraph -- impossible to solve graph
+
 					return false;
 				});
+			}
 
-				if (free == 1)
-				{
-					state.one_left_subgraphs.push_back(path);
-				}
-				else if (free == 0)
-				{
-					state.impossible_to_solve = true;
-				}
-
-				if(free == 0) {return true;} // completly edited subgraph -- impossible to solve graph
-
-				return false;
-			});
 			return state;
 		}
 
