@@ -24,18 +24,20 @@ ifneq ($(MAKECMDGOALS), clean)
 endif
 
 debug: TYPEFLAGS := $(DEBUGFLAGS)
-debug: $(TARGET) test_finder
+debug: $(TARGET) test_finder json2csv
 profile: TYPEFLAGS := $(PROFILEFLAGS)
-profile: $(TARGET) test_finder
+profile: $(TARGET) test_finder json2csv
 release: TYPEFLAGS := $(RELEASEFLAGS)
-release: $(TARGET) test_finder
+release: $(TARGET) test_finder json2csv
 
 clean:
-	rm -rf $(TARGET) build gmon.out *~
+	rm -rf $(TARGET) build gmon.out test_finder json2csv *~
 
 test_finder: $(TEST_SOURCE_FILES:src/%.cpp=build/%.o)
 	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o test_finder
 
+json2csv: json2csv.cpp external/json.hpp
+	$(CPP) $(COMMON) $(TYPEFLAGS) json2csv.cpp $(LDFLAGS) -o json2csv
 
 $(TARGET): $(SOURCE_FILES:src/%.cpp=build/%.o) | build build/generated/list.d
 	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o $(TARGET)

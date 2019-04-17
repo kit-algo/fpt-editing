@@ -19,3 +19,5 @@ doc/**/*.pdf
 doc/**/*.nav
 doc/**/*.snm
 /.ccls-cache
+/test_finder
+/json2csv
