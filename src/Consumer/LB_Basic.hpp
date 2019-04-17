@@ -22,13 +22,16 @@ namespace Consumer
 		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
 		using State = typename Base_No_Updates<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>::State;
 		using Subgraph_Stats_type = ::Finder::Subgraph_Stats<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>;
+	private:
+			Graph_Edits used;
+			Finder_impl finder;
+	public:
 
-		Basic(VertexID) {}
+		Basic(VertexID graph_size) : used(graph_size), finder(graph_size) {}
 
-		size_t result(State&, const Subgraph_Stats_type&, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound) const
+		size_t result(State&, const Subgraph_Stats_type&, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound)
 		{
-			Graph_Edits used(graph.size());
-			Finder_impl finder(graph.size());
+			used.clear();
 
 			size_t found = 0;
 
