@@ -30,6 +30,7 @@
 
 #include "Editor/Editor.hpp"
 #include "Graph/Graph.hpp"
+#include "Finder/SubgraphStats.hpp"
 
 /* Helper template to remove Consumers without effect */
 template<bool S, bool LB, typename... TCon>
@@ -224,8 +225,10 @@ public:
 		if (options.calculate_initial_bound)
 		{
 			// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
+			::Finder::Subgraph_Stats<F, G, GE, M, R, C, F::length> subgraph_stats(E::Lower_Bound_type::needs_subgraph_stats ? graph.size() : 0);
+			subgraph_stats.initialize(graph, edited);
 			typename E::Lower_Bound_type::State state =  std::get<E::lb>(consumer).initialize(std::numeric_limits<size_t>::max(), graph, edited);
-			size_t bound = std::get<E::lb>(consumer).result(state, std::numeric_limits<size_t>::max(), graph, edited, Options::Tag::Lower_Bound());
+			size_t bound = std::get<E::lb>(consumer).result(state, subgraph_stats, std::numeric_limits<size_t>::max(), graph, edited, Options::Tag::Lower_Bound());
 			if (bound > k_min) k_min = bound;
 			// Reset time limit
 			std::cout << " " << std::flush;

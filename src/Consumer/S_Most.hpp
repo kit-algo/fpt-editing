@@ -15,6 +15,7 @@
 #include "../Options.hpp"
 
 #include "../Finder/Finder.hpp"
+#include "../Finder/SubgraphStats.hpp"
 #include "../Finder/Center.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../Graph/ValueMatrix.hpp"
@@ -27,18 +28,19 @@ namespace Consumer
 	{
 	public:
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
+		using Subgraph_Stats_type = ::Finder::Subgraph_Stats<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>;
 		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
+
+		static constexpr bool needs_subgraph_stats = true;
 
 		struct State
 		{
-			Value_Matrix<size_t> num_subgraphs_per_edge;
-			size_t num_subgraphs;
 			int64_t num_single_left;
 
 			std::vector<subgraph_t> one_left_subgraphs;
 			bool impossible_to_solve;
 
-			State(VertexID graph_size) : num_subgraphs_per_edge(graph_size), num_subgraphs(0), num_single_left(0), impossible_to_solve(false) {}
+			State() : num_single_left(0), impossible_to_solve(false) {}
 		};
 
 	private:
@@ -66,17 +68,15 @@ namespace Consumer
 
 		State initialize(size_t, Graph const &graph, Graph_Edits const &edited)
 		{
-			State state(graph.size());
+			State state;
 
 			state.num_single_left = length;
 
 			finder.find(graph, [&](const subgraph_t& path)
 			{
 				size_t free = 0;
-				++state.num_subgraphs;
 
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					++state.num_subgraphs_per_edge.at(*uit, *vit);
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto, auto) {
 					++free;
 					return false;
 				});
@@ -94,67 +94,20 @@ namespace Consumer
 
 				return false;
 			});
-
-			verify_num_subgraphs_per_edge(state, graph, edited);
-
 			return state;
 		}
 
-		void verify_num_subgraphs_per_edge(const State& state, Graph const &graph, Graph_Edits const &edited)
+		void before_mark_and_edit(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
-			(void) graph; (void) edited; (void)state;
-#ifndef NDEBUG
-			Value_Matrix<size_t> debug_subgraphs(graph.size());
-			size_t debug_num_subgraphs = 0;
-
-			finder.find(graph, [&](const subgraph_t& path)
-			{
-				++debug_num_subgraphs;
-
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					++debug_subgraphs.at(*uit, *vit);
-					return false;
-				});
-
-				return false;
-			});
-
-			debug_subgraphs.forAllNodePairs([&](VertexID u, VertexID v, size_t debug_num)
-			{
-				assert(state.num_subgraphs_per_edge.at(u, v) == debug_num);
-				assert(!edited.has_edge(u, v) || debug_num == 0);
-			});
-#endif
-		}
-
-		void before_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
-		{
-			verify_num_subgraphs_per_edge(state, graph, edited);
-
-			finder.find_near(graph, u, v, [&](const subgraph_t& path)
-			{
-				--state.num_subgraphs;
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit)
-				{
-					--state.num_subgraphs_per_edge.at(*uit, *vit);
-					return false;
-				});
-
-				return false;
-			});
-
-			assert(state.num_subgraphs_per_edge.at(u, v) == 0);
 		}
 
 		void after_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
-				++state.num_subgraphs;
 				size_t free = 0;
 
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					++state.num_subgraphs_per_edge.at(*uit, *vit);
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto, auto) {
 					++free;
 					return false;
 				});
@@ -172,9 +125,6 @@ namespace Consumer
 			});
 
 			state.num_single_left = length;
-
-			verify_num_subgraphs_per_edge(state, graph, edited);
-			assert(state.num_subgraphs_per_edge.at(u, v) == 0);
 		}
 
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
@@ -184,8 +134,6 @@ namespace Consumer
 		void after_mark(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			assert(edited.has_edge(u, v));
-
-			state.num_subgraphs_per_edge.at(u, v) = 0;
 
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
@@ -208,16 +156,13 @@ namespace Consumer
 				return false;
 			});
 
-			verify_num_subgraphs_per_edge(state, graph, edited);
-			assert(state.num_subgraphs_per_edge.at(u, v) == 0);
-
 			--state.num_single_left;
 		}
 
-		ProblemSet result(State& state, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Selector)
+		ProblemSet result(State& state, const Subgraph_Stats_type& subgraph_stats, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Selector)
 		{
 			ProblemSet problem;
-			problem.found_solution = (state.num_subgraphs == 0);
+			problem.found_solution = (subgraph_stats.num_subgraphs == 0);
 			problem.needs_no_edit_branch = false;
 			if (!problem.found_solution && k > 0 && !state.impossible_to_solve) {
 				while (!state.one_left_subgraphs.empty())
@@ -240,7 +185,7 @@ namespace Consumer
 
 				size_t max_subgraphs = 0;
 				std::vector<std::pair<VertexID, VertexID>> node_pairs;
-				state.num_subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, size_t& num_fbs) {
+				subgraph_stats.num_subgraphs_per_edge.forAllNodePairs([&](VertexID u, VertexID v, size_t num_fbs) {
 					if (num_fbs > max_subgraphs)
 					{
 						max_subgraphs = num_fbs;
@@ -260,7 +205,7 @@ namespace Consumer
 					{
 						current_pairs.clear();
 						Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, fs.begin(), fs.end(), [&](auto uit, auto vit) {
-							current_pairs.emplace_back(std::make_pair(*uit, *vit), state.num_subgraphs_per_edge.at(*uit, *vit));
+							current_pairs.emplace_back(std::make_pair(*uit, *vit), subgraph_stats.num_subgraphs_per_edge.at(*uit, *vit));
 							return false;
 						});
 

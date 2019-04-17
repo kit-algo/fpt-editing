@@ -13,6 +13,7 @@
 
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
+#include "../Finder/SubgraphStats.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../Graph/ValueMatrix.hpp"
 #include "../util.hpp"
@@ -25,16 +26,15 @@ namespace Consumer
 	public:
 		static constexpr char const *name = "ARW";
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
+		using Subgraph_Stats_type = ::Finder::Subgraph_Stats<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>;
 		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
+
+		static constexpr bool needs_subgraph_stats = true;
 
 		struct State {
 			Lower_Bound_Storage_type lb;
 			Graph_Edits bound_uses;
-			Value_Matrix<size_t> num_subgraphs_per_edge;
-			size_t num_subgraphs;
-			size_t sum_subgraphs_per_edge;
-
-			State(VertexID graph_size) : bound_uses(graph_size), num_subgraphs_per_edge(graph_size), num_subgraphs(0), sum_subgraphs_per_edge(0) {};
+			State(VertexID graph_size) : bound_uses(graph_size) {};
 		};
 	private:
 
@@ -49,17 +49,9 @@ namespace Consumer
 
 			finder.find(graph, [&](const subgraph_t& path)
 			{
-				bool touches_bound = false;
-
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					state.sum_subgraphs_per_edge++;
-					++state.num_subgraphs_per_edge.at(*uit, *vit);
-
-					touches_bound |= state.bound_uses.has_edge(*uit, *vit);
-					return false;
+				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					return state.bound_uses.has_edge(*uit, *vit);
 				});
-
-				++state.num_subgraphs;
 
 				if (!touches_bound)
 				{
@@ -80,20 +72,6 @@ namespace Consumer
 
 		void before_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
-			finder.find_near(graph, u, v, [&](const subgraph_t& path)
-			{
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit)
-				{
-					--state.sum_subgraphs_per_edge;
-					--state.num_subgraphs_per_edge.at(*uit, *vit);
-					return false;
-				});
-
-				--state.num_subgraphs;
-
-				return false;
-			});
-
 			std::vector<subgraph_t>& lb = state.lb.get_bound();
 
 			for (size_t i = 0; i < lb.size();)
@@ -126,17 +104,9 @@ namespace Consumer
 		{
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
-				bool touches_bound = false;
-
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					state.sum_subgraphs_per_edge++;
-					++state.num_subgraphs_per_edge.at(*uit, *vit);
-
-					touches_bound |= state.bound_uses.has_edge(*uit, *vit);
-					return false;
+				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					return state.bound_uses.has_edge(*uit, *vit);
 				});
-
-				++state.num_subgraphs;
 
 				if (!touches_bound)
 				{
@@ -149,7 +119,7 @@ namespace Consumer
 				}
 
 				return false;
-			});
+			}, state.bound_uses);
 		}
 
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
@@ -159,8 +129,6 @@ namespace Consumer
 		void after_mark(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			state.bound_uses.clear_edge(u, v);
-			state.sum_subgraphs_per_edge -= state.num_subgraphs_per_edge.at(u, v);
-			state.num_subgraphs_per_edge.at(u, v) = 0;
 
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
@@ -182,25 +150,25 @@ namespace Consumer
 			}, state.bound_uses);
 		}
 
-		size_t result(State& state, size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Lower_Bound)
+		size_t result(State& state, const Subgraph_Stats_type& subgraph_stats, size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Lower_Bound)
 		{
 			if (state.lb.size() <= k)
 			{
-				find_lb_2_improvements(state, k, g, e);
+				find_lb_2_improvements(state, subgraph_stats, k, g, e);
 			}
 
 			return state.lb.size();
 		}
 
 	private:
-		void find_lb_2_improvements(State& state, size_t k, const Graph &g, const Graph_Edits &e)
+		void find_lb_2_improvements(State& state, const Subgraph_Stats_type& subgraph_stats, size_t k, const Graph &g, const Graph_Edits &e)
 		{
 			std::vector<subgraph_t>& lb = state.lb.get_bound();
 
 			std::vector<std::vector<subgraph_t>> candidates_per_pair(length * (length - 1) / 2);
 			std::vector<std::pair<VertexID, VertexID>> pairs;
 
-			std::mt19937_64 gen(42 * state.num_subgraphs + state.sum_subgraphs_per_edge);
+			std::mt19937_64 gen(42 * subgraph_stats.num_subgraphs + subgraph_stats.sum_subgraphs_per_edge);
 			std::uniform_real_distribution prob(.0, 1.0);
 
 
@@ -223,7 +191,7 @@ namespace Consumer
 					size_t num_pairs = 0, num_neighbors = 0;
 					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, fs.begin(), fs.end(), [&](auto uit, auto vit)
 					{
-						size_t nn = state.num_subgraphs_per_edge.at(*uit, *vit);
+						size_t nn = subgraph_stats.num_subgraphs_per_edge.at(*uit, *vit);
 						num_neighbors += nn;
 
 						pairs.emplace_back(*uit, *vit);
@@ -364,7 +332,7 @@ namespace Consumer
 								{
 									assert(!state.bound_uses.has_edge(*cuit, *cvit));
 									state.bound_uses.set_edge(*cuit, *cvit);
-									size_t cn = state.num_subgraphs_per_edge.at(*cuit, *cvit);
+									size_t cn = subgraph_stats.num_subgraphs_per_edge.at(*cuit, *cvit);
 									cand_neighbors += cn;
 									if (cn > 1) ++cand_pairs;
 									return false;

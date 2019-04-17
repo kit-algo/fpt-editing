@@ -16,6 +16,7 @@
 #include "../Finder/Finder.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../ProblemSet.hpp"
+#include "../Finder/SubgraphStats.hpp"
 
 namespace Editor
 {
@@ -40,6 +41,10 @@ namespace Editor
 		Graph &graph;
 		Graph_Edits edited;
 
+		::Finder::Subgraph_Stats<Finder, Graph, Graph_Edits, Mode, Restriction, Conversion, Finder::length> subgraph_stats;
+
+		static constexpr bool needs_subgraph_stats = (Consumer::needs_subgraph_stats || ...);
+
 		bool found_solution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
 
@@ -52,7 +57,7 @@ namespace Editor
 #endif
 
 	public:
-		ST(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size())
+		ST(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t) : finder(finder), consumer(consumer), graph(graph), edited(graph.size()), subgraph_stats(needs_subgraph_stats ? graph.size() : 0), found_solution(false)
 		{
 			;
 		}
@@ -69,6 +74,8 @@ namespace Editor
 			extra_lbs = decltype(extra_lbs)(k + 1, 0);
 #endif
 			found_solution = false;
+
+			subgraph_stats.initialize(graph, edited);
 
 			State_Tuple_type state = Util::for_make_tuple<sizeof...(Consumer)>([&](auto i){
 				return std::get<i.value>(consumer).initialize(k, graph, edited);
@@ -92,7 +99,7 @@ namespace Editor
 #ifdef STATS
 			calls[k]++;
 #endif
-			if (k < std::get<lb>(consumer).result(std::get<lb>(state), k, graph, edited, Options::Tag::Lower_Bound()))
+			if (k < std::get<lb>(consumer).result(std::get<lb>(state), subgraph_stats, k, graph, edited, Options::Tag::Lower_Bound()))
 			{
 #ifdef STATS
 				prunes[k]++;
@@ -102,7 +109,7 @@ namespace Editor
 			}
 
 			// graph solved?
-			ProblemSet problem = std::get<selector>(consumer).result(std::get<selector>(state), k, graph, edited, Options::Tag::Selector());
+			ProblemSet problem = std::get<selector>(consumer).result(std::get<selector>(state), subgraph_stats, k, graph, edited, Options::Tag::Selector());
 
 			if(problem.found_solution)
 			{
@@ -132,7 +139,7 @@ namespace Editor
 					++extra_lbs[k];
 #endif
 
-					if (k < std::get<lb>(consumer).result(std::get<lb>(state), k, graph, edited, Options::Tag::Lower_Bound()))
+					if (k < std::get<lb>(consumer).result(std::get<lb>(state), subgraph_stats, k, graph, edited, Options::Tag::Lower_Bound()))
 					{
 						break;
 					}
@@ -158,7 +165,11 @@ namespace Editor
 					{
 						std::get<i.value>(consumer).after_mark(std::get<i.value>(state), graph, edited, vertex_pair.first, vertex_pair.second);
 					});
+
+					subgraph_stats.after_mark(graph, edited, vertex_pair.first, vertex_pair.second);
 				}
+
+				subgraph_stats.before_edit(graph, edited, vertex_pair.first, vertex_pair.second);
 
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
 
@@ -167,13 +178,20 @@ namespace Editor
 					std::get<i.value>(consumer).after_mark_and_edit(std::get<i.value>(next_state), graph, edited, vertex_pair.first, vertex_pair.second);
 				});
 
+				subgraph_stats.after_edit(graph, edited, vertex_pair.first, vertex_pair.second);
+
 				if(edit_rec(k - 1, std::move(next_state))) {return true;}
 
+				subgraph_stats.before_edit(graph, edited, vertex_pair.first, vertex_pair.second);
+
 				graph.toggle_edge(vertex_pair.first, vertex_pair.second);
+
+				subgraph_stats.after_edit(graph, edited, vertex_pair.first, vertex_pair.second);
 
 				if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value)
 				{
 					edited.clear_edge(vertex_pair.first, vertex_pair.second);
+					subgraph_stats.after_unmark(graph, edited, vertex_pair.first, vertex_pair.second);
 				}
 			}
 
@@ -200,9 +218,13 @@ namespace Editor
 			if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 			{
 
-				for (auto vertex_pair : problem.vertex_pairs)
+				for (auto it = problem.vertex_pairs.rbegin(); it != problem.vertex_pairs.rend(); ++it)
 				{
-					edited.clear_edge(vertex_pair.first, vertex_pair.second);
+					if (edited.has_edge(it->first, it->second))
+					{
+						edited.clear_edge(it->first, it->second);
+						subgraph_stats.after_unmark(graph, edited, it->first, it->second);
+					}
 				}
 			}
 

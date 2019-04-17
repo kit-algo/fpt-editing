@@ -16,6 +16,8 @@ namespace Consumer
 	class Base_No_Updates
 	{
 	public:
+		static constexpr bool needs_subgraph_stats = false;
+
 		struct State {};
 
 		State initialize(size_t, Graph const &, Graph_Edits const &)

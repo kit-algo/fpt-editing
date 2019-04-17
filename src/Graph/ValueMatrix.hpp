@@ -57,7 +57,20 @@ public:
 		}
 	}
 
-
+	template<typename F>
+	void forAllNodePairs(F f) const {
+		VertexID u = 0, v = 1;
+		for (size_t i = 0; i < matrix.size(); ++i) {
+			assert(v * static_cast<size_t>(v - 1) / 2 + u == i);
+			f(u, v, matrix[i]);
+			++u;
+			if (u == v)
+			{
+				u = 0;
+				++v;
+			}
+		}
+	}
 };
 
 #endif

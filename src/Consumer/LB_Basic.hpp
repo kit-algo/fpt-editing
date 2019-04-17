@@ -7,6 +7,7 @@
 
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
+#include "../Finder/SubgraphStats.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
 #include "Base_No_Updates.hpp"
 
@@ -20,10 +21,11 @@ namespace Consumer
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
 		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
 		using State = typename Base_No_Updates<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>::State;
+		using Subgraph_Stats_type = ::Finder::Subgraph_Stats<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>;
 
 		Basic(VertexID) {}
 
-		size_t result(State&, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound) const
+		size_t result(State&, const Subgraph_Stats_type&, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound) const
 		{
 			Graph_Edits used(graph.size());
 			Finder_impl finder(graph.size());

@@ -26,6 +26,7 @@
 #include "../Finder/Finder.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../ProblemSet.hpp"
+#include "../Finder/SubgraphStats.hpp"
 
 namespace Editor
 {
@@ -42,16 +43,20 @@ namespace Editor
 		using Lower_Bound_type = typename std::tuple_element<lb, std::tuple<Consumer ...>>::type;
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, Finder::length>;
 		using State_Tuple_type = std::tuple<typename Consumer::State...>;
+		using Subgraph_Stats_type = ::Finder::Subgraph_Stats<Finder, Graph, Graph_Edits, Mode, Restriction, Conversion, Finder::length>;
 
 	private:
+		static constexpr bool needs_subgraph_stats = (Consumer::needs_subgraph_stats || ...);
+
 		struct Work
 		{
 			Graph graph;
 			Graph_Edits edited;
 			size_t k;
 			State_Tuple_type state;
+			Subgraph_Stats_type subgraph_stats;
 
-			Work(Graph graph, Graph_Edits edited, size_t k, State_Tuple_type state) : graph(std::move(graph)), edited(std::move(edited)), k(k), state(std::move(state)) {;}
+			Work(Graph graph, Graph_Edits edited, size_t k, State_Tuple_type state, Subgraph_Stats_type subgraph_stats) : graph(std::move(graph)), edited(std::move(edited)), k(k), state(std::move(state)), subgraph_stats(std::move(subgraph_stats)) {;}
 		};
 
 		Finder &finder;
@@ -149,6 +154,7 @@ namespace Editor
 			std::tuple<Consumer ...> consumer;
 			std::unique_ptr<Graph> top_graph, bottom_graph;
 			std::unique_ptr<Graph_Edits> top_edited, bottom_edited;
+			Subgraph_Stats_type top_subgraph_stats, bottom_subgraph_stats;
 			size_t top_k;
 
 			struct Path
@@ -171,7 +177,7 @@ namespace Editor
 			std::vector<size_t> skipped;
 #endif
 
-			Worker(MT &editor, Finder const &finder, std::tuple<Consumer ...> const &consumer) : editor(editor), finder(finder), consumer(consumer) {}
+			Worker(MT &editor, Finder const &finder, std::tuple<Consumer ...> const &consumer) : editor(editor), finder(finder), consumer(consumer), top_subgraph_stats(0), bottom_subgraph_stats(0) {}
 
 			std::map<std::string, std::vector<size_t> const &> stats() const
 			{
@@ -185,9 +191,11 @@ namespace Editor
 			void initialize(const Graph& graph, const Graph_Edits &edited, size_t kmax)
 			{
 				editor.available_work.clear();
+				Subgraph_Stats_type subgraph_stats(needs_subgraph_stats ? graph.size() : 0);
+				subgraph_stats.initialize(graph, edited);
 				editor.available_work.push_back(std::make_unique<Work>(graph, edited, kmax, Util::for_make_tuple<sizeof...(Consumer)>([&](auto i) {
 					return std::get<i.value>(consumer).initialize(kmax, graph, edited);
-				})));
+				}), std::move(subgraph_stats)));
 			}
 
 #ifdef STATS
@@ -251,6 +259,8 @@ namespace Editor
 					bottom_graph = std::make_unique<Graph>(std::move(work->graph));
 					top_edited = std::make_unique<Graph>(work->edited);
 					bottom_edited = std::make_unique<Graph>(std::move(work->edited));
+					top_subgraph_stats = work->subgraph_stats;
+					bottom_subgraph_stats = std::move(work->subgraph_stats);
 					top_k = work->k;
 					if(edit_rec(work->k, std::move(work->state)))
 					{
@@ -289,6 +299,7 @@ namespace Editor
 									auto [u,v,lb] = problem.vertex_pairs[i];
 									assert(!top_edited->has_edge(u, v));
 									top_edited->set_edge(u, v);
+									top_subgraph_stats.after_mark(*top_graph, *top_edited, u, v);
 								}
 							}
 
@@ -300,23 +311,37 @@ namespace Editor
 								auto [u,v,lb] = problem.vertex_pairs[i];
 								assert(!top_edited->has_edge(u, v));
 
+
 								// Both for no-undo and for non-redundant, mark the node pair as edited
 								if constexpr (!std::is_same<Restriction, Options::Restrictions::None>::value)
 								{
 									top_edited->set_edge(u, v);
+									top_subgraph_stats.after_mark(*top_graph, *top_edited, u, v);
 								}
+
+								top_subgraph_stats.before_edit(*top_graph, *top_edited, u, v);
 
 								// Edit the node pair
 								top_graph->toggle_edge(u, v);
 
+								top_subgraph_stats.after_edit(*top_graph, *top_edited, u, v);
+
 								// Create work package for recursive call with k-1
-								editor.available_work.push_back(std::make_unique<Work>(*top_graph, *top_edited, top_k - 1, std::move(path.front().states[i])));
+								editor.available_work.push_back(std::make_unique<Work>(*top_graph, *top_edited, top_k - 1, std::move(path.front().states[i]), top_subgraph_stats));
+
+								top_subgraph_stats.before_edit(*top_graph, *top_edited, u, v);
 
 								// Undo edit after the recursion
 								top_graph->toggle_edge(u, v);
 
+								top_subgraph_stats.after_edit(*top_graph, *top_edited, u, v);
+
 								// For no-undo, we directly unmark the node pair
-								if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value) {top_edited->clear_edge(u, v);}
+								if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value)
+								{
+									top_edited->clear_edge(u, v);
+									top_subgraph_stats.after_unmark(*top_graph, *top_edited, u, v);
+								}
 							}
 
 							// For single node pair editing, create an additional work package where no node pair is edited
@@ -324,17 +349,35 @@ namespace Editor
 							// were marked as edited.
 							if (problem.needs_no_edit_branch && edges_done <= problem.vertex_pairs.size())
 							{
-								editor.available_work.push_back(std::make_unique<Work>(*top_graph, *top_edited, top_k, std::move(path.front().states.back())));
+								editor.available_work.push_back(std::make_unique<Work>(*top_graph, *top_edited, top_k, std::move(path.front().states.back()), top_subgraph_stats));
 							}
 
 							/* adjust top for recursion this thread is currently in */
 							assert(edges_done > 0);
 
+							// For non-redundant editing, unmark all node pairs after the current node pair
+							if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
+							{
+								assert(edges_done > 0);
+								for(size_t i = problem.vertex_pairs.size() - 1; i >= edges_done; --i)
+								{
+									auto [u,v,lb] = problem.vertex_pairs[i];
+									top_edited->clear_edge(u, v);
+									top_subgraph_stats.after_unmark(*top_graph, *top_edited, u, v);
+								}
+							}
+
 							if (edges_done <= problem.vertex_pairs.size())
 							{
 								// We are in the recursive call where (u, v) has been edited.
 								auto [u,v,lb] = problem.vertex_pairs[edges_done - 1];
+
+								top_subgraph_stats.before_edit(*top_graph, *top_edited, u, v);
+
 								top_graph->toggle_edge(u, v);
+
+								top_subgraph_stats.after_edit(*top_graph, *top_edited, u, v);
+
 								--top_k;
 
 								// For no-undo we also need to mark (u, v) as edited.
@@ -342,6 +385,7 @@ namespace Editor
 								if(std::is_same<Restriction, Options::Restrictions::Undo>::value)
 								{
 									top_edited->set_edge(u, v);
+									top_subgraph_stats.after_mark(*top_graph, *top_edited, u, v);
 								}
 							}
 							else
@@ -350,16 +394,6 @@ namespace Editor
 								assert(problem.needs_no_edit_branch);
 							}
 
-							// For non-redundant editing, unmark all node pairs after the current node pair
-							if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
-							{
-
-								for(size_t i = edges_done; i < problem.vertex_pairs.size(); ++i)
-								{
-									auto [u,v,lb] = problem.vertex_pairs[i];
-									top_edited->clear_edge(u, v);
-								}
-							}
 							editor.idlers.notify_all();
 							path.pop_front();
 						}
@@ -375,7 +409,7 @@ namespace Editor
 				calls[k]++;
 #endif
 				{
-					if (k < std::get<lb>(consumer).result(std::get<lb>(initial_state), k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
+					if (k < std::get<lb>(consumer).result(std::get<lb>(initial_state), bottom_subgraph_stats, k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
 					{
 						// lower bound too high
 #ifdef STATS
@@ -385,7 +419,7 @@ namespace Editor
 					}
 
 					// graph solved?
-					ProblemSet problem = std::get<selector>(consumer).result(std::get<selector>(initial_state), k, *bottom_graph, *bottom_edited, Options::Tag::Selector());
+					ProblemSet problem = std::get<selector>(consumer).result(std::get<selector>(initial_state), bottom_subgraph_stats, k, *bottom_graph, *bottom_edited, Options::Tag::Selector());
 					if(problem.found_solution)
 					{
 						std::unique_lock<std::mutex> ul(editor.write_mutex);
@@ -434,7 +468,7 @@ namespace Editor
 							++calls[k];
 							++extra_lbs[k];
 #endif
-							if (k < std::get<lb>(consumer).result(std::get<lb>(states.back()), k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
+							if (k < std::get<lb>(consumer).result(std::get<lb>(states.back()), bottom_subgraph_stats, k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
 							{
 								// The lower bound is to high, we do not need to consider node pair i or any later node pair - remove them from the problem!
 								problem.vertex_pairs.erase(problem.vertex_pairs.begin() + i, problem.vertex_pairs.end());
@@ -489,6 +523,8 @@ namespace Editor
 
 							bottom_edited->set_edge(u, v);
 
+							bottom_subgraph_stats.after_mark(*bottom_graph, *bottom_edited, u, v);
+
 							Util::for_<sizeof...(Consumer)>([&, u = u, v = v](auto i)
 							{
 								std::get<i.value>(consumer).after_mark(std::get<i.value>(*next_state), *bottom_graph, *bottom_edited, u, v);
@@ -501,9 +537,13 @@ namespace Editor
 
 					if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 					{
-						for (const ProblemSet::VertexPair vp : problem.vertex_pairs)
+						for (auto it = problem.vertex_pairs.rbegin(); it != problem.vertex_pairs.rend(); ++it)
 						{
-							bottom_edited->clear_edge(vp.first, vp.second);
+							if (bottom_edited->has_edge(it->first, it->second))
+							{
+								bottom_edited->clear_edge(it->first, it->second);
+								bottom_subgraph_stats.after_unmark(*bottom_graph, *bottom_edited, it->first, it->second);
+							}
 						}
 					}
 				}
@@ -521,9 +561,14 @@ namespace Editor
 					if constexpr (!std::is_same<Restriction, Options::Restrictions::None>::value)
 					{
 						bottom_edited->set_edge(u, v);
+						bottom_subgraph_stats.after_mark(*bottom_graph, *bottom_edited, u, v);
 					}
 
+					bottom_subgraph_stats.before_edit(*bottom_graph, *bottom_edited, u, v);
+
 					bottom_graph->toggle_edge(u, v);
+
+					bottom_subgraph_stats.after_edit(*bottom_graph, *bottom_edited, u, v);
 
 					path.back().edges_done++;
 
@@ -531,9 +576,17 @@ namespace Editor
 					// The path might be empty now if work has been stolen.
 					else if(path.empty()) {return false;}
 
+					bottom_subgraph_stats.before_edit(*bottom_graph, *bottom_edited, u, v);
+
 					bottom_graph->toggle_edge(u, v);
 
-					if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value) {bottom_edited->clear_edge(u, v);}
+					bottom_subgraph_stats.after_edit(*bottom_graph, *bottom_edited, u, v);
+
+					if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value)
+					{
+						bottom_edited->clear_edge(u, v);
+						bottom_subgraph_stats.after_unmark(*bottom_graph, *bottom_edited, u, v);
+					}
 				}
 
 				if (path.back().problem.needs_no_edit_branch)
@@ -551,9 +604,13 @@ namespace Editor
 
 				if constexpr (std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 				{
-					for (ProblemSet::VertexPair vertex_pair : path.back().problem.vertex_pairs)
+					for (auto it = path.back().problem.vertex_pairs.rbegin(); it != path.back().problem.vertex_pairs.rend(); ++it)
 					{
-						bottom_edited->clear_edge(vertex_pair.first, vertex_pair.second);
+						if (bottom_edited->has_edge(it->first, it->second))
+						{
+							bottom_edited->clear_edge(it->first, it->second);
+							bottom_subgraph_stats.after_unmark(*bottom_graph, *bottom_edited, it->first, it->second);
+						}
 					}
 				}
 				path.pop_back();
