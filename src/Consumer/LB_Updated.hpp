@@ -8,6 +8,7 @@
 
 #include "../Options.hpp"
 #include "../Finder/Finder.hpp"
+#include "../Finder/SubgraphStats.hpp"
 #include "../LowerBound/Lower_Bound.hpp"
 
 namespace Consumer
@@ -17,97 +18,121 @@ namespace Consumer
 	{
 	public:
 		static constexpr char const *name = "Updated";
+		using Subgraph_Stats_type = ::Finder::Subgraph_Stats<Finder_impl, Graph, Graph_Edits, Mode, Restriction, Conversion, length>;
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, length>;
+		using subgraph_t = typename Lower_Bound_Storage_type::subgraph_t;
+
+		static constexpr bool needs_subgraph_stats = false;
+		struct State {
+			Lower_Bound_Storage_type lb;
+		};
 
 	private:
-		Graph_Edits used_updated;
-		Graph_Edits used_new;
-
-		Lower_Bound_Storage_type bound_updated;
-		Lower_Bound_Storage_type bound_new;
-
-		bool initialized_bound_updated;
-
+		Graph_Edits bound_uses;
+		Finder_impl finder;
 	public:
-		Updated(VertexID graph_size) : used_updated(graph_size), used_new(graph_size), initialized_bound_updated(false) {;}
+		Updated(VertexID graph_size) : bound_uses(graph_size), finder(graph_size) {}
 
-		void prepare(size_t, const Lower_Bound_Storage_type& lower_bound)
+		State initialize(size_t k, Graph const &graph, Graph_Edits const &edited)
 		{
-			used_updated.clear();
-			used_new.clear();
-			bound_new.clear();
-			bound_updated = lower_bound;
-			initialized_bound_updated = false;
-		}
+			State state;
 
-		bool next(Graph const &graph, Graph_Edits const &edited, std::vector<VertexID>::const_iterator b, std::vector<VertexID>::const_iterator e)
-		{
-			auto any_used = [&](const Graph_Edits& used, auto begin, auto end) -> bool
+			bound_uses.clear();
+
+			finder.find(graph, [&](const subgraph_t& path)
 			{
-				return Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, begin, end, [&](auto uit, auto vit) {
-					return used.has_edge(*uit, *vit);
+				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					return bound_uses.has_edge(*uit, *vit);
 				});
-			};
 
-			auto add_subgraph = [&](Graph_Edits& used, auto begin, auto end)
-			{
-				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, begin, end, [&](auto uit, auto vit) {
-					used.set_edge(*uit, *vit);
-					return false;
-				});
-			};
-
-			if (!initialized_bound_updated)
-			{
-				for (const auto &it : bound_updated.get_bound())
+				if (!touches_bound)
 				{
-					assert(!any_used(used_updated, it.begin(), it.end()));
-					add_subgraph(used_updated, it.begin(), it.end());
+					state.lb.add(path);
+
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+						bound_uses.set_edge(*uit, *vit);
+						return false;
+					});
 				}
 
-				initialized_bound_updated = true;
-			}
+				// Assumption: if the bound is too high, initialize will be called again anyway.
+				return state.lb.size() > k;
+			});
 
-			if (!any_used(used_updated, b, e))
+			return state;
+		}
+
+		void before_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		{
+			std::vector<subgraph_t>& lb = state.lb.get_bound();
+
+			for (size_t i = 0; i < lb.size();)
 			{
-				add_subgraph(used_updated, b, e);
-				bound_updated.add(b, e);
-			}
+				bool has_uv = ::Finder::for_all_edges_unordered<Mode, Restriction, Conversion, Graph, Graph_Edits>(graph, edited, lb[i].begin(), lb[i].end(), [&](auto x, auto y)
+				{
+					return (u == *x && v == *y) || (u == *y && v == *x);
+				});
 
-			if (!any_used(used_new, b, e))
+				if (has_uv)
+				{
+					lb[i] = lb.back();
+					lb.pop_back();
+				}
+				else
+				{
+					++i;
+				}
+			}
+		}
+
+		void after_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		{
+			initialize_bound_uses(state, graph, edited);
+
+			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
-				add_subgraph(used_new, b, e);
-				bound_new.add(b, e);
-			}
+				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					return bound_uses.has_edge(*uit, *vit);
+				});
 
-			return false;
+				if (!touches_bound)
+				{
+					state.lb.add(path);
+
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+						bound_uses.set_edge(*uit, *vit);
+						return false;
+					});
+				}
+
+				return false;
+			}, bound_uses);
 		}
 
-		size_t result(size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
+		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
-			ensure_updated_is_larger_bound();
-			return bound_updated.size();
 		}
 
-		const Lower_Bound_Storage_type& result(size_t, Graph const&, Graph_Edits const&, Options::Tag::Lower_Bound_Update)
+		void after_mark(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
-			ensure_updated_is_larger_bound();
-			return bound_updated;
+			after_mark_and_edit(state, graph, edited, u, v);
 		}
 
-		bool bound_uses(VertexID u, VertexID v) const
+		size_t result(State& state, const Subgraph_Stats_type&, size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
 		{
-			return used_updated.has_edge(u, v);
+			return state.lb.size();
 		}
-
-
 	private:
-		void ensure_updated_is_larger_bound()
+		void initialize_bound_uses(const State& state, const Graph& graph, const Graph_Edits &edited)
 		{
-			if (bound_new.size() > bound_updated.size())
+			bound_uses.clear();
+
+			for (const subgraph_t& path : state.lb.get_bound())
 			{
-				std::swap(bound_new, bound_updated);
-				std::swap(used_new, used_updated);
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					bound_uses.set_edge(*uit, *vit);
+					return false;
+				});
 			}
 		}
 	};
