@@ -33,24 +33,25 @@ namespace Consumer
 
 		struct State {
 			Lower_Bound_Storage_type lb;
-			Graph_Edits bound_uses;
-			State(VertexID graph_size) : bound_uses(graph_size) {};
 		};
 	private:
 
 		Graph_Edits candidate_pairs_used;
 		Finder_impl finder;
+		Graph_Edits bound_uses;
 	public:
-		ARW(VertexID graph_size) : candidate_pairs_used(graph_size), finder(graph_size) {;}
+		ARW(VertexID graph_size) : candidate_pairs_used(graph_size), finder(graph_size), bound_uses(graph_size) {;}
 
 		State initialize(size_t k, Graph const &graph, Graph_Edits const &edited)
 		{
-			State state(graph.size());
+			State state;
+
+			bound_uses.clear();
 
 			finder.find(graph, [&](const subgraph_t& path)
 			{
 				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					return state.bound_uses.has_edge(*uit, *vit);
+					return bound_uses.has_edge(*uit, *vit);
 				});
 
 				if (!touches_bound)
@@ -58,7 +59,7 @@ namespace Consumer
 					state.lb.add(path);
 
 					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-						state.bound_uses.set_edge(*uit, *vit);
+						bound_uses.set_edge(*uit, *vit);
 						return false;
 					});
 				}
@@ -83,13 +84,6 @@ namespace Consumer
 
 				if (has_uv)
 				{
-					::Finder::for_all_edges_unordered<Mode, Restriction, Conversion, Graph, Graph_Edits>(graph, edited, lb[i].begin(), lb[i].end(), [&](auto x, auto y)
-					{
-						state.bound_uses.clear_edge(*x, *y);
-
-						return false;
-					});
-
 					lb[i] = lb.back();
 					lb.pop_back();
 				}
@@ -102,10 +96,12 @@ namespace Consumer
 
 		void after_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
+			initialize_bound_uses(state, graph, edited);
+
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
 				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					return state.bound_uses.has_edge(*uit, *vit);
+					return bound_uses.has_edge(*uit, *vit);
 				});
 
 				if (!touches_bound)
@@ -113,13 +109,13 @@ namespace Consumer
 					state.lb.add(path);
 
 					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-						state.bound_uses.set_edge(*uit, *vit);
+						bound_uses.set_edge(*uit, *vit);
 						return false;
 					});
 				}
 
 				return false;
-			}, state.bound_uses);
+			}, bound_uses);
 		}
 
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
@@ -128,32 +124,14 @@ namespace Consumer
 
 		void after_mark(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
-			state.bound_uses.clear_edge(u, v);
-
-			finder.find_near(graph, u, v, [&](const subgraph_t& path)
-			{
-				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-					return state.bound_uses.has_edge(*uit, *vit);
-				});
-
-				if (!touches_bound)
-				{
-					state.lb.add(path);
-
-					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
-						state.bound_uses.set_edge(*uit, *vit);
-						return false;
-					});
-				}
-
-				return false;
-			}, state.bound_uses);
+			after_mark_and_edit(state, graph, edited, u, v);
 		}
 
 		size_t result(State& state, const Subgraph_Stats_type& subgraph_stats, size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Lower_Bound)
 		{
 			if (state.lb.size() <= k)
 			{
+				initialize_bound_uses(state, g, e);
 				find_lb_2_improvements(state, subgraph_stats, k, g, e);
 			}
 
@@ -161,6 +139,19 @@ namespace Consumer
 		}
 
 	private:
+		void initialize_bound_uses(const State& state, const Graph& graph, const Graph_Edits &edited)
+		{
+			bound_uses.clear();
+
+			for (const subgraph_t& path : state.lb.get_bound())
+			{
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
+					bound_uses.set_edge(*uit, *vit);
+					return false;
+				});
+			}
+		}
+
 		void find_lb_2_improvements(State& state, const Subgraph_Stats_type& subgraph_stats, size_t k, const Graph &g, const Graph_Edits &e)
 		{
 			std::vector<subgraph_t>& lb = state.lb.get_bound();
@@ -207,7 +198,7 @@ namespace Consumer
 						// Remove fs from lower bound
 						for (auto p : pairs)
 						{
-							state.bound_uses.clear_edge(p.first, p.second);
+							bound_uses.clear_edge(p.first, p.second);
 							candidate_pairs_used.set_edge(p.first, p.second);
 						}
 
@@ -221,7 +212,7 @@ namespace Consumer
 							auto cb = [&](const subgraph_t &sg)
 							{
 								#ifndef NDEBUG
-								bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&bound_uses = state.bound_uses](auto cuit, auto cvit)
+								bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&bound_uses = bound_uses](auto cuit, auto cvit)
 								{
 									return bound_uses.has_edge(*cuit, *cvit);
 								});
@@ -246,7 +237,7 @@ namespace Consumer
 								return false;
 							};
 
-							finder.find_near(g, p.first, p.second, cb, state.bound_uses);
+							finder.find_near(g, p.first, p.second, cb, bound_uses);
 
 							#ifndef NDEBUG
 
@@ -259,7 +250,7 @@ namespace Consumer
 									bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, sg.begin(), sg.end(), [&](auto cuit, auto cvit)
 									{
 										pairs_covered += candidate_pairs_used.has_edge(*cuit, *cvit);
-										return state.bound_uses.has_edge(*cuit, *cvit);
+										return bound_uses.has_edge(*cuit, *cvit);
 									});
 
 									if (!touches_bound && pairs_covered < pairs.size())
@@ -301,13 +292,13 @@ namespace Consumer
 
 							// Set node pair to avoid getting the same candidates twice.
 							// WARNING: this assumes all candidates are listed for all node pairs, i.e., clean_graph_structure has not been called!
-							state.bound_uses.set_edge(p.first, p.second);
+							bound_uses.set_edge(p.first, p.second);
 						}
 
 						// Remove fs again from lower bound
 						for (auto p : pairs)
 						{
-							state.bound_uses.clear_edge(p.first, p.second);
+							bound_uses.clear_edge(p.first, p.second);
 							candidate_pairs_used.clear_edge(p.first, p.second);
 						}
 
@@ -330,8 +321,8 @@ namespace Consumer
 
 								Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, cand_fs.begin(), cand_fs.end(), [&](auto cuit, auto cvit)
 								{
-									assert(!state.bound_uses.has_edge(*cuit, *cvit));
-									state.bound_uses.set_edge(*cuit, *cvit);
+									assert(!bound_uses.has_edge(*cuit, *cvit));
+									bound_uses.set_edge(*cuit, *cvit);
 									size_t cn = subgraph_stats.num_subgraphs_per_edge.at(*cuit, *cvit);
 									cand_neighbors += cn;
 									if (cn > 1) ++cand_pairs;
@@ -354,11 +345,11 @@ namespace Consumer
 								{
 									const auto partner_pair = pairs[ppi];
 
-									if (state.bound_uses.has_edge(partner_pair.first, partner_pair.second)) continue;
+									if (bound_uses.has_edge(partner_pair.first, partner_pair.second)) continue;
 
 									for (auto partner_fs : candidates_per_pair[ppi])
 									{
-										bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, partner_fs.begin(), partner_fs.end(), [&bound_uses = state.bound_uses](auto cuit, auto cvit)
+										bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, partner_fs.begin(), partner_fs.end(), [&bound_uses = bound_uses](auto cuit, auto cvit)
 										{
 											return bound_uses.has_edge(*cuit, *cvit);
 										});
@@ -372,7 +363,7 @@ namespace Consumer
 											// Directly add the partner to the lower bound, continue search to see if there is more than one partner
 											lb.push_back(partner_fs);
 
-											Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, partner_fs.begin(), partner_fs.end(), [&bound_uses = state.bound_uses](auto cuit, auto cvit)
+											Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, partner_fs.begin(), partner_fs.end(), [&bound_uses = bound_uses](auto cuit, auto cvit)
 											{
 												bound_uses.set_edge(*cuit, *cvit);
 												return false;
@@ -391,7 +382,7 @@ namespace Consumer
 								}
 								else
 								{
-									Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, cand_fs.begin(), cand_fs.end(), [&bound_uses = state.bound_uses](auto cuit, auto cvit)
+									Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, cand_fs.begin(), cand_fs.end(), [&bound_uses = bound_uses](auto cuit, auto cvit)
 									{
 										bound_uses.clear_edge(*cuit, *cvit);
 										return false;
@@ -406,7 +397,7 @@ namespace Consumer
 						{
 							if (min_candidate != fs)
 							{
-								Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, min_candidate.begin(), min_candidate.end(), [&bound_uses = state.bound_uses](auto cuit, auto cvit)
+								Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(g, e, min_candidate.begin(), min_candidate.end(), [&bound_uses = bound_uses](auto cuit, auto cvit)
 								{
 									assert(!bound_uses.has_edge(*cuit, *cvit));
 									bound_uses.set_edge(*cuit, *cvit);
@@ -423,7 +414,7 @@ namespace Consumer
 								// Add fs back to lower bound
 								for (auto p : pairs)
 								{
-									state.bound_uses.set_edge(p.first, p.second);
+									bound_uses.set_edge(p.first, p.second);
 								}
 							}
 						}
