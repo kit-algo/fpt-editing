@@ -44,6 +44,7 @@ namespace Editor
 		using Lower_Bound_Storage_type = ::Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, Finder::length>;
 		using State_Tuple_type = std::tuple<typename Consumer::State...>;
 		using Subgraph_Stats_type = ::Finder::Subgraph_Stats<Finder, Graph, Graph_Edits, Mode, Restriction, Conversion, Finder::length>;
+		static constexpr bool stats_simple = true;
 
 	private:
 		static constexpr bool needs_subgraph_stats = (Consumer::needs_subgraph_stats || ...);
@@ -91,13 +92,14 @@ namespace Editor
 		{
 			write = writegraph;
 #ifdef STATS
-			calls = decltype(calls)(k + 1, 0);
-			prunes = decltype(prunes)(k + 1, 0);
-			fallbacks = decltype(fallbacks)(k + 1, 0);
-			single = decltype(single)(k + 1, 0);
-			extra_lbs = decltype(extra_lbs)(k + 1, 0);
-			stolen = decltype(stolen)(k + 1, 0);
-			skipped = decltype(skipped)(k + 1, 0);
+			const size_t num_levels = stats_simple ? 1 : k + 1;
+			calls = decltype(calls)(num_levels, 0);
+			prunes = decltype(prunes)(num_levels, 0);
+			fallbacks = decltype(fallbacks)(num_levels, 0);
+			single = decltype(single)(num_levels, 0);
+			extra_lbs = decltype(extra_lbs)(num_levels, 0);
+			stolen = decltype(stolen)(num_levels, 0);
+			skipped = decltype(skipped)(num_levels, 0);
 #endif
 			found_soulution = false;
 			done = false;
@@ -123,7 +125,7 @@ namespace Editor
 #ifdef STATS
 			for(auto &worker: workers)
 			{
-				for(size_t i = 0; i <= k; i++)
+				for(size_t i = 0; i < calls.size(); i++)
 				{
 					calls[i] += worker.calls[i];
 					prunes[i] += worker.prunes[i];
@@ -205,13 +207,14 @@ namespace Editor
 #endif
 			{
 #ifdef STATS
-				calls = decltype(calls)(kmax + 1, 0);
-				prunes = decltype(prunes)(kmax + 1, 0);
-				fallbacks = decltype(fallbacks)(kmax + 1, 0);
-				single = decltype(single)(kmax + 1, 0);
-				extra_lbs = decltype(extra_lbs)(kmax + 1, 0);
-				stolen = decltype(stolen)(kmax + 1, 0);
-				skipped = decltype(skipped)(kmax + 1, 0);
+				const size_t num_levels = stats_simple ? 1 : kmax + 1;
+				calls = decltype(calls)(num_levels, 0);
+				prunes = decltype(prunes)(num_levels, 0);
+				fallbacks = decltype(fallbacks)(num_levels, 0);
+				single = decltype(single)(num_levels, 0);
+				extra_lbs = decltype(extra_lbs)(num_levels, 0);
+				stolen = decltype(stolen)(num_levels, 0);
+				skipped = decltype(skipped)(num_levels, 0);
 #endif
 				while(true)
 				{
@@ -232,7 +235,7 @@ namespace Editor
 							editor.available_work.pop_front();
 							//finder.recalculate();
 #ifdef STATS
-							stolen[work->k]++;
+							stolen[stats_simple ? 0 : work->k]++;
 #endif
 							break;
 						}
@@ -406,14 +409,15 @@ namespace Editor
 			{
 				generate_work_packages();
 #ifdef STATS
-				calls[k]++;
+				const size_t stat_level = stats_simple ? 0 : k;
+				calls[stat_level]++;
 #endif
 				{
 					if (k < std::get<lb>(consumer).result(std::get<lb>(initial_state), bottom_subgraph_stats, k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
 					{
 						// lower bound too high
 #ifdef STATS
-						prunes[k]++;
+						prunes[stat_level]++;
 #endif
 						return false;
 					}
@@ -430,7 +434,7 @@ namespace Editor
 					{
 						// used all edits but graph still unsolved
 #ifdef STATS
-						prunes[k]++;
+						prunes[stat_level]++;
 #endif
 						return false;
 					}
@@ -438,12 +442,12 @@ namespace Editor
 #ifdef STATS
 					if (!problem.needs_no_edit_branch)
 					{
-						fallbacks[k]++;
-						skipped[k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
+						fallbacks[stat_level]++;
+						skipped[stats_simple ? 0 : k - 1] += Finder::length * (Finder::length - 1) / 2 - (std::is_same<Conversion, Options::Conversions::Skip>::value ? 1 : 0) - problem.vertex_pairs.size();
 					}
 					else
 					{
-						single[k]++;
+						single[stat_level]++;
 					}
 #endif
 
@@ -465,8 +469,8 @@ namespace Editor
 						if (updateLB)
 						{
 #ifdef STATS
-							++calls[k];
-							++extra_lbs[k];
+							++calls[stat_level];
+							++extra_lbs[stat_level];
 #endif
 							if (k < std::get<lb>(consumer).result(std::get<lb>(states.back()), bottom_subgraph_stats, k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
 							{

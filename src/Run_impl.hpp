@@ -281,6 +281,7 @@ public:
 					json << "\"n\":" << static_cast<size_t>(input_graph.size()) << ",\"m\":" << input_graph.count_edges() << ",";
 					json << "\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"k\":" << +k << ",";
 					json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed_print;
+					json << ",\"solutions\":" << writecount;
 #ifdef STATS
 					json << ",\"counters\":{";
 					auto const stats = editor.stats();
@@ -323,7 +324,7 @@ public:
 							}
 							output["k"] << std::setw(l) << "k" << ':';
 						}
-						for(size_t j = 0; j <= k; j++)
+						for(size_t j = 0; j < stats.begin()->second.size(); j++)
 						{
 							// data columns: find largest number
 							size_t m = std::max(j, std::max_element(stats.begin(), stats.end(), [&j](auto const &a, auto const &b)

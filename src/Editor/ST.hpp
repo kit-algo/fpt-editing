@@ -34,6 +34,7 @@ namespace Editor
 		using Lower_Bound_Storage_type = Lower_Bound::Lower_Bound<Mode, Restriction, Conversion, Graph, Graph_Edits, Finder::length>;
 
 		using State_Tuple_type = std::tuple<typename Consumer::State...>;
+		static constexpr bool stats_simple = true;
 
 	private:
 		Finder &finder;
@@ -67,11 +68,12 @@ namespace Editor
 			// lock?
 			write = writegraph;
 #ifdef STATS
-			calls = decltype(calls)(k + 1, 0);
-			prunes = decltype(prunes)(k + 1, 0);
-			fallbacks = decltype(fallbacks)(k + 1, 0);
-			single = decltype(single)(k + 1, 0);
-			extra_lbs = decltype(extra_lbs)(k + 1, 0);
+			size_t num_levels = stats_simple ? 1 : k + 1;
+			calls = decltype(calls)(num_levels, 0);
+			prunes = decltype(prunes)(num_levels, 0);
+			fallbacks = decltype(fallbacks)(num_levels, 0);
+			single = decltype(single)(num_levels, 0);
+			extra_lbs = decltype(extra_lbs)(num_levels, 0);
 #endif
 			found_solution = false;
 
@@ -97,12 +99,13 @@ namespace Editor
 		bool edit_rec(size_t k, State_Tuple_type state)
 		{
 #ifdef STATS
-			calls[k]++;
+			const size_t stat_level = stats_simple ? 0 : k;
+			calls[stat_level]++;
 #endif
 			if (k < std::get<lb>(consumer).result(std::get<lb>(state), subgraph_stats, k, graph, edited, Options::Tag::Lower_Bound()))
 			{
 #ifdef STATS
-				prunes[k]++;
+				prunes[stat_level]++;
 #endif
 				// lower bound too high
 				return false;
@@ -119,7 +122,7 @@ namespace Editor
 			else if(k == 0)
 			{
 #ifdef STATS
-				prunes[k]++;
+				prunes[stat_level]++;
 #endif
 				// used all edits but graph still unsolved
 				return false;
@@ -135,8 +138,8 @@ namespace Editor
 				if (std::is_same<Restriction, Options::Restrictions::Redundant>::value && vertex_pair.updateLB)
 				{
 #ifdef STATS
-					++calls[k];
-					++extra_lbs[k];
+					++calls[stat_level];
+					++extra_lbs[stat_level];
 #endif
 
 					if (k < std::get<lb>(consumer).result(std::get<lb>(state), subgraph_stats, k, graph, edited, Options::Tag::Lower_Bound()))
@@ -203,7 +206,7 @@ namespace Editor
 				}
 
 #ifdef STATS
-				single[k]++;
+				single[stat_level]++;
 #endif
 
 				if(edit_rec(k, std::move(state))) {return true;}
@@ -211,7 +214,7 @@ namespace Editor
 #ifdef STATS
 			else
 			{
-				fallbacks[k]++;
+				fallbacks[stat_level]++;
 			}
 #endif
 
