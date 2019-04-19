@@ -15,7 +15,19 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 		   {"ST-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"Basic", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"Basic-Most", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"Basic-Most Pruned", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"Basic-Single", false, 4}}
+		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"Basic-Single", false, 4}},
+		   {"MT-Edit-None-Normal-Center_4-First-No-Matrix", {"Base", true, 4}},
+		   {"MT-Edit-Undo-Normal-Center_4-First-No-Matrix", {"No Undo", true, 4}},
+		   {"MT-Edit-Redundant-Normal-Center_4-First-No-Matrix", {"No Redundancy", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-First-No-Matrix", {"Skip Conversion", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-First-ARW-Matrix", {"ARW", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most-ARW-Matrix", {"ARW-Most", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most_Pruned-ARW-Matrix", {"ARW-Most Pruned", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-ARW-Matrix", {"ARW-Single", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"Basic", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"Basic-Most", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"Basic-Most Pruned", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"Basic-Single", true, 4}}
   };
 
 struct ExperimentKey {
