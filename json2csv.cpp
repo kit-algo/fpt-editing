@@ -56,6 +56,7 @@ struct Experiment {
   double time;
   size_t threads;
   size_t calls, extra_lbs, fallbacks, prunes, single, stolen, skipped;
+  size_t solutions;
 
   double scaling_factor_time, scaling_factor_calls;
   double speedup, efficiency;
@@ -64,7 +65,7 @@ struct Experiment {
     return ExperimentKey {graph, algorithm, permutation, mt, threads, l, k};
   }
 
-  Experiment() : n(0), m(0), k(0), l(0), permutation(0), solved(false), mt(false), time(0), threads(0), calls(0), extra_lbs(0), fallbacks(0), prunes(0), single(0), stolen(0), skipped(0), scaling_factor_time(std::numeric_limits<double>::quiet_NaN()), scaling_factor_calls(std::numeric_limits<double>::quiet_NaN()), speedup(std::numeric_limits<double>::quiet_NaN()), efficiency(std::numeric_limits<double>::quiet_NaN()) {}
+  Experiment() : n(0), m(0), k(0), l(0), permutation(0), solved(false), mt(false), time(0), threads(0), calls(0), extra_lbs(0), fallbacks(0), prunes(0), single(0), stolen(0), skipped(0), solutions(0), scaling_factor_time(std::numeric_limits<double>::quiet_NaN()), scaling_factor_calls(std::numeric_limits<double>::quiet_NaN()), speedup(std::numeric_limits<double>::quiet_NaN()), efficiency(std::numeric_limits<double>::quiet_NaN()) {}
 };
 
 
@@ -184,6 +185,10 @@ public:
       case 'k': // skipped
         assert(last_key == "skipped");
         experiment.skipped += val;
+        break;
+      case 'o': // solutions
+        assert(last_key == "solutions");
+        experiment.solutions += val;
         break;
       default:
         throw std::runtime_error("unexpected unsigned value for key " + last_key);
@@ -327,9 +332,9 @@ int main(int argc, char *argv[]) {
 
   std::ofstream of(argv[2]);
 
-  of << "Graph,Algorithm,n,m,k,l,Permutation,Solved,MT,Time [s],Threads,Calls,Extra_lbs,Fallbacks,Prunes,Single,Skipped,Stolen,Scaling Factor Time,Scaling Factor Calls,Speedup,Efficiency" << std::endl;
+  of << "Graph,Algorithm,n,m,k,l,Permutation,Solved,MT,Time [s],Threads,Calls,Extra_lbs,Fallbacks,Prunes,Single,Skipped,Stolen,Solutions,Scaling Factor Time,Scaling Factor Calls,Speedup,Efficiency" << std::endl;
   for (auto &it : experiments) {
-    of << it.second.graph << "," << it.second.algorithm << "," << it.second.n << "," << it.second.m << "," << it.second.k << "," << it.second.l << "," << it.second.permutation << "," << (it.second.solved ? "True" : "False") << "," << (it.second.mt ? "True" : "False") << "," << it.second.time << "," << it.second.threads << "," << it.second.calls << "," << it.second.extra_lbs << "," << it.second.fallbacks << "," << it.second.prunes << "," << it.second.single << "," << it.second.skipped << "," << it.second.stolen << "," << it.second.scaling_factor_time << "," << it.second.scaling_factor_calls << "," << it.second.speedup << "," << it.second.efficiency << std::endl;
+    of << it.second.graph << "," << it.second.algorithm << "," << it.second.n << "," << it.second.m << "," << it.second.k << "," << it.second.l << "," << it.second.permutation << "," << (it.second.solved ? "True" : "False") << "," << (it.second.mt ? "True" : "False") << "," << it.second.time << "," << it.second.threads << "," << it.second.calls << "," << it.second.extra_lbs << "," << it.second.fallbacks << "," << it.second.prunes << "," << it.second.single << "," << it.second.skipped << "," << it.second.stolen << "," << it.second.solutions << "," << it.second.scaling_factor_time << "," << it.second.scaling_factor_calls << "," << it.second.speedup << "," << it.second.efficiency << std::endl;
   }
 
   return 0;
