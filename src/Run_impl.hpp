@@ -194,14 +194,6 @@ public:
 		const std::vector<VertexID> reverse_permutation = Graph::invert_permutation(permutation);
 		const G g_orig = Graph::apply_permutation(input_graph, permutation);
 
-		G graph = g_orig;
-		GE edited(graph.size());
-
-		F finder(graph.size());
-		std::tuple<Con<F, G, GE, M, R, C, F::length>...> consumer{Con<F, G, GE, M, R, C, F::length>(graph.size())...};
-		std::tuple<Con<F, G, GE, M, R, C, F::length> &...> consumer_ref = Util::MakeTupleRef(consumer);
-		E editor(finder, graph, consumer_ref, options.threads);
-
 		// warmup
 		if(options.do_warmup)
 		{
@@ -220,26 +212,29 @@ public:
 		// Reset time limit
 		std::cout << " " << std::flush;
 
-		size_t k_min = options.k_min;
+		std::chrono::steady_clock::time_point tinit_1, tinit_2;
+		tinit_1 = std::chrono::steady_clock::now();
 
-		if (options.calculate_initial_bound)
-		{
-			// calculate initial lower bound, no point in trying to edit if the lower bound abort immeditaly
-			::Finder::Subgraph_Stats<F, G, GE, M, R, C, F::length> subgraph_stats(E::Lower_Bound_type::needs_subgraph_stats ? graph.size() : 0);
-			subgraph_stats.initialize(graph, edited);
-			typename E::Lower_Bound_type::State state =  std::get<E::lb>(consumer).initialize(std::numeric_limits<size_t>::max(), graph, edited);
-			size_t bound = std::get<E::lb>(consumer).result(state, subgraph_stats, std::numeric_limits<size_t>::max(), graph, edited, Options::Tag::Lower_Bound());
-			if (bound > k_min) k_min = bound;
-			// Reset time limit
-			std::cout << " " << std::flush;
-		}
+		G graph = g_orig;
+		F finder(graph.size());
+		std::tuple<Con<F, G, GE, M, R, C, F::length>...> consumer{Con<F, G, GE, M, R, C, F::length>(graph.size())...};
+		std::tuple<Con<F, G, GE, M, R, C, F::length> &...> consumer_ref = Util::MakeTupleRef(consumer);
+		E editor(finder, graph, consumer_ref, options.threads);
+
+		size_t k_min = editor.initialize();
+		tinit_2 = std::chrono::steady_clock::now();
+		auto time_init_passed = tinit_2 - tinit_1;
+		double time_initialization = std::chrono::duration_cast<std::chrono::duration<double>>(time_init_passed) .count();
+
+                k_min = std::max(options.k_min, k_min);
+
+		double total_time = time_initialization;
 
 		// actual experiment
 		for(size_t k = k_min; !options.k_max || k <= options.k_max; k++)
 		{
 			bool repeat_solved = false;
 			size_t repeat_n = 0;
-			double repeat_max_time = 0;
 			std::chrono::steady_clock::duration repeat_total_time(0);
 			do
 			{
@@ -264,14 +259,13 @@ public:
 					return options.all_solutions;
 				};
 
-				graph = g_orig;
-				edited.clear();
 				t1 = std::chrono::steady_clock::now();
+				graph = g_orig;
 				bool solved = editor.edit(k, writegraph);
 				t2 = std::chrono::steady_clock::now();
 				auto time_passed = t2 - t1;
 				double time_passed_print = std::chrono::duration_cast<std::chrono::duration<double>>(time_passed).count();
-				repeat_max_time = std::max(repeat_max_time, time_passed_print);
+				total_time += time_passed_print;
 				repeat_solved |= solved;
 
 				if(options.stats_json)
@@ -281,6 +275,8 @@ public:
 					json << "\"n\":" << static_cast<size_t>(input_graph.size()) << ",\"m\":" << input_graph.count_edges() << ",";
 					json << "\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"k\":" << +k << ",";
 					json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed_print;
+					json << ",\"time_initialization\":" << time_initialization;
+					json << ",\"total_time\":" << total_time;
 					json << ",\"solutions\":" << writecount;
 #ifdef STATS
 					json << ",\"counters\":{";
@@ -352,7 +348,7 @@ public:
 						}
 					}
 #endif
-					std::cout << filename << " (permutation: " << options.permutation << "): (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s]\n";
+					std::cout << filename << " (permutation: " << options.permutation << "): (exact) " << name() << ", " << +options.threads << " threads, k = " << +k << ": " << (solved ? "yes" : "no") << " [" << time_passed_print << "s + initialization " << time_initialization << "s]\n";
 					if(solved && options.all_solutions)
 					{
 						std::cout << writecount << " solutions\n";
@@ -362,7 +358,7 @@ public:
 				repeat_n++;
 				repeat_total_time += time_passed;
 			} while(repeat_n < options.repeats || std::chrono::duration_cast<std::chrono::duration<double>>(repeat_total_time).count() < options.repeat_time);
-			if(repeat_solved || (options.time_max && repeat_max_time >= options.time_max)) {break;}
+			if(repeat_solved || (options.time_max && total_time >= options.time_max)) {break;}
 		}
 	}
 

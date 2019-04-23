@@ -8,6 +8,7 @@
 #include <map>
 #include <typeinfo>
 #include <vector>
+#include <memory>
 
 #include "../config.hpp"
 
@@ -41,6 +42,7 @@ namespace Editor
 		std::tuple<Consumer &...> consumer;
 		Graph &graph;
 		Graph_Edits edited;
+		std::unique_ptr<State_Tuple_type> initial_state;
 
 		::Finder::Subgraph_Stats<Finder, Graph, Graph_Edits, Mode, Restriction, Conversion, Finder::length> subgraph_stats;
 
@@ -63,6 +65,17 @@ namespace Editor
 			;
 		}
 
+		size_t initialize()
+		{
+			subgraph_stats.initialize(graph, edited);
+			size_t max_k = std::numeric_limits<size_t>::max();
+			initial_state = std::make_unique<State_Tuple_type>(Util::for_make_tuple<sizeof...(Consumer)>([&](auto i){
+				return std::get<i.value>(consumer).initialize(max_k, graph, edited);
+			}));
+
+			return std::get<lb>(consumer).result(std::get<lb>(*initial_state), subgraph_stats, max_k, graph, edited, Options::Tag::Lower_Bound());
+		}
+
 		bool edit(size_t k, decltype(write) const &writegraph)
 		{
 			// lock?
@@ -76,14 +89,7 @@ namespace Editor
 			extra_lbs = decltype(extra_lbs)(num_levels, 0);
 #endif
 			found_solution = false;
-
-			subgraph_stats.initialize(graph, edited);
-
-			State_Tuple_type state = Util::for_make_tuple<sizeof...(Consumer)>([&](auto i){
-				return std::get<i.value>(consumer).initialize(k, graph, edited);
-			});
-
-			edit_rec(k, std::move(state));
+			edit_rec(k, *initial_state, false);
 			return found_solution;
 		}
 
@@ -96,13 +102,13 @@ namespace Editor
 
 	private:
 
-		bool edit_rec(size_t k, State_Tuple_type state)
+		bool edit_rec(size_t k, State_Tuple_type state, bool calculate_bound = true)
 		{
 #ifdef STATS
 			const size_t stat_level = stats_simple ? 0 : k;
 			calls[stat_level]++;
 #endif
-			if (k < std::get<lb>(consumer).result(std::get<lb>(state), subgraph_stats, k, graph, edited, Options::Tag::Lower_Bound()))
+			if (calculate_bound && k < std::get<lb>(consumer).result(std::get<lb>(state), subgraph_stats, k, graph, edited, Options::Tag::Lower_Bound()))
 			{
 #ifdef STATS
 				prunes[stat_level]++;
@@ -127,6 +133,8 @@ namespace Editor
 				// used all edits but graph still unsolved
 				return false;
 			}
+
+			bool return_value = false;
 
 			for (ProblemSet::VertexPair vertex_pair : problem.vertex_pairs)
 			{
@@ -183,7 +191,7 @@ namespace Editor
 
 				subgraph_stats.after_edit(graph, edited, vertex_pair.first, vertex_pair.second);
 
-				if(edit_rec(k - 1, std::move(next_state))) {return true;}
+				if(edit_rec(k - 1, std::move(next_state))) {return_value = true;}
 
 				subgraph_stats.before_edit(graph, edited, vertex_pair.first, vertex_pair.second);
 
@@ -196,9 +204,11 @@ namespace Editor
 					edited.clear_edge(vertex_pair.first, vertex_pair.second);
 					subgraph_stats.after_unmark(graph, edited, vertex_pair.first, vertex_pair.second);
 				}
+
+				if (return_value) break;
 			}
 
-			if (problem.needs_no_edit_branch)
+			if (problem.needs_no_edit_branch && !return_value)
 			{
 				if (!std::is_same<Restriction, Options::Restrictions::Redundant>::value)
 				{
@@ -209,7 +219,7 @@ namespace Editor
 				single[stat_level]++;
 #endif
 
-				if(edit_rec(k, std::move(state))) {return true;}
+				if(edit_rec(k, std::move(state))) {return_value = true;}
 			}
 #ifdef STATS
 			else
@@ -231,7 +241,7 @@ namespace Editor
 				}
 			}
 
-			return false;
+			return return_value;
 		}
 	};
 }

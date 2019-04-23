@@ -12,7 +12,6 @@ struct CMDOptions {
 	// search space
 	size_t k_min = 0;
 	size_t k_max = 0;
-	bool calculate_initial_bound = false;
 	bool all_solutions = false;
 	// time constraints
 	size_t time_max = 0;

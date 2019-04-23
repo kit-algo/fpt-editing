@@ -55,7 +55,6 @@ int main(int argc, char *argv[])
 		// search
 		{"kmin", required_argument, NULL, 'k'},
 		{"kmax", required_argument, NULL, 'K'},
-		{"calculate-initial-bound", no_argument, NULL, 'i'},
 		{"all", no_argument, NULL, 'a'},
 		// time
 		{"time", required_argument, NULL, 't'},
@@ -89,7 +88,7 @@ int main(int argc, char *argv[])
 
 		{NULL, 0, NULL, 0}
 	};
-	char const *shortopts = "?k:K:ait:T:j:n:N:lP:WSJDX:{,}M:R:C:e:h:f:c:g:_";
+	char const *shortopts = "?k:K:at:T:j:n:N:lP:WSJDX:{,}M:R:C:e:h:f:c:g:_";
 
 	CMDOptions options;
 	bool usage = false;
@@ -193,9 +192,6 @@ int main(int argc, char *argv[])
 		case 'K':
 			options.k_max = std::stoull(optarg);
 			break;
-		case 'i':
-			options.calculate_initial_bound = true;
-			break;
 		case 'a':
 			options.all_solutions = true;
 			break;
@@ -287,7 +283,6 @@ int main(int argc, char *argv[])
 			<< "Options are:\n"
 			<< "  -? --help: Display this help\n"
 			<< "  -k --kmin <number> / -K --kmax <number>: Minimum/Maximum number of edits to try\n"
-			<< "  -i --calculate-initial-bound: Calculate an initial lower bound and set kmin to that value if it is higher\n"
 			<< "  -t --time <number> / -T --time-hard <number>: Time limit in seconds; -t allows the current experimant to end, -T aborts it\n"
 			<< "  -j --threads <number>: Number of threads to use, if editor supports multithreading\n"
 			<< "  -n --repeats <number>: Repeat each experiment n times\n"

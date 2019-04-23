@@ -56,13 +56,14 @@ namespace Editor
 			size_t k;
 			State_Tuple_type state;
 			Subgraph_Stats_type subgraph_stats;
+			bool initial_bound;
 
-			Work(Graph graph, Graph_Edits edited, size_t k, State_Tuple_type state, Subgraph_Stats_type subgraph_stats) : graph(std::move(graph)), edited(std::move(edited)), k(k), state(std::move(state)), subgraph_stats(std::move(subgraph_stats)) {;}
+			Work(Graph graph, Graph_Edits edited, size_t k, State_Tuple_type state, Subgraph_Stats_type subgraph_stats, bool initial_bound = true) : graph(std::move(graph)), edited(std::move(edited)), k(k), state(std::move(state)), subgraph_stats(std::move(subgraph_stats)), initial_bound(initial_bound) {;}
 		};
 
 		Finder &finder;
 		std::tuple<Consumer &...> consumer;
-		Graph &graph;
+		const Graph &graph;
 
 		std::deque<std::unique_ptr<Work>> available_work;
 		std::mutex work_mutex;
@@ -75,6 +76,10 @@ namespace Editor
 		bool found_soulution;
 		std::function<bool(Graph const &, Graph_Edits const &)> write;
 
+		Subgraph_Stats_type subgraph_stats;
+		std::unique_ptr<State_Tuple_type> initial_state;
+		Graph_Edits initial_edited;
+
 #ifdef STATS
 		std::vector<size_t> calls;
 		std::vector<size_t> prunes;
@@ -86,7 +91,18 @@ namespace Editor
 #endif
 
 	public:
-		MT(Finder &finder, Graph &graph, std::tuple<Consumer &...> consumer, size_t threads) : finder(finder), consumer(consumer), graph(graph), threads(threads) {}
+		MT(Finder &finder, const Graph &graph, std::tuple<Consumer &...> consumer, size_t threads) : finder(finder), consumer(consumer), graph(graph), threads(threads), subgraph_stats(needs_subgraph_stats ? graph.size() : 0), initial_edited(graph.size()) {}
+
+		size_t initialize()
+		{
+
+			size_t kmax = std::numeric_limits<size_t>::max();
+			subgraph_stats.initialize(graph, initial_edited);
+			initial_state = std::make_unique<State_Tuple_type>(Util::for_make_tuple<sizeof...(Consumer)>([&](auto i) {
+				return std::get<i.value>(consumer).initialize(kmax, graph, initial_edited);
+			}));
+			return std::get<lb>(consumer).result(std::get<lb>(*initial_state), subgraph_stats, kmax, graph, initial_edited, Options::Tag::Lower_Bound());
+		}
 
 		bool edit(size_t k, decltype(write) const &writegraph)
 		{
@@ -111,7 +127,8 @@ namespace Editor
 				workers.emplace_back(*this, finder, consumer);
 			}
 
-			workers[0].initialize(graph, Graph_Edits(graph.size()), k);
+			available_work.clear();
+			available_work.push_back(std::make_unique<Work>(graph, initial_edited, k, *initial_state, subgraph_stats, false));
 
 			working = threads;
 			std::vector<std::thread> work_threads;
@@ -190,16 +207,6 @@ namespace Editor
 #endif
 			}
 
-			void initialize(const Graph& graph, const Graph_Edits &edited, size_t kmax)
-			{
-				editor.available_work.clear();
-				Subgraph_Stats_type subgraph_stats(needs_subgraph_stats ? graph.size() : 0);
-				subgraph_stats.initialize(graph, edited);
-				editor.available_work.push_back(std::make_unique<Work>(graph, edited, kmax, Util::for_make_tuple<sizeof...(Consumer)>([&](auto i) {
-					return std::get<i.value>(consumer).initialize(kmax, graph, edited);
-				}), std::move(subgraph_stats)));
-			}
-
 #ifdef STATS
 			void edit(size_t kmax)
 #else
@@ -265,7 +272,7 @@ namespace Editor
 					top_subgraph_stats = work->subgraph_stats;
 					bottom_subgraph_stats = std::move(work->subgraph_stats);
 					top_k = work->k;
-					if(edit_rec(work->k, std::move(work->state)))
+					if(edit_rec(work->k, std::move(work->state), work->initial_bound))
 					{
 						editor.done = true;
 						editor.idlers.notify_all();
@@ -405,7 +412,7 @@ namespace Editor
 			}
 
 		private:
-			bool edit_rec(size_t k, State_Tuple_type initial_state)
+			bool edit_rec(size_t k, State_Tuple_type initial_state, bool initial_bound = true)
 			{
 				generate_work_packages();
 #ifdef STATS
@@ -413,7 +420,7 @@ namespace Editor
 				calls[stat_level]++;
 #endif
 				{
-					if (k < std::get<lb>(consumer).result(std::get<lb>(initial_state), bottom_subgraph_stats, k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
+					if (initial_bound && k < std::get<lb>(consumer).result(std::get<lb>(initial_state), bottom_subgraph_stats, k, *bottom_graph, *bottom_edited, Options::Tag::Lower_Bound()))
 					{
 						// lower bound too high
 #ifdef STATS
