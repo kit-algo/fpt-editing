@@ -4,30 +4,30 @@
 
 std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_algos =
   {
-		   {"ST-Edit-None-Normal-Center_4-First-No-Matrix", {"Base", false, 4}},
+		   {"ST-Edit-None-Normal-Center_4-First-No-Matrix", {"No Optimization", false, 4}},
 		   {"ST-Edit-Undo-Normal-Center_4-First-No-Matrix", {"No Undo", false, 4}},
 		   {"ST-Edit-Redundant-Normal-Center_4-First-No-Matrix", {"No Redundancy", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-First-No-Matrix", {"Skip Conversion", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-First-ARW-Matrix", {"ARW", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-Most-ARW-Matrix", {"ARW-Most", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-ARW-Matrix", {"ARW-Most Pruned", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-ARW-Matrix", {"ARW-Single", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"Basic", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"Basic-Most", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"Basic-Most Pruned", false, 4}},
-		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"Basic-Single", false, 4}},
-		   {"MT-Edit-None-Normal-Center_4-First-No-Matrix", {"Base", true, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-First-ARW-Matrix", {"LocalSearchLB-First", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Most-ARW-Matrix", {"LocalSearchLB-Most", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-ARW-Matrix", {"LocalSearchLB-Most Pruned", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-ARW-Matrix", {"LocalSearchLB-Single", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"GreedyLB-First", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"GreedyLB-Most", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"GreedyLB-Most Pruned", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"GreedyLB-Single", false, 4}},
+		   {"MT-Edit-None-Normal-Center_4-First-No-Matrix", {"No Optimization", true, 4}},
 		   {"MT-Edit-Undo-Normal-Center_4-First-No-Matrix", {"No Undo", true, 4}},
 		   {"MT-Edit-Redundant-Normal-Center_4-First-No-Matrix", {"No Redundancy", true, 4}},
 		   {"MT-Edit-Redundant-Skip-Center_4-First-No-Matrix", {"Skip Conversion", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-First-ARW-Matrix", {"ARW", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-Most-ARW-Matrix", {"ARW-Most", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-Most_Pruned-ARW-Matrix", {"ARW-Most Pruned", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-ARW-Matrix", {"ARW-Single", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"Basic", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"Basic-Most", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"Basic-Most Pruned", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"Basic-Single", true, 4}}
+		   {"MT-Edit-Redundant-Skip-Center_4-First-ARW-Matrix", {"LocalSearchLB-First", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most-ARW-Matrix", {"LocalSearchLB-Most", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most_Pruned-ARW-Matrix", {"LocalSearchLB-Most Pruned", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-ARW-Matrix", {"LocalSearchLB-Single", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"GreedyLB-First", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"GreedyLB-Most", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"GreedyLB-Most Pruned", true, 4}},
+		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"GreedyLB-Single", true, 4}}
   };
 
 struct ExperimentKey {
@@ -53,7 +53,7 @@ struct Experiment {
   size_t n, m, k, l, permutation;
   bool solved;
   bool mt;
-  double time;
+  double time, time_initialization, total_time;
   size_t threads;
   size_t calls, extra_lbs, fallbacks, prunes, single, stolen, skipped;
   size_t solutions;
@@ -65,7 +65,7 @@ struct Experiment {
     return ExperimentKey {graph, algorithm, permutation, mt, threads, l, k};
   }
 
-  Experiment() : n(0), m(0), k(0), l(0), permutation(0), solved(false), mt(false), time(0), threads(0), calls(0), extra_lbs(0), fallbacks(0), prunes(0), single(0), stolen(0), skipped(0), solutions(0), scaling_factor_time(std::numeric_limits<double>::quiet_NaN()), scaling_factor_calls(std::numeric_limits<double>::quiet_NaN()), speedup(std::numeric_limits<double>::quiet_NaN()), efficiency(std::numeric_limits<double>::quiet_NaN()) {}
+  Experiment() : n(0), m(0), k(0), l(0), permutation(0), solved(false), mt(false), time(0), time_initialization(0), total_time(0), threads(0), calls(0), extra_lbs(0), fallbacks(0), prunes(0), single(0), stolen(0), skipped(0), solutions(0), scaling_factor_time(std::numeric_limits<double>::quiet_NaN()), scaling_factor_calls(std::numeric_limits<double>::quiet_NaN()), speedup(std::numeric_limits<double>::quiet_NaN()), efficiency(std::numeric_limits<double>::quiet_NaN()) {}
 };
 
 
@@ -148,9 +148,26 @@ public:
         experiment.threads = val;
         break;
       case 'i': // time
-        // sometimes, time is parsed as unsigned instead of float
-        assert(last_key == "time");
-        experiment.time = val;
+        if (last_key.size() == 4) // time
+        {
+            // sometimes, time is parsed as unsigned instead of float
+            assert(last_key == "time");
+            experiment.time = val;
+        }
+        else if (last_key.size() == 19)
+        {
+            // sometimes, time is parsed as unsigned instead of float
+            assert(last_key == "time_initialization");
+            experiment.time_initialization = val;
+        }
+        else
+        {
+            throw std::runtime_error("unexpected unsigned value for key " + last_key);
+        }
+        break;
+      case 'o': // total_time
+        assert(last_key == "total_time");
+        experiment.total_time = val;
         break;
       default:
         throw std::runtime_error("unexpected unsigned value for key " + last_key);
@@ -202,9 +219,37 @@ public:
 
 // called when a floating-point number is parsed; value and original string is passed
   bool number_float(number_float_t val, const string_t&) override {
-    if (last_key == "time") {
-      experiment.time = val;
-    } else {
+    switch (last_key[0])
+    {
+    case 't':
+      switch (last_key[1]) {
+      case 'i': // time
+        if (last_key.size() == 4) // time
+        {
+            // sometimes, time is parsed as unsigned instead of float
+            assert(last_key == "time");
+            experiment.time = val;
+        }
+        else if (last_key.size() == 19)
+        {
+            // sometimes, time is parsed as unsigned instead of float
+            assert(last_key == "time_initialization");
+            experiment.time_initialization = val;
+        }
+        else
+        {
+            throw std::runtime_error("unexpected float value for key " + last_key);
+        }
+        break;
+      case 'o': // total_time
+        assert(last_key == "total_time");
+        experiment.total_time = val;
+        break;
+      default:
+        throw std::runtime_error("unexpected float value for key " + last_key);
+      }
+      break;
+    default:
       throw std::runtime_error("unexpected float value for key " + last_key);
     }
     return true;
@@ -227,6 +272,10 @@ public:
 	} else {
 	  experiment.graph = val.substr(pos_slash + 1, pos_dot - pos_slash - 1);
 	}
+      }
+      const std::string metis_suffix = ".metis";
+      if (experiment.graph.size() > metis_suffix.size() && experiment.graph.substr(experiment.graph.size() - metis_suffix.size()) == metis_suffix) {
+        experiment.graph = experiment.graph.substr(0, experiment.graph.size() - metis_suffix.size());
       }
     } else if (last_key == "algo") {
       auto algo_it = known_algos.find(val);
@@ -315,7 +364,7 @@ int main(int argc, char *argv[]) {
       auto last_it = experiments.find(last_key);
       if (last_it != experiments.end()) {
 	it.second.scaling_factor_calls = static_cast<double>(it.second.calls) / last_it->second.calls;
-	it.second.scaling_factor_time = it.second.time / last_it->second.time;
+	it.second.scaling_factor_time = it.second.total_time / last_it->second.total_time;
       }
     }
 
@@ -325,16 +374,16 @@ int main(int argc, char *argv[]) {
 
     auto st_it = experiments.find(st_key);
     if (st_it != experiments.end()) {
-      it.second.speedup = st_it->second.time / it.second.time;
+      it.second.speedup = st_it->second.total_time / it.second.total_time;
       it.second.efficiency = it.second.speedup / it.second.threads;
     }
   }
 
   std::ofstream of(argv[2]);
 
-  of << "Graph,Algorithm,n,m,k,l,Permutation,Solved,MT,Time [s],Threads,Calls,Extra_lbs,Fallbacks,Prunes,Single,Skipped,Stolen,Solutions,Scaling Factor Time,Scaling Factor Calls,Speedup,Efficiency" << std::endl;
+  of << "Graph,Algorithm,n,m,k,l,Permutation,Solved,MT,Time [s],Total Time [s],Time Initialization [s],Threads,Calls,Extra_lbs,Fallbacks,Prunes,Single,Skipped,Stolen,Solutions,Scaling Factor Time,Scaling Factor Calls,Speedup,Efficiency" << std::endl;
   for (auto &it : experiments) {
-    of << it.second.graph << "," << it.second.algorithm << "," << it.second.n << "," << it.second.m << "," << it.second.k << "," << it.second.l << "," << it.second.permutation << "," << (it.second.solved ? "True" : "False") << "," << (it.second.mt ? "True" : "False") << "," << it.second.time << "," << it.second.threads << "," << it.second.calls << "," << it.second.extra_lbs << "," << it.second.fallbacks << "," << it.second.prunes << "," << it.second.single << "," << it.second.skipped << "," << it.second.stolen << "," << it.second.solutions << "," << it.second.scaling_factor_time << "," << it.second.scaling_factor_calls << "," << it.second.speedup << "," << it.second.efficiency << std::endl;
+    of << it.second.graph << "," << it.second.algorithm << "," << it.second.n << "," << it.second.m << "," << it.second.k << "," << it.second.l << "," << it.second.permutation << "," << (it.second.solved ? "True" : "False") << "," << (it.second.mt ? "True" : "False") << "," << it.second.time << "," << it.second.total_time << "," << it.second.time_initialization << "," << it.second.threads << "," << it.second.calls << "," << it.second.extra_lbs << "," << it.second.fallbacks << "," << it.second.prunes << "," << it.second.single << "," << it.second.skipped << "," << it.second.stolen << "," << it.second.solutions << "," << it.second.scaling_factor_time << "," << it.second.scaling_factor_calls << "," << it.second.speedup << "," << it.second.efficiency << std::endl;
   }
 
   return 0;
