@@ -8,6 +8,54 @@ import seaborn as sns
 import argparse
 from collections import defaultdict
 
+import matplotlib.scale as mscale
+import matplotlib.transforms as mtransforms
+
+class CubeRootScale(mscale.ScaleBase):
+    #ScaleBase class for generating cubee root scale.
+    name = 'cuberoot'
+
+    def __init__(self, axis, **kwargs):
+        mscale.ScaleBase.__init__(self)
+
+    def set_default_locators_and_formatters(self, axis):
+        axis.set_major_locator(ticker.AutoLocator())
+        axis.set_major_formatter(ticker.ScalarFormatter())
+        axis.set_minor_locator(ticker.NullLocator())
+        axis.set_minor_formatter(ticker.NullFormatter())
+
+    def limit_range_for_scale(self, vmin, vmax, minpos):
+        return  max(0., vmin), vmax
+
+    class CubeRootTransform(mtransforms.Transform):
+        input_dims = 1
+        output_dims = 1
+        is_separable = True
+
+        def transform_non_affine(self, a):
+            x = np.array(a)
+            return np.sign(x) * (np.abs(x)**(1.0/2.0))
+
+        def inverted(self):
+            return CubeRootScale.InvertedCubeRootTransform()
+
+    class InvertedCubeRootTransform(mtransforms.Transform):
+        input_dims = 1
+        output_dims = 1
+        is_separable = True
+
+        def transform(self, a):
+            x = np.array(a)
+            return np.sign(x) * (np.abs(x)**2)
+
+        def inverted(self):
+            return CubeRootScale.CubeRootTransform()
+
+    def get_transform(self):
+        return self.CubeRootTransform()
+
+mscale.register_scale(CubeRootScale)
+
 sns.set(style="whitegrid")
 
 algo_order = ["No Optimization", "No Undo", "No Redundancy", "Skip Conversion", "GreedyLB-First", "GreedyLB-Most", "GreedyLB-Most Pruned", "LocalSearchLB-First", "LocalSearchLB-Most", "LocalSearchLB-Most Pruned"]
@@ -141,10 +189,10 @@ def solved_instances_over_measure_plot(data, measure, ax):
 def plot_speedup_per_instance_for_one_algorithm(data, ax):
     assert(len(data.Algorithm.unique()) == 1)
 
-    data = data[(data.MT == True) & (np.isnan(data.Speedup) == False)].copy()
-    grouped_data = data.groupby(['Graph', 'Algorithm', 'Permutation', 'Threads'])
-    data['Total Calls'] = grouped_data['Calls'].transform(np.sum)
-    data_for_max_k = data[grouped_data['k'].transform(np.max) == data.k]
+    mt_data = data[(data.MT == True) & (np.isnan(data.Speedup) == False)].copy()
+    grouped_data = mt_data.groupby(['Graph', 'Algorithm', 'Permutation', 'Threads'])
+    mt_data['Total Calls'] = grouped_data['Calls'].transform(np.sum)
+    data_for_max_k = mt_data[grouped_data['k'].transform(np.max) == mt_data.k]
 
     data_for_max_k.sort_values(by='Total Calls')
 
@@ -161,33 +209,35 @@ def plot_max_k_for_all_algorithms(data, qtm_data):
 
     qtm_indexed = qtm_data.set_index('Graph')
 
+    data_for_max_k['QTM'] = qtm_indexed
+
     k1_data = data_for_max_k[data_for_max_k.k == 1]
     print("hiding {} graphs with for k == 1".format(len(k1_data)))
-    for graph in k1_data.index:
-        if qtm_indexed.loc[graph].k > 1:
-            print("Found a graph with exact k = 1 and QTM k = {}".format(qtm_indexed.loc[graph].k))
+    k1_qtm_larger = k1_data[k1_data.QTM > 1]
+    for graph, qtm_k in zip(k1_qtm_larger.index, k1_qtm_larger.QTM):
+        print("Found a graph with exact k = 1 and QTM k = {}".format(qtm_k))
 
     data_solved = data_for_max_k[data_for_max_k.Solved & (data_for_max_k.k > 1)]
-    qtm_exact_graphs = [graph for graph, k in zip(data_solved.index, data_solved.k) if qtm_indexed.loc[graph].k == k]
 
+    qtm_exact_graphs = data_solved[data_solved.k == data_solved.QTM]
     print("Out of {} solved graphs, QTM has {} graphs correct".format(len(data_solved), len(qtm_exact_graphs)))
+
     data_unsolved = data_for_max_k[data_for_max_k.Solved == False]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True, gridspec_kw={'width_ratios':[3, 1]})
 
     for title, plot_data, ax, label in [('Solved', data_solved, ax1, 'Exact'), ('Unsolved', data_unsolved, ax2, 'Lower Bound')]:
-        ax.set_yscale('log')
+        ax.set_yscale('log', basey=2)
         ax.set_title(title)
-        sorted_plot_data = plot_data.sort_values(by='k')
-        qtm_k = [qtm_indexed.loc[g].k for g in sorted_plot_data.index]
+        sorted_plot_data = plot_data.sort_values(by=['k', 'QTM'])
 
         if title == 'Solved':
-            qtm_precise = [cm.Set1(1) if (sorted_plot_data.k[i] == k) else cm.Set1(0) for i, k in enumerate(qtm_k)]
+            qtm_precise = [cm.Set1(1) if (qtm_k == k) else cm.Set1(0) for k, qtm_k in zip(sorted_plot_data.k, sorted_plot_data.QTM)]
         else:
-            qtm_precise = [cm.Set1(1) if (sorted_plot_data.k[i] + 1 == k) else cm.Set1(0) for i, k in enumerate(qtm_k)]
+            qtm_precise = [cm.Set1(1) if (qtm_k == k + 1) else cm.Set1(0) for k, qtm_k in zip(sorted_plot_data.k, sorted_plot_data.QTM)]
 
         ax.scatter(range(len(sorted_plot_data.index)), sorted_plot_data.k, label=label, s=2, color=cm.Set1(2))
-        ax.scatter(range(len(sorted_plot_data.index)), qtm_k, label='QTM', s=2, color=qtm_precise)
+        ax.scatter(range(len(sorted_plot_data.index)), sorted_plot_data.QTM, label='QTM', s=2, color=qtm_precise)
         ax.set_xlabel('Graphs')
 
     ax1.legend()
@@ -196,8 +246,10 @@ def plot_max_k_for_all_algorithms(data, qtm_data):
     return fig
 
 def plot_solutions(data):
-    data_for_solutions = data[data.Solved & data.k > 0].groupby(['Graph']).max()
+    data_for_solutions = data[data.Solved & (data.k > 0)].groupby(['Graph']).max()
     fig, ax = plt.subplots(1, figsize=(10, 4))
+
+    print("Max k in solutions plot: {}".format(data_for_solutions.k.max()))
 
     ax.set_yscale('log')
 
@@ -230,17 +282,17 @@ if __name__ == "__main__":
     else:
         filtered_df = df[df.Graph.isin(larger_k_names)]
 
-#    #my_runtime_plot(filtered_df, 'Time [s]')
-#    #my_performanceplot(filtered_df, 'Time [s]', False)
-#    df_st_4 = filtered_df[(filtered_df.Threads == 1) & (filtered_df.l == 4)]
-#    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(10, 4))
-#    solved_instances_over_measure_plot(df_st_4, 'Total Time [s]', ax1)
-#    solved_instances_over_measure_plot(df_st_4, 'Calls', ax2)
-#    ax1.set_ylabel('Solved (Graphs $\\times$ Node Id Permutations)')
-#    ax2.legend()
-#    fig.tight_layout()
-#    fig.savefig('{}/bio_times_calls_st_min_k_{}.pdf'.format(args.output_dir, args.min_k))
-#
+    #my_runtime_plot(filtered_df, 'Time [s]')
+    #my_performanceplot(filtered_df, 'Time [s]', False)
+    df_st_4 = filtered_df[(filtered_df.MT == False) & (filtered_df.l == 4)]
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(10, 4))
+    solved_instances_over_measure_plot(df_st_4, 'Total Time [s]', ax1)
+    solved_instances_over_measure_plot(df_st_4, 'Calls', ax2)
+    ax1.set_ylabel('Solved (Graphs $\\times$ Node Id Permutations)')
+    ax2.legend()
+    fig.tight_layout()
+    fig.savefig('{}/bio_times_calls_st_min_k_{}.pdf'.format(args.output_dir, args.min_k))
+
     fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(10, 4))
     plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "LocalSearchLB-Most"], ax1)
     ax1.set_title('LocalSearchLB-Most')
