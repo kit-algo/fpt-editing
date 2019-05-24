@@ -65,17 +65,6 @@ namespace Finder
 			return true;
 		}
 
-		template<typename Feeder>
-		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
-		{
-			auto callback = [&feeder, &graph, &edited](const std::array<VertexID, length>& subgraph) -> bool
-					{
-						return feeder.callback(graph, edited, subgraph.begin(), subgraph.end());
-					};
-
-			find(graph, callback);
-		}
-
 		template <typename F>
 		void find(Graph const &graph, F callback)
 		{
@@ -199,9 +188,6 @@ namespace Finder
 		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
 		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the given @a callback for all found subgraphs.
 		 * The algorithm lists each path that contains the two nodes exactly once and each cycles that contains the two nodes exactly length times.
-		 *
-		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
-		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
 		 */
 		template<typename F>
 		void find_near(Graph const &graph, VertexID uu, VertexID vv, F callback)
@@ -216,9 +202,6 @@ namespace Finder
 		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
 		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the given @a callback for all found subgraphs.
 		 * The algorithm lists each path that contains the two nodes exactly once and each cycles that contains the two nodes exactly length times.
-		 *
-		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
-		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
 		 */
 		template<typename F>
 		void find_near(Graph const &graph, VertexID uu, VertexID vv, F callback, Graph_Edits &forbidden_pairs)
@@ -235,9 +218,6 @@ namespace Finder
 		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
 		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the given @a callback for all found subgraphs.
 		 * The algorithm lists each path that contains the two nodes exactly once and each cycles that contains the two nodes exactly length times.
-		 *
-		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
-		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
 		 */
 		template<typename F, typename G, typename H>
 		void find_near(Graph const &graph, VertexID uu, VertexID vv, F &callback, G &get_neighbors, H &get_non_neighbors)
@@ -375,24 +355,6 @@ namespace Finder
 				f[uu / Packed_Bits] = 0;
 				f[vv / Packed_Bits] = 0;
 			}
-		}
-
-		/**
-		 * List all forbidden subgraphs that contain the given node @a uu and @a vv.
-		 * The algorithm first completes the inner part between the two nodes (if there is no edge) and then completes the outer part and calls the feeder for all node pairs.
-		 *
-		 * TODO: Add the possibility to specify a matrix where node pairs are marked that must not be used. Whenever a neighborhood is explored, all set edges must be excluded, i.e., neighbors[u] & ~excluded[u].
-		 * Further, whenever a neighborhood of a graph is excluded, all set non-edges must be treated as edges, i.e., forbidden |= neighbors[u] | (excluded[u] & ~neighbors[u]).
-		 */
-		template<typename Feeder>
-		void find_near(Graph const &graph, Graph_Edits const &edited, VertexID uu, VertexID vv, Feeder &feeder, Graph_Edits const *)
-		{
-			auto callback = [&feeder, &graph, &edited](std::vector<VertexID>::const_iterator uit, std::vector<VertexID>::const_iterator vit) -> bool
-					{
-						return feeder.callback_near(graph, edited, uit, vit);
-					};
-
-			find_near(graph, uu, vv, callback);
 		}
 
 	private:
