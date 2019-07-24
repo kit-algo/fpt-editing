@@ -25,123 +25,61 @@ namespace Finder
 	public:
 		Linear(VertexID) {;}
 
-		template<typename Feeder>
-		void find(Graph const &graph, Graph_Edits const &edited, Feeder &feeder)
+		bool is_quasi_threshold(Graph const &graph)
 		{
-			//urgh... this needs to be done differently
-			// sort vertices by degree, decreasing
-			std::vector<std::pair<std::vector<Packed>, size_t>> L;
-			for(VertexID u = 0; u < graph.size(); u++)
-			{
-				size_t deg = graph.degree(u);
-				if(L.size() <= deg) {L.resize(deg + 1, {graph.alloc_rows(1), 0});}
-				L[deg].first[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
-				L[deg].second++;
-			}
-			for(size_t i = L.size(); i > 0; i--)
-			{
-				if(L[i - 1].second == 0) {L.erase(L.begin() + (i - 1));}
-			}
+			VertexID n = graph.size();
+			std::vector<VertexID> sortedNodes(n);
 
-/*			std::cout << "deg asc:\n";
-			for(size_t i = 0; i < L.size(); i++)
+			// counting sort by degree in decreasing order
 			{
-				std::cout << std::setw(3) << +i << ':';
-				for(auto const &x: L[i].first) {std::cout << ' ' << std::hex << std::setw(16) << std::setfill('0') << x;}
-				std::cout << std::setfill(' ') << std::dec << " (" << +L[i].second << ")\n";
-			}
-*/
-			std::vector<Packed> out = graph.alloc_rows(1);
+				std::vector<VertexID> nodePos(n + 1, 0);
 
-			for(VertexID i = 0; i < graph.size(); i++)
-			{
-				VertexID x;
-				for(size_t j = 0; j < graph.get_row_length(); j++)
-				{
-					for(Packed px = L.back().first[j]; px; px &= ~(Packed(1) << PACKED_CTZ(px)))
-					{
-						x = PACKED_CTZ(px) + j * Packed_Bits;
-						L.back().first[j] &= ~(Packed(1) << PACKED_CTZ(px));
-						L.back().second--;
-
-//						std::cout << "cur: " << +x << " (L[" << L.size() - 1 << "])\n";
-
-						goto found_x;
-					}
+				for (VertexID u = 0; u < n; ++u) {
+					sortedNodes[u] = n - graph.degree(u);
+					++nodePos[sortedNodes[u]];
 				}
-				i--;
-				L.pop_back();
-				continue;
 
-				found_x:;
-				out[x / Packed_Bits] |= Packed(1) << (x % Packed_Bits);
+				// exclusive prefix sum
+				VertexID tmp = nodePos[0];
+				VertexID sum = tmp;
+				nodePos[0] = 0;
 
-/*				std::cout << "done:";
-				for(auto const &x: out) {std::cout << ' ' << std::hex << std::setw(16) << std::setfill('0') << x;}
-				std::cout << std::setfill(' ') << std::dec << '\n';
-*/
-				for(size_t idx = L.size(); idx > 0; idx--)
-				{
-					auto &val = L[idx - 1];
-					std::vector<Packed> p = graph.alloc_rows(1);
-					size_t count = 0;
-					for(size_t j = 0; j < graph.get_row_length(); j++)
-					{
-						p[j] = val.first[j] & graph.get_row(x)[j];
-						count += PACKED_POP(p[j]);
-					}
+				for (VertexID i = 1; i < nodePos.size(); ++i) {
+					tmp = nodePos[i];
+					nodePos[i] = sum;
+					sum += tmp;
+				}
 
-					if(count != 0)
-					{
-						VertexID y = ~0;
-						for(size_t j = 0; j < graph.get_row_length(); j++)
-						{
-							for(Packed py = p[j]; py; py &= ~(Packed(1) << PACKED_CTZ(py)))
-							{
-								y = PACKED_CTZ(py) + j * Packed_Bits;
-								goto found_y;
-							}
-						}
-						found_y:;
-						std::vector<Packed> S = graph.alloc_rows(1);
-						for(size_t j = 0; j < graph.get_row_length(); j++)
-						{
-							S[j] = out[j] & graph.get_row(x)[j] & ~graph.get_row(y)[j];
-						}
-						VertexID w = ~0;
-						for(size_t j = 0; j < graph.get_row_length(); j++)
-						{
-							for(Packed pw = S[j]; pw; pw &= ~(Packed(1) << PACKED_CTZ(pw)))
-							{
-								w = PACKED_CTZ(pw) + j * Packed_Bits;
-								goto found_w;
-							}
-						}
-						found_w:;
-						for(size_t j = 0; j < graph.get_row_length(); j++)
-						{
-							for(Packed pz = graph.get_row(w)[j] & ~graph.get_row(x)[j]; pz; pz &= ~(Packed(1) << PACKED_CTZ(pz)))
-							{
-								VertexID z = PACKED_CTZ(pz) + j * Packed_Bits;
-								if(z == x) {continue;}
-								std::vector<VertexID> problem{z, w, x, y};
-								//std::cout << "found " << +z << ' ' << +w << ' ' << +x << ' ' << +y << '\n';
-								feeder.callback(graph, edited, problem.begin(), problem.end());
-								return;
-							}
-						}
-					}
-					/*else
-					{
-						for(size_t j = 0; j < graph.get_row_length(); j++)
-						{
-							val.first[j] &= ~p[j];
-							val.second -= count;
-						}
-						L.insert(L.begin() + idx, {p, count});
-					}*/
+				for (VertexID u = 0; u < n; ++u) {
+					VertexID deg = sortedNodes[u];
+					sortedNodes[nodePos[deg]++] = u;
 				}
 			}
+
+			std::vector<VertexID> parent(n, n);
+			std::vector<bool> processed(n, false);
+
+			for (VertexID u : sortedNodes) {
+				processed[u] = true;
+
+				bool found_problem = graph.for_neighbors(u, [&](VertexID v) {
+					// node v has already been removed
+					if (processed[v]) return false;
+
+					if (parent[v] == parent[u]) {
+						parent[v] = u;
+						return false;
+					} else {
+						return true;
+					}
+				});
+
+				if (found_problem) {
+					return false;
+				}
+			}
+
+			return true;
 		}
 	};
 

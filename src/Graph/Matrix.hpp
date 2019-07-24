@@ -115,9 +115,8 @@ namespace Graph
 			return deg;
 		}
 
-		std::vector<VertexID> const get_neighbours(VertexID u) const
-		{
-			std::vector<VertexID> neighbours;
+		template <typename F>
+		bool for_neighbours(VertexID u, F callback) {
 			Packed const *urow = get_row(u);
 
 			for(size_t i = 0; i < get_row_length(); i++)
@@ -125,9 +124,20 @@ namespace Graph
 				for(Packed ui = urow[i]; ui; ui &= ~(Packed(1) << PACKED_CTZ(ui)))
 				{
 					VertexID v = PACKED_CTZ(ui) + i * Packed_Bits;
-					neighbours.push_back(v);
+					if (callback(v)) return true;
 				}
 			}
+
+			return false;
+		}
+
+		std::vector<VertexID> const get_neighbours(VertexID u) const
+		{
+			std::vector<VertexID> neighbours;
+			for_neighbours(u, [&neighbours](VertexID v) {
+				neighbours.push_back(v);
+				return false;
+			});
 			return neighbours;
 		}
 
