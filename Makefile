@@ -10,8 +10,9 @@ LDFLAGS := -lpthread
 
 TARGET := graphedit
 
-SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp" -not -name test_finder.cpp))
-TEST_SOURCE_FILES := $(sort $(shell find src/ -name "*.cpp" -not -name main.cpp))
+SOURCE_FILES := src/Graph/Graph.cpp src/main.cpp
+TEST_SOURCE_FILES := src/Graph/Graph.cpp src/test_finder.cpp
+GUROBI_SOURCE_FILES := src/Graph/Graph.cpp src/main_gurobi.cpp
 HEADER_FILES := $(sort $(shell find src/ -name "*.hpp"))
 
 all: release
@@ -38,6 +39,9 @@ test_finder: $(TEST_SOURCE_FILES:src/%.cpp=build/%.o)
 
 json2csv: json2csv.cpp external/json.hpp
 	$(CPP) $(COMMON) $(TYPEFLAGS) json2csv.cpp $(LDFLAGS) -o json2csv
+
+edit_gurobi: $(GUROBI_SOURCE_FILES:src/%.cpp=build/%.o)
+	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -I/opt/gurobi/linux64/include/ -L/opt/gurobi/linux64/lib/ -lgurobi_c++ -lgurobi80 -o edit_gurobi
 
 $(TARGET): $(SOURCE_FILES:src/%.cpp=build/%.o) | build build/generated/list.d
 	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o $(TARGET)
