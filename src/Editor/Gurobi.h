@@ -37,13 +37,14 @@ namespace Editor
 		private:
 			Finder &finder;
 			Graph &graph;
+			Graph input_graph;
 			const Graph &heuristic_solution;
 			GRBEnv env;
 			GRBModel model;
 			Value_Matrix<GRBVar> variables;
 			bool add_single_constraints;
 		public:
-			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, bool add_single_constraints) : finder(finder), graph(graph), heuristic_solution(heuristic_solution),  model(env), variables(graph.size()), add_single_constraints(add_single_constraints) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, bool add_single_constraints) : finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution),  model(env), variables(graph.size()), add_single_constraints(add_single_constraints) {
 			}
 
 			void initialize() {
@@ -123,6 +124,14 @@ namespace Editor
 				}
 			}
 
+			double get_relaxed_constraint_value(const subgraph_t& fs) {
+				auto get = [&](size_t i, size_t j) {
+					return getNodeRel(variables.at(fs[i], fs[j]));
+				};
+
+				return 3 - get(0, 1) - get(1, 2) - get(2, 3) + get(0, 2) + get(1, 3);
+			}
+
 			size_t add_forbidden_subgraphs(bool lazy = false) {
 				size_t num_found = 0;
 				if (add_single_constraints && lazy) {
@@ -130,6 +139,11 @@ namespace Editor
 					subgraph_t certificate;
 					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
 						++num_found;
+						assert(graph.has_edge(certificate[0], certificate[1]));
+						assert(graph.has_edge(certificate[1], certificate[2]));
+						assert(graph.has_edge(certificate[2], certificate[3]));
+						assert(!graph.has_edge(certificate[0], certificate[2]));
+						assert(!graph.has_edge(certificate[1], certificate[3]));
 						add_constraint(certificate, true);
 					}
 				} else {
@@ -146,9 +160,33 @@ namespace Editor
 				return num_found;
 			}
 
+			size_t add_forbidden_subgraphs_in_relaxation() {
+				size_t num_found = 0;
+				double least_constraint_value = 0.99999;
+				subgraph_t best_fs;
+
+				finder.find(graph, [&](const subgraph_t& fs) {
+					double v = get_relaxed_constraint_value(fs);
+					if (v < least_constraint_value) {
+						least_constraint_value = v;
+						++num_found;
+						best_fs = fs;
+					}
+					return false;
+				});
+
+				if (num_found > 0) {
+					add_constraint(best_fs, true);
+					std::cout << "Found " << num_found << " lazy constraints in relaxation, added best with constraint value " << least_constraint_value << std::endl;
+				}
+
+				return num_found;
+			}
+
+
 			void update_graph() {
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
-					if (var.get(GRB_DoubleAttr_X) > 0) {
+					if (var.get(GRB_DoubleAttr_X) > 0.5) {
 						graph.set_edge(u, v);
 					} else {
 						graph.clear_edge(u, v);
@@ -158,7 +196,7 @@ namespace Editor
 
 			void update_graph_in_callback() {
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
-					if (getSolution(var) > 0) {
+					if (getSolution(var) > 0.5) {
 						graph.set_edge(u, v);
 					} else {
 						graph.clear_edge(u, v);
@@ -168,10 +206,30 @@ namespace Editor
 
 			void update_graph_from_relaxation() {
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
-					if (getNodeRel(var) > 0) {
+					if (getNodeRel(var) > 0.5) {
 						graph.set_edge(u, v);
 					} else {
 						graph.clear_edge(u, v);
+					}
+				});
+			}
+
+			void update_graph_from_relaxation_inverse_to_input() {
+				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+					double val = getNodeRel(var);
+
+					if (input_graph.has_edge(u, v)) {
+						if (val > 0.999) {
+							graph.set_edge(u, v);
+						} else {
+							graph.clear_edge(u, v);
+						}
+					} else {
+						if (val > 0.001) {
+							graph.set_edge(u, v);
+						} else {
+							graph.clear_edge(u, v);
+						}
 					}
 				});
 			}
@@ -180,13 +238,14 @@ namespace Editor
 				if (where == GRB_CB_MIPSOL) {
 					update_graph_in_callback();
 					add_forbidden_subgraphs(true);
-				}/* else if (where == GRB_CB_MIPNODE) {
+				} else if (where == GRB_CB_MIPNODE) {
 					if (getIntInfo(GRB_CB_MIPNODE_STATUS) == GRB_OPTIMAL) {
-						std::cout << "Got relaxation" << std::endl;
 						update_graph_from_relaxation();
-						add_forbidden_subgraphs(true);
+						add_forbidden_subgraphs_in_relaxation();
+						update_graph_from_relaxation_inverse_to_input();
+						add_forbidden_subgraphs_in_relaxation();
 					}
-					}*/
+				}
 			}
 		};
 
