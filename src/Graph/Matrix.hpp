@@ -116,7 +116,7 @@ namespace Graph
 		}
 
 		template <typename F>
-		bool for_neighbours(VertexID u, F callback) {
+		bool for_neighbours(VertexID u, F callback) const {
 			Packed const *urow = get_row(u);
 
 			for(size_t i = 0; i < get_row_length(); i++)

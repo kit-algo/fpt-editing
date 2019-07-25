@@ -15,10 +15,7 @@
 
 #include "Editor.hpp"
 #include "../Options.hpp"
-#include "../Finder/Finder.hpp"
-#include "../LowerBound/Lower_Bound.hpp"
-#include "../ProblemSet.hpp"
-#include "../Finder/SubgraphStats.hpp"
+#include "../Finder/Linear.hpp"
 
 namespace Editor
 {
@@ -27,28 +24,30 @@ namespace Editor
 	{
 	public:
 		static constexpr char const *name = "Gurobi";
+		using Finder_Linear = typename ::Finder::Linear<Graph>;
+		using subgraph_t = std::array<VertexID, Finder::length>;
 	private:
 		Finder &finder;
 		Graph &graph;
+		const Graph &heuristic_solution;
 
-		using subgraph_t = std::array<VertexID, Finder::length>;
 		bool solved_optimally;
 
 		class MyCallback : public GRBCallback {
 		private:
 			Finder &finder;
 			Graph &graph;
+			const Graph &heuristic_solution;
 			GRBEnv env;
 			GRBModel model;
 			Value_Matrix<GRBVar> variables;
+			bool add_single_constraints;
 		public:
-			MyCallback(Finder &finder, Graph &graph) : finder(finder), graph(graph), model(env), variables(graph.size()) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, bool add_single_constraints) : finder(finder), graph(graph), heuristic_solution(heuristic_solution),  model(env), variables(graph.size()), add_single_constraints(add_single_constraints) {
 			}
 
 			void initialize() {
-				model.set(GRB_IntParam_LazyConstraints,	1);
-				model.setCallback(this);
-
+				model.set(GRB_IntParam_Threads,	1);
 				GRBLinExpr objective = 0;
 
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
@@ -58,42 +57,92 @@ namespace Editor
 					} else {
 						objective += var;
 					}
+
+					if (heuristic_solution.has_edge(u, v)) {
+						var.set(GRB_DoubleAttr_Start, 1);
+					} else {
+						var.set(GRB_DoubleAttr_Start, 0);
+					}
 				});
 
 				model.setObjective(objective, GRB_MINIMIZE);
 
-				add_forbidden_subgraphs(false);
 			}
 
 			void solve() {
+				add_forbidden_subgraphs(false);
+				model.set(GRB_IntParam_LazyConstraints,	1);
+				model.setCallback(this);
 				model.optimize();
-				assert(model.get(GRB_InAttr_Status) == GRB_OPTIMAL);
+				assert(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 				update_graph();
+			}
+
+			void solve_iteratively() {
+				while (add_forbidden_subgraphs(false) > 0) {
+				    model.optimize();
+				    assert(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
+				    update_graph();
+				}
+			}
+
+			void solve_full() {
+				subgraph_t fs;
+				for (fs[0] = 0; fs[0] < graph.size(); ++fs[0]) {
+					for (fs[1] = 0; fs[1] < graph.size(); ++fs[1]) {
+						if (fs[0] == fs[1]) continue;
+						for (fs[2] = 0; fs[2] < graph.size(); ++fs[2]) {
+							if (fs[0] == fs[2] || fs[1] == fs[2]) continue;
+							for (fs[3] = fs[0] + 1; fs[3] < graph.size(); ++fs[3]) {
+								if (fs[1] == fs[3] || fs[2] == fs[3]) continue;
+
+								// add constraint for subgraph fs[0] - fs[1] - fs[2] - fs[3]
+								add_constraint(fs, false);
+							}
+						}
+					}
+				}
+
+				model.optimize();
+				assert(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
+				update_graph();
+			}
+
+			void add_constraint(const subgraph_t& fs, bool lazy) {
+				GRBLinExpr expr = 3;
+				expr -= variables.at(fs[0], fs[1]);
+				expr -= variables.at(fs[1], fs[2]);
+				expr -= variables.at(fs[2], fs[3]);
+				expr += variables.at(fs[0], fs[2]);
+				expr += variables.at(fs[1], fs[3]);
+
+				if (lazy) {
+					addLazy(expr >= 1);
+				} else {
+					model.addConstr(expr >= 1);
+				}
 			}
 
 			size_t add_forbidden_subgraphs(bool lazy = false) {
 				size_t num_found = 0;
-				finder.find(graph, [&](const subgraph_t& fs) {
-					++num_found;
-					GRBLinExpr expr;
-					for (size_t i = 0; i < fs.size(); ++i) {
-						for (size_t j = i + 1; j < fs.size(); ++j) {
-							VertexID u = fs[i];
-							VertexID v = fs[j];
-							if (graph.has_edge(u, v)) {
-								expr += 1 - variables.at(u, v);
-							} else {
-								expr += variables.at(u, v);
-							}
-						}
+				if (add_single_constraints && lazy) {
+					Finder_Linear linear_finder;
+					subgraph_t certificate;
+					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
+						++num_found;
+						add_constraint(certificate, true);
 					}
+				} else {
+					finder.find(graph, [&](const subgraph_t& fs) {
+						++num_found;
+						add_constraint(fs, lazy);
+						return false;
+					});
+				}
 
-					if (lazy) {
-						addLazy(expr >= 1);
-					} else {
-						model.addConstr(expr >= 1);
-					}
-				});
+				std::cout << "added " << num_found;
+				if (lazy) std::cout << " lazy";
+				std::cout << " constraints" << std::endl;
 				return num_found;
 			}
 
@@ -116,26 +165,56 @@ namespace Editor
 					}
 				});
 			}
+
+			void update_graph_from_relaxation() {
+				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+					if (getNodeRel(var) > 0) {
+						graph.set_edge(u, v);
+					} else {
+						graph.clear_edge(u, v);
+					}
+				});
+			}
 		protected:
 			void callback() {
 				if (where == GRB_CB_MIPSOL) {
 					update_graph_in_callback();
 					add_forbidden_subgraphs(true);
-				}
+				}/* else if (where == GRB_CB_MIPNODE) {
+					if (getIntInfo(GRB_CB_MIPNODE_STATUS) == GRB_OPTIMAL) {
+						std::cout << "Got relaxation" << std::endl;
+						update_graph_from_relaxation();
+						add_forbidden_subgraphs(true);
+					}
+					}*/
 			}
 		};
 
 	public:
-		Gurobi(Finder &finder, Graph &graph) : finder(finder), graph(graph), solved_optimally(false)
+		Gurobi(Finder &finder, Graph &graph, const Graph &heuristic_solution) : finder(finder), graph(graph), heuristic_solution(heuristic_solution), solved_optimally(false)
 		{
 		}
 
 		bool is_optimal() const { return solved_optimally; }
 
-		void solve() {
-			MyCallback cb(finder, graph);
+		void solve(bool add_single_constraints) {
+			MyCallback cb(finder, graph, heuristic_solution, add_single_constraints);
 			cb.initialize();
 			cb.solve();
+			solved_optimally = true;
+		}
+
+		void solve_iteratively() {
+			MyCallback cb(finder, graph, heuristic_solution, false);
+			cb.initialize();
+			cb.solve_iteratively();
+			solved_optimally = true;
+		}
+
+		void solve_full() {
+			MyCallback cb(finder, graph, heuristic_solution, false);
+			cb.initialize();
+			cb.solve_full();
 			solved_optimally = true;
 		}
 	};

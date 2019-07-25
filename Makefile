@@ -3,8 +3,8 @@ DEBUGFLAGS := -ggdb -O0
 RELEASEFLAGS := -O3 -DNDEBUG
 PROFILEFLAGS := -ggdb $(RELEASEFLAGS)
 COMMON := -std=c++17 -pedantic -W -Wall -Wextra -march=native
-CPPFLAGS :=
-LDFLAGS := -lpthread
+CPPFLAGS := -I/opt/gurobi/linux64/include/
+LDFLAGS := -lpthread -L/opt/gurobi/linux64/lib/ -lgurobi_c++ -lgurobi80
 
 ############################################################
 
@@ -25,14 +25,14 @@ ifneq ($(MAKECMDGOALS), clean)
 endif
 
 debug: TYPEFLAGS := $(DEBUGFLAGS)
-debug: $(TARGET) test_finder json2csv
+debug: $(TARGET) test_finder json2csv edit_gurobi
 profile: TYPEFLAGS := $(PROFILEFLAGS)
-profile: $(TARGET) test_finder json2csv
+profile: $(TARGET) test_finder json2csv edit_gurobi
 release: TYPEFLAGS := $(RELEASEFLAGS)
-release: $(TARGET) test_finder json2csv
+release: $(TARGET) test_finder json2csv edit_gurobi
 
 clean:
-	rm -rf $(TARGET) build gmon.out test_finder json2csv *~
+	rm -rf $(TARGET) build gmon.out test_finder json2csv edit_gurobi *~
 
 test_finder: $(TEST_SOURCE_FILES:src/%.cpp=build/%.o)
 	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o test_finder
@@ -41,7 +41,7 @@ json2csv: json2csv.cpp external/json.hpp
 	$(CPP) $(COMMON) $(TYPEFLAGS) json2csv.cpp $(LDFLAGS) -o json2csv
 
 edit_gurobi: $(GUROBI_SOURCE_FILES:src/%.cpp=build/%.o)
-	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -I/opt/gurobi/linux64/include/ -L/opt/gurobi/linux64/lib/ -lgurobi_c++ -lgurobi80 -o edit_gurobi
+	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o edit_gurobi
 
 $(TARGET): $(SOURCE_FILES:src/%.cpp=build/%.o) | build build/generated/list.d
 	$(CPP) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o $(TARGET)
