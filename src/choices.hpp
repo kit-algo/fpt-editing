@@ -27,6 +27,7 @@
 #include "Consumer/LB_No.hpp"
 #include "Consumer/LB_Basic.hpp"
 #include "Consumer/LB_Updated.hpp"
+#include "Consumer/LB_Gurobi.hpp"
 /*
 #include "Consumer/LB_Min_Deg.hpp"
 */
