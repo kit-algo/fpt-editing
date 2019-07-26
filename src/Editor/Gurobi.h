@@ -19,6 +19,26 @@
 
 namespace Editor
 {
+
+	struct GurobiOptions {
+		std::string graph = "Not Read";								//specify as first argument
+		std::string heuristic_solution = "Do not use";				//specifiy path with -h
+		int n_threads = 1;											//specify with -t
+		std::string variant = "basic-single";						//specify with -v Options are "basic", "basic-single" (for adding single constraints), "full", "iteratively"
+		bool add_single_constraints = true;
+		bool use_heuristic_solution = false;
+
+		void print() {
+			std::cout
+				<< "Gurobi Editor options:"
+				<< "\nGraph: " << graph
+				<< "\nHeuristic Solution: " << heuristic_solution
+				<< "\nThreads: " << n_threads
+				<< "\nContraint Generation Variant: " << variant
+				<< std::endl;
+		}
+	};
+
 	template<typename Finder, typename Graph>
 	class Gurobi
 	{
@@ -29,26 +49,24 @@ namespace Editor
 	private:
 		Finder &finder;
 		Graph &graph;
-		const Graph &heuristic_solution;
-
 		bool solved_optimally;
 
 		class MyCallback : public GRBCallback {
 		private:
+			GurobiOptions& options;
 			Finder &finder;
 			Graph &graph;
 			Graph input_graph;
-			const Graph &heuristic_solution;
+			const Graph& heuristic_solution;
 			GRBEnv env;
 			GRBModel model;
 			Value_Matrix<GRBVar> variables;
-			bool add_single_constraints;
 		public:
-			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, bool add_single_constraints) : finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution),  model(env), variables(graph.size()), add_single_constraints(add_single_constraints) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : options(options), finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution), model(env), variables(graph.size()) {
 			}
 
 			void initialize() {
-				model.set(GRB_IntParam_Threads,	1);
+				model.set(GRB_IntParam_Threads,	options.n_threads);
 				GRBLinExpr objective = 0;
 
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
@@ -59,10 +77,12 @@ namespace Editor
 						objective += var;
 					}
 
-					if (heuristic_solution.has_edge(u, v)) {
-						var.set(GRB_DoubleAttr_Start, 1);
-					} else {
-						var.set(GRB_DoubleAttr_Start, 0);
+					if (options.use_heuristic_solution) {
+						if (heuristic_solution.has_edge(u, v)) {
+							var.set(GRB_DoubleAttr_Start, 1);
+						} else {
+							var.set(GRB_DoubleAttr_Start, 0);
+						}
 					}
 				});
 
@@ -71,6 +91,17 @@ namespace Editor
 			}
 
 			void solve() {
+				if (options.variant == "basic" || options.variant == "basic-single")
+					solve_basic();
+				else if (options.variant == "iteratively")
+					solve_iteratively();
+				else if (options.variant == "full")
+					solve_full();
+				else
+					throw std::runtime_error("Unknown constraint generation variant " + options.variant);
+			}
+
+			void solve_basic() {
 				add_forbidden_subgraphs(false);
 				model.set(GRB_IntParam_LazyConstraints,	1);
 				model.setCallback(this);
@@ -134,7 +165,7 @@ namespace Editor
 
 			size_t add_forbidden_subgraphs(bool lazy = false) {
 				size_t num_found = 0;
-				if (add_single_constraints && lazy) {
+				if (options.add_single_constraints && lazy) {
 					Finder_Linear linear_finder;
 					subgraph_t certificate;
 					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
@@ -250,30 +281,16 @@ namespace Editor
 		};
 
 	public:
-		Gurobi(Finder &finder, Graph &graph, const Graph &heuristic_solution) : finder(finder), graph(graph), heuristic_solution(heuristic_solution), solved_optimally(false)
+		Gurobi(Finder &finder, Graph &graph) : finder(finder), graph(graph), solved_optimally(false)
 		{
 		}
 
 		bool is_optimal() const { return solved_optimally; }
 
-		void solve(bool add_single_constraints) {
-			MyCallback cb(finder, graph, heuristic_solution, add_single_constraints);
+		void solve(const Graph& heuristic_solution, GurobiOptions& options) {		//TODO consolidate Gurobi and MyCallback
+			MyCallback cb(finder, graph, heuristic_solution, options);
 			cb.initialize();
 			cb.solve();
-			solved_optimally = true;
-		}
-
-		void solve_iteratively() {
-			MyCallback cb(finder, graph, heuristic_solution, false);
-			cb.initialize();
-			cb.solve_iteratively();
-			solved_optimally = true;
-		}
-
-		void solve_full() {
-			MyCallback cb(finder, graph, heuristic_solution, false);
-			cb.initialize();
-			cb.solve_full();
 			solved_optimally = true;
 		}
 	};
