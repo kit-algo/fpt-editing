@@ -48,12 +48,13 @@ namespace Options {
 		size_t pos_v = search("-v");
 		if (pos_v != not_found)
 			options.variant = remaining[pos_v];
-		if (options.variant == "basic-single")
+		if (options.variant == "basic-single") {
 			options.add_single_constraints = true;
-		else if (options.variant == "basic-sparse")
+		} else if (options.variant == "basic-sparse") {
 			options.use_sparse_constraints = true;
-		else
-			options.add_single_constraints = false;
+		} else if (options.variant != "basic" && options.variant != "full" && options.variant != "iteratively") {
+			throw std::runtime_error("Invalid variant " + options.variant);
+		}
 
 		options.print();
 		return options;

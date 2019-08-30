@@ -26,7 +26,7 @@ namespace Editor
 		std::string heuristic_solution = "Do not use";				//specifiy path with -h
 		int n_threads = 1;											//specify with -t
 		std::string variant = "basic-single";						//specify with -v Options are "basic", "basic-single" (for adding single constraints), "full", "iteratively"
-		bool add_single_constraints = true;
+		bool add_single_constraints = false;
 		bool use_heuristic_solution = false;
 		bool use_sparse_constraints = false;
 
@@ -193,7 +193,7 @@ namespace Editor
 						assert(!graph.has_edge(certificate[1], certificate[3]));
 						add_constraint(certificate, true);
 					}
-				} else if (options.use_sparse_constraints) {
+				} else if (options.use_sparse_constraints && lazy) {
 					Graph used_pairs(graph.size());
 					finder.find(graph, [&](const subgraph_t& fs) {
 
