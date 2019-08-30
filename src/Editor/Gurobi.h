@@ -94,7 +94,7 @@ namespace Editor
 			}
 
 			void solve() {
-				if (options.variant == "basic" || options.variant == "basic-single")
+				if (options.variant.find("basic") == 0)
 					solve_basic();
 				else if (options.variant == "iteratively")
 					solve_iteratively();
