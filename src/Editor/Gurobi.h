@@ -16,6 +16,7 @@
 #include "Editor.hpp"
 #include "../Options.hpp"
 #include "../Finder/Linear.hpp"
+#include "../Graph/ValueMatrix.hpp"
 
 namespace Editor
 {
@@ -27,6 +28,7 @@ namespace Editor
 		std::string variant = "basic-single";						//specify with -v Options are "basic", "basic-single" (for adding single constraints), "full", "iteratively"
 		bool add_single_constraints = true;
 		bool use_heuristic_solution = false;
+		bool use_sparse_constraints = false;
 
 		void print() {
 			std::cout
@@ -35,6 +37,7 @@ namespace Editor
 				<< "\nHeuristic Solution: " << heuristic_solution
 				<< "\nThreads: " << n_threads
 				<< "\nContraint Generation Variant: " << variant
+				<< "\nSparse constraints: " << (use_sparse_constraints ? 1 : 0)
 				<< std::endl;
 		}
 	};
@@ -142,17 +145,30 @@ namespace Editor
 
 			void add_constraint(const subgraph_t& fs, bool lazy) {
 				GRBLinExpr expr = 3;
-				expr -= variables.at(fs[0], fs[1]);
-				expr -= variables.at(fs[1], fs[2]);
-				expr -= variables.at(fs[2], fs[3]);
-				expr += variables.at(fs[0], fs[2]);
-				expr += variables.at(fs[1], fs[3]);
+				forNodePairs(fs, [&](VertexID u, VertexID v, bool edge) {
+					if (edge) {
+						expr -= variables.at(u, v);
+					} else {
+						expr += variables.at(u, v);
+					}
+					return false;
+				});
 
 				if (lazy) {
 					addLazy(expr >= 1);
 				} else {
 					model.addConstr(expr >= 1);
 				}
+			}
+
+			template <typename F>
+			bool forNodePairs(const subgraph_t& fs, F callback) {
+				if (callback(fs[0], fs[1], true)) return true;
+				if (callback(fs[1], fs[2], true)) return true;
+				if (callback(fs[2], fs[3], true)) return true;
+				if (callback(fs[0], fs[2], false)) return true;
+				if (callback(fs[1], fs[3], false)) return true;
+				return false;
 			}
 
 			double get_relaxed_constraint_value(const subgraph_t& fs) {
@@ -177,6 +193,24 @@ namespace Editor
 						assert(!graph.has_edge(certificate[1], certificate[3]));
 						add_constraint(certificate, true);
 					}
+				} else if (options.use_sparse_constraints) {
+					Graph used_pairs(graph.size());
+					finder.find(graph, [&](const subgraph_t& fs) {
+
+						bool covered = forNodePairs(fs, [&](VertexID u, VertexID v, bool) {
+							return used_pairs.has_edge(u, v);
+						});
+
+						if (!covered) {
+							forNodePairs(fs, [&](VertexID u, VertexID v, bool) {
+								used_pairs.set_edge(u, v);
+								return false;
+							});
+							++num_found;
+							add_constraint(fs, lazy);
+						}
+						return false;
+					});
 				} else {
 					finder.find(graph, [&](const subgraph_t& fs) {
 						++num_found;

@@ -14,7 +14,7 @@ namespace Options {
 	Editor::GurobiOptions ParseGurobiOptions(int argc, char* argv[]) {
 		//does not handle unknown options
 		if (argc < 2) {
-			std::cout << "Usage: <graph path> [ optional -t #threads -v { basic, basic-single, full, iteratively } -h <path to heuristic solution>  ]" << std::endl;
+			std::cout << "Usage: <graph path> [ optional -t #threads -v { basic, basic-single, basic-sparse, full, iteratively } -h <path to heuristic solution>  ]" << std::endl;
 			std::exit(-1);
 		}
 		Editor::GurobiOptions options;
@@ -50,6 +50,8 @@ namespace Options {
 			options.variant = remaining[pos_v];
 		if (options.variant == "basic-single")
 			options.add_single_constraints = true;
+		else if (options.variant == "basic-sparse")
+			options.use_sparse_constraints = true;
 		else
 			options.add_single_constraints = false;
 
