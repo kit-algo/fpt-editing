@@ -29,6 +29,10 @@ namespace Editor
 		bool add_single_constraints = false;
 		bool use_heuristic_solution = false;
 		bool use_sparse_constraints = false;
+		bool use_extended_constraints = false;
+		bool add_constraints_in_relaxation = false;
+		bool init_sparse = false;
+		size_t all_lazy = 0;
 
 		void print() {
 			std::cout
@@ -38,6 +42,10 @@ namespace Editor
 				<< "\nThreads: " << n_threads
 				<< "\nContraint Generation Variant: " << variant
 				<< "\nSparse constraints: " << (use_sparse_constraints ? 1 : 0)
+				<< "\nExtended constraints: " << (use_extended_constraints ? 1 : 0)
+				<< "\nAdd constraints in relaxation: " << (add_constraints_in_relaxation ? 1 : 0)
+				<< "\nUse sparse initialization: " << (init_sparse ? 1 : 0)
+				<< "\nAll lazy constraints: " << all_lazy
 				<< std::endl;
 		}
 	};
@@ -105,8 +113,8 @@ namespace Editor
 			}
 
 			void solve_basic() {
-				add_forbidden_subgraphs(false);
 				model.set(GRB_IntParam_LazyConstraints,	1);
+				add_forbidden_subgraphs(false);
 				model.setCallback(this);
 				model.optimize();
 				assert(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
@@ -157,7 +165,11 @@ namespace Editor
 				if (lazy) {
 					addLazy(expr >= 1);
 				} else {
-					model.addConstr(expr >= 1);
+					GRBConstr constr = model.addConstr(expr >= 1);
+
+					if (options.all_lazy > 0) {
+						constr.set(GRB_IntAttr_Lazy, options.all_lazy);
+					}
 				}
 			}
 
@@ -181,7 +193,7 @@ namespace Editor
 
 			size_t add_forbidden_subgraphs(bool lazy = false) {
 				size_t num_found = 0;
-				if (options.add_single_constraints && lazy) {
+				if ((lazy || options.init_sparse) && options.add_single_constraints) {
 					Finder_Linear linear_finder;
 					subgraph_t certificate;
 					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
@@ -191,17 +203,17 @@ namespace Editor
 						assert(graph.has_edge(certificate[2], certificate[3]));
 						assert(!graph.has_edge(certificate[0], certificate[2]));
 						assert(!graph.has_edge(certificate[1], certificate[3]));
-						add_constraint(certificate, true);
+						add_constraint(certificate, lazy);
 					}
-				} else if (options.use_sparse_constraints && lazy) {
+				} else if ((lazy || options.init_sparse) && options.use_sparse_constraints) {
 					Graph used_pairs(graph.size());
 					finder.find(graph, [&](const subgraph_t& fs) {
 
-						bool covered = forNodePairs(fs, [&](VertexID u, VertexID v, bool) {
-							return used_pairs.has_edge(u, v);
+						bool not_covered = forNodePairs(fs, [&](VertexID u, VertexID v, bool) {
+							return !used_pairs.has_edge(u, v);
 						});
 
-						if (!covered) {
+						if (not_covered) {
 							forNodePairs(fs, [&](VertexID u, VertexID v, bool) {
 								used_pairs.set_edge(u, v);
 								return false;
@@ -210,6 +222,31 @@ namespace Editor
 							add_constraint(fs, lazy);
 						}
 						return false;
+					});
+				} else if (!lazy && options.use_extended_constraints) {
+					Graph used_pairs(graph.size());
+					finder.find(graph, [&](const subgraph_t& fs) {
+						++num_found;
+						add_constraint(fs, lazy);
+						forNodePairs(fs, [&](VertexID u, VertexID v, bool) {
+							used_pairs.set_edge(u, v);
+							return false;
+						});
+						return false;
+					});
+
+					variables.forAllNodePairs([&](VertexID u, VertexID v, const auto&) {
+						if (used_pairs.has_edge(u, v)) {
+							graph.toggle_edge(u, v);
+
+							finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
+								++num_found;
+								add_constraint(fs, lazy);
+								return false;
+							});
+
+							graph.toggle_edge(u, v);
+						}
 					});
 				} else {
 					finder.find(graph, [&](const subgraph_t& fs) {
@@ -303,12 +340,16 @@ namespace Editor
 				if (where == GRB_CB_MIPSOL) {
 					update_graph_in_callback();
 					add_forbidden_subgraphs(true);
-				} else if (where == GRB_CB_MIPNODE) {
+				} else if (where == GRB_CB_MIPNODE && options.add_constraints_in_relaxation) {
 					if (getIntInfo(GRB_CB_MIPNODE_STATUS) == GRB_OPTIMAL) {
+						if (options.init_sparse) {
+							graph = input_graph;
+							if (add_forbidden_subgraphs_in_relaxation() > 0) return;
+						}
 						update_graph_from_relaxation();
-						add_forbidden_subgraphs_in_relaxation();
+						if (add_forbidden_subgraphs_in_relaxation() > 0) return;
 						update_graph_from_relaxation_inverse_to_input();
-						add_forbidden_subgraphs_in_relaxation();
+						if (add_forbidden_subgraphs_in_relaxation() > 0) return;
 					}
 				}
 			}

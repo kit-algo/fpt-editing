@@ -14,7 +14,7 @@ namespace Options {
 	Editor::GurobiOptions ParseGurobiOptions(int argc, char* argv[]) {
 		//does not handle unknown options
 		if (argc < 2) {
-			std::cout << "Usage: <graph path> [ optional -t #threads -v { basic, basic-single, basic-sparse, full, iteratively } -h <path to heuristic solution>  ]" << std::endl;
+			std::cout << "Usage: <graph path> [ optional -t #threads -v { basic, basic-single, basic-sparse, full, iteratively } -h <path to heuristic solution> -e -r -s -l]" << std::endl;
 			std::exit(-1);
 		}
 		Editor::GurobiOptions options;
@@ -33,6 +33,13 @@ namespace Options {
 					return i+1;
 			}
 			return not_found;
+		};
+
+		auto search_flag = [&](const std::string x) -> bool{
+			for (const std::string& opt : remaining) {
+				if (opt.find(x) == 0) return true;
+			}
+			return false;
 		};
 
 		size_t pos_t = search("-t");
@@ -54,6 +61,14 @@ namespace Options {
 			options.use_sparse_constraints = true;
 		} else if (options.variant != "basic" && options.variant != "full" && options.variant != "iteratively") {
 			throw std::runtime_error("Invalid variant " + options.variant);
+		}
+
+		options.use_extended_constraints = search_flag("-e");
+		options.add_constraints_in_relaxation = search_flag("-r");
+		options.init_sparse = search_flag("-s");
+		size_t pos_lazy = search("-l");
+		if (pos_lazy != not_found) {
+			options.all_lazy = std::stoul(remaining[pos_lazy]);
 		}
 
 		options.print();
