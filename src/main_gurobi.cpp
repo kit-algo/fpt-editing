@@ -8,67 +8,44 @@
 #include "Options.hpp"
 #include "util.hpp"
 #include "Editor/Gurobi.h"
+#include <tlx/cmdline_parser.hpp>
 
 
 namespace Options {
 	Editor::GurobiOptions ParseGurobiOptions(int argc, char* argv[]) {
-		//does not handle unknown options
-		if (argc < 2) {
-			std::cout << "Usage: <graph path> [ optional -t #threads -v { basic, basic-single, basic-sparse, full, iteratively } -h <path to heuristic solution> -e -r -s -l]" << std::endl;
-			std::exit(-1);
-		}
+		tlx::CmdlineParser cp;
+
+		cp.set_description("Solve the given graph exactly using Gurobi.");
+
 		Editor::GurobiOptions options;
-		options.graph = argv[1];
-		std::vector<std::string> remaining;
-		for (int i = 2; i < argc; ++i) {
-			remaining.push_back(argv[i]);
+
+		cp.add_param_string("graph", options.graph, "The graph to solve in METIS format.");
+		cp.add_string('h', "heuristic-solution", "solved_graph", options.heuristic_solution, "A heuristic solution to give to Gurobi");
+		cp.add_int('t', "threads", "num_threads", options.n_threads, "Number of threads to use.");
+		cp.add_string('v', "variant", "variant", options.variant, "The variant to use, one of: basic, basic-sparse, basic-single, iteratively, full.");
+
+		cp.add_flag('e', "extended-constraints", options.use_extended_constraints, "Generate more constraints initially.");
+		cp.add_flag('r', "relaxation-constraints", options.add_constraints_in_relaxation, "Add additional constraints for relaxation solutions.");
+		cp.add_flag('s', "init-sparse", options.init_sparse, "Initialize with sparse constraints (only useful for -sparse and -single variants).");
+		cp.add_size_t('l', "lazy", "lazy_level", options.all_lazy, "Add all constraints as lazy constraints with level 1, 2, or 3");
+
+		if (!cp.process(argc, argv)) {
+			throw std::runtime_error("Invalid options specified.");
 		}
 
-		const size_t not_found = std::numeric_limits<size_t>::max();
-		auto search = [&](const std::string x) {
-			if (remaining.empty())
-				return not_found;
-			for (size_t i = 0; i < remaining.size() - 1; ++i) {
-				if (remaining[i].find(x) != std::string::npos)
-					return i+1;
-			}
-			return not_found;
-		};
+		cp.print_result();
 
-		auto search_flag = [&](const std::string x) -> bool{
-			for (const std::string& opt : remaining) {
-				if (opt.find(x) == 0) return true;
-			}
-			return false;
-		};
-
-		size_t pos_t = search("-t");
-		if (pos_t != not_found)
-			options.n_threads = std::stoi(remaining[pos_t]);
-
-		size_t pos_h = search("-h");
-		if (pos_h != not_found)
-			options.heuristic_solution = remaining[pos_h];
 		if (options.heuristic_solution != "Do not use")
 			options.use_heuristic_solution = true;
 
-		size_t pos_v = search("-v");
-		if (pos_v != not_found)
-			options.variant = remaining[pos_v];
 		if (options.variant == "basic-single") {
 			options.add_single_constraints = true;
 		} else if (options.variant == "basic-sparse") {
 			options.use_sparse_constraints = true;
 		} else if (options.variant != "basic" && options.variant != "full" && options.variant != "iteratively") {
+			std::cerr << "Invalid variant " << options.variant << std::endl;
+			cp.print_usage();
 			throw std::runtime_error("Invalid variant " + options.variant);
-		}
-
-		options.use_extended_constraints = search_flag("-e");
-		options.add_constraints_in_relaxation = search_flag("-r");
-		options.init_sparse = search_flag("-s");
-		size_t pos_lazy = search("-l");
-		if (pos_lazy != not_found) {
-			options.all_lazy = std::stoul(remaining[pos_lazy]);
 		}
 
 		options.print();
@@ -86,7 +63,12 @@ int main(int argc, char * argv[])
 	using R = Options::Restrictions::Redundant;
 	using C = Options::Conversions::Normal;
 
-	auto options = Options::ParseGurobiOptions(argc, argv);
+	Editor::GurobiOptions options;
+	try {
+		options = Options::ParseGurobiOptions(argc, argv);
+	} catch (std::runtime_error) {
+		return 1;
+	}
 
 	G graph = Graph::readMetis<G>(options.graph);
 	G heuristic_solution(graph.size());

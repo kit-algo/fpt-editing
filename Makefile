@@ -11,7 +11,6 @@ TARGET := graphedit
 
 SOURCE_FILES := src/Graph/Graph.cpp src/main.cpp
 TEST_SOURCE_FILES := src/Graph/Graph.cpp src/test_finder.cpp
-GUROBI_SOURCE_FILES := src/Graph/Graph.cpp src/main_gurobi.cpp
 HEADER_FILES := $(sort $(shell find src/ -name "*.hpp"))
 
 all: release
@@ -24,23 +23,20 @@ ifneq ($(MAKECMDGOALS), clean)
 endif
 
 debug: TYPEFLAGS := $(DEBUGFLAGS)
-debug: $(TARGET) test_finder json2csv edit_gurobi
+debug: $(TARGET) test_finder json2csv
 profile: TYPEFLAGS := $(PROFILEFLAGS)
-profile: $(TARGET) test_finder json2csv edit_gurobi
+profile: $(TARGET) test_finder json2csv
 release: TYPEFLAGS := $(RELEASEFLAGS)
-release: $(TARGET) test_finder json2csv edit_gurobi
+release: $(TARGET) test_finder json2csv
 
 clean:
-	rm -rf $(TARGET) build gmon.out test_finder json2csv edit_gurobi *~
+	rm -rf $(TARGET) build gmon.out test_finder json2csv *~
 
 test_finder: $(TEST_SOURCE_FILES:src/%.cpp=build/%.o)
 	$(CXX) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o test_finder
 
 json2csv: json2csv.cpp external/json.hpp
 	$(CXX) $(COMMON) $(TYPEFLAGS) json2csv.cpp $(LDFLAGS) -o json2csv
-
-edit_gurobi: $(GUROBI_SOURCE_FILES:src/%.cpp=build/%.o)
-	$(CXX) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o edit_gurobi
 
 $(TARGET): $(SOURCE_FILES:src/%.cpp=build/%.o) | build build/generated/list.d
 	$(CXX) $(COMMON) $(TYPEFLAGS) $^ $(LDFLAGS) -o $(TARGET)
