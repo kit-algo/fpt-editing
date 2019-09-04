@@ -2,6 +2,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <tlx/cmdline_parser.hpp>
+
 std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_algos =
   {
 		   {"ST-Edit-None-Normal-Center_4-First-No-Matrix", {"No Optimization", false, 4}},
@@ -344,12 +346,17 @@ public:
 };
 
 int main(int argc, char *argv[]) {
-  if (argc != 3) {
-    std::cout << "Exactly two parameters required: json_file.json output_file.csv" << std::endl;
+  std::string input_filename, output_filename;
+
+  tlx::CmdlineParser cp;
+  cp.set_description("Convert the given json file into a CSV file");
+  cp.add_param_string("json_file", input_filename, "The input json filename");
+  cp.add_param_string("csv_file", output_filename, "The output csv filename");
+  if (!cp.process(argc, argv)) {
     return 1;
   }
 
-  std::ifstream input(argv[1]);
+  std::ifstream input(input_filename);
 
   std::unordered_map<ExperimentKey, Experiment> experiments;
   JSONCallback my_callback(experiments);
@@ -379,7 +386,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::ofstream of(argv[2]);
+  std::ofstream of(output_filename);
 
   of << "Graph,Algorithm,n,m,k,l,Permutation,Solved,MT,Time [s],Total Time [s],Time Initialization [s],Threads,Calls,Extra_lbs,Fallbacks,Prunes,Single,Skipped,Stolen,Solutions,Scaling Factor Time,Scaling Factor Calls,Speedup,Efficiency" << std::endl;
   for (auto &it : experiments) {
