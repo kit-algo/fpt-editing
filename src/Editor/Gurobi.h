@@ -133,9 +133,12 @@ namespace Editor
 
 		public:
 			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution), model(env), variables(graph.size()) {
+				env.start();
 			}
 
 			void initialize() {
+				start = std::chrono::steady_clock::now();
+
 				model.set(GRB_IntParam_Threads,	options.n_threads);
 				GRBLinExpr objective = 0;
 
