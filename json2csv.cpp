@@ -29,7 +29,81 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 		   {"MT-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"GreedyLB-First", true, 4}},
 		   {"MT-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"GreedyLB-Most", true, 4}},
 		   {"MT-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"GreedyLB-Most Pruned", true, 4}},
-		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"GreedyLB-Single", true, 4}}
+		   {"MT-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"GreedyLB-Single", true, 4}},
+
+		   {"Center_4-ST-basic", {"Basic-Extended", false, 4}},
+		   {"Center_4-ST-basic-sparse", {"Basic-Sparse-Extended", false, 4}},
+		   {"Center_4-ST-basic-single", {"Basic-Single-Extended", false, 4}},
+
+		   {"Center_4-ST-basic-sparse", {"Basic", false, 4}},
+		   {"Center_4-ST-basic-sparse", {"Basic-Sparse", false, 4}},
+		   {"Center_4-ST-basic-sparse", {"Basic-Single", false, 4}},
+
+		   {"Center_4-ST-basic-lazy-3", {"Basic-Lazy", false, 4}},
+		   {"Center_4-ST-basic-sparse-lazy-3", {"Basic-Sparse-Lazy", false, 4}},
+		   {"Center_4-ST-basic-single-lazy-3", {"Basic-Single-Lazy", false, 4}},
+
+		   {"Center_4-ST-basic-extended-constraints-lazy-3", {"Basic-Extended-Lazy", false, 4}},
+		   {"Center_4-ST-basic-sparse-extended-constraints-lazy-3", {"Basic-Sparse-Extended-Lazy", false, 4}},
+		   {"Center_4-ST-basic-single-extended-constraints-lazy-3", {"Basic-Single-Extended-Lazy", false, 4}},
+
+                   {"Center_4-ST-iteratively-extended-constraints-lazy-3", {"Iteratively-Extended-Lazy", false, 4}},
+
+
+		   {"Center_4-ST-basic-heuristic", {"Heuristic-Basic-Extended", false, 4}},
+		   {"Center_4-ST-basic-sparse-heuristic", {"Heuristic-Basic-Sparse-Extended", false, 4}},
+		   {"Center_4-ST-basic-single-heuristic", {"Heuristic-Basic-Single-Extended", false, 4}},
+
+		   {"Center_4-ST-basic-sparse-heuristic", {"Heuristic-Basic", false, 4}},
+		   {"Center_4-ST-basic-sparse-heuristic", {"Heuristic-Basic-Sparse", false, 4}},
+		   {"Center_4-ST-basic-sparse-heuristic", {"Heuristic-Basic-Single", false, 4}},
+
+		   {"Center_4-ST-basic-lazy-3-heuristic", {"Heuristic-Basic-Lazy", false, 4}},
+		   {"Center_4-ST-basic-sparse-lazy-3-heuristic", {"Heuristic-Basic-Sparse-Lazy", false, 4}},
+		   {"Center_4-ST-basic-single-lazy-3-heuristic", {"Heuristic-Basic-Single-Lazy", false, 4}},
+
+		   {"Center_4-ST-basic-extended-constraints-lazy-3-heuristic", {"Heuristic-Basic-Extended-Lazy", false, 4}},
+		   {"Center_4-ST-basic-sparse-extended-constraints-lazy-3-heuristic", {"Heuristic-Basic-Sparse-Extended-Lazy", false, 4}},
+		   {"Center_4-ST-basic-single-extended-constraints-lazy-3-heuristic", {"Heuristic-Basic-Single-Extended-Lazy", false, 4}},
+
+                   {"Center_4-ST-iteratively-extended-constraints-lazy-3-heuristic", {"Heuristic-Iteratively-Extended-Lazy", false, 4}},
+
+		   {"Center_4-MT-basic", {"Basic-Extended", true, 4}},
+		   {"Center_4-MT-basic-sparse", {"Basic-Sparse-Extended", true, 4}},
+		   {"Center_4-MT-basic-single", {"Basic-Single-Extended", true, 4}},
+
+		   {"Center_4-MT-basic-sparse", {"Basic", true, 4}},
+		   {"Center_4-MT-basic-sparse", {"Basic-Sparse", true, 4}},
+		   {"Center_4-MT-basic-sparse", {"Basic-Single", true, 4}},
+
+		   {"Center_4-MT-basic-lazy-3", {"Basic-Lazy", true, 4}},
+		   {"Center_4-MT-basic-sparse-lazy-3", {"Basic-Sparse-Lazy", true, 4}},
+		   {"Center_4-MT-basic-single-lazy-3", {"Basic-Single-Lazy", true, 4}},
+
+		   {"Center_4-MT-basic-extended-constraints-lazy-3", {"Basic-Extended-Lazy", true, 4}},
+		   {"Center_4-MT-basic-sparse-extended-constraints-lazy-3", {"Basic-Sparse-Extended-Lazy", true, 4}},
+		   {"Center_4-MT-basic-single-extended-constraints-lazy-3", {"Basic-Single-Extended-Lazy", true, 4}},
+
+                   {"Center_4-MT-iteratively-extended-constraints-lazy-3", {"Iteratively-Extended-Lazy", true, 4}},
+
+
+		   {"Center_4-MT-basic-heuristic", {"Heuristic-Basic-Extended", true, 4}},
+		   {"Center_4-MT-basic-sparse-heuristic", {"Heuristic-Basic-Sparse-Extended", true, 4}},
+		   {"Center_4-MT-basic-single-heuristic", {"Heuristic-Basic-Single-Extended", true, 4}},
+
+		   {"Center_4-MT-basic-sparse-heuristic", {"Heuristic-Basic", true, 4}},
+		   {"Center_4-MT-basic-sparse-heuristic", {"Heuristic-Basic-Sparse", true, 4}},
+		   {"Center_4-MT-basic-sparse-heuristic", {"Heuristic-Basic-Single", true, 4}},
+
+		   {"Center_4-MT-basic-lazy-3-heuristic", {"Heuristic-Basic-Lazy", true, 4}},
+		   {"Center_4-MT-basic-sparse-lazy-3-heuristic", {"Heuristic-Basic-Sparse-Lazy", true, 4}},
+		   {"Center_4-MT-basic-single-lazy-3-heuristic", {"Heuristic-Basic-Single-Lazy", true, 4}},
+
+		   {"Center_4-MT-basic-extended-constraints-lazy-3-heuristic", {"Heuristic-Basic-Extended-Lazy", true, 4}},
+		   {"Center_4-MT-basic-sparse-extended-constraints-lazy-3-heuristic", {"Heuristic-Basic-Sparse-Extended-Lazy", true, 4}},
+		   {"Center_4-MT-basic-single-extended-constraints-lazy-3-heuristic", {"Heuristic-Basic-Single-Extended-Lazy", true, 4}},
+
+                   {"Center_4-MT-iteratively-extended-constraints-lazy-3-heuristic", {"Heuristic-Iteratively-Extended-Lazy", true, 4}},
   };
 
 struct ExperimentKey {
