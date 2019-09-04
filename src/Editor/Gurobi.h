@@ -32,6 +32,7 @@ namespace Editor
 		bool use_extended_constraints = false;
 		bool add_constraints_in_relaxation = false;
 		bool init_sparse = false;
+		size_t time_limit = 0;
 		size_t all_lazy = 0;
 
 		void print() {
@@ -46,6 +47,7 @@ namespace Editor
 				<< "\nAdd constraints in relaxation: " << (add_constraints_in_relaxation ? 1 : 0)
 				<< "\nUse sparse initialization: " << (init_sparse ? 1 : 0)
 				<< "\nAll lazy constraints: " << all_lazy
+				<< "\nTime limit: " << time_limit
 				<< std::endl;
 		}
 	};
@@ -61,6 +63,7 @@ namespace Editor
 		Finder &finder;
 		Graph &graph;
 		bool solved_optimally;
+		size_t bound;
 
 		class MyCallback : public GRBCallback {
 		private:
@@ -80,10 +83,13 @@ namespace Editor
 				model.set(GRB_IntParam_Threads,	options.n_threads);
 				GRBLinExpr objective = 0;
 
+				size_t num_edges = 0;
+
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
 					var = model.addVar(0.0, 1.0, 0.0, GRB_BINARY);
 					if (graph.has_edge(u, v)) {
 						objective -= var;
+						++num_edges;
 					} else {
 						objective += var;
 					}
@@ -97,39 +103,62 @@ namespace Editor
 					}
 				});
 
+				objective += num_edges;
+
 				model.setObjective(objective, GRB_MINIMIZE);
+
+				if (options.time_limit > 0) {
+					model.set(GRB_DoubleParam_TimeLimit, options.time_limit);
+				}
 
 			}
 
-			void solve() {
+			bool solve() {
 				if (options.variant.find("basic") == 0)
-					solve_basic();
+					return solve_basic();
 				else if (options.variant == "iteratively")
-					solve_iteratively();
+					return solve_iteratively();
 				else if (options.variant == "full")
-					solve_full();
+					return solve_full();
 				else
 					throw std::runtime_error("Unknown constraint generation variant " + options.variant);
 			}
 
-			void solve_basic() {
+			bool solve_basic() {
 				model.set(GRB_IntParam_LazyConstraints,	1);
 				add_forbidden_subgraphs(false);
 				model.setCallback(this);
 				model.optimize();
-				assert(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
+				assert(options.time_limit > 0 || model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 				update_graph();
+				return model.get(GRB_IntAttr_Status) == GRB_OPTIMAL;
 			}
 
-			void solve_iteratively() {
+			bool solve_iteratively() {
 				while (add_forbidden_subgraphs(false) > 0) {
 				    model.optimize();
-				    assert(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
+				    assert(options.time_limit > 0 || model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 				    update_graph();
+
+				    if (model.get(GRB_IntAttr_Status) != GRB_OPTIMAL) break;
+
+				    if (options.time_limit > 0) {
+					    double old_limit = model.get(GRB_DoubleParam_TimeLimit);
+					    double elapsed = model.get(GRB_DoubleAttr_Runtime);
+
+					    if (elapsed >= old_limit) break;
+					    model.set(GRB_DoubleParam_TimeLimit, old_limit - elapsed);
+				    }
 				}
+
+				return model.get(GRB_IntAttr_Status) == GRB_OPTIMAL;
 			}
 
-			void solve_full() {
+			size_t get_bound() {
+				return model.get(GRB_DoubleAttr_ObjBound);
+			}
+
+			bool solve_full() {
 				subgraph_t fs;
 				for (fs[0] = 0; fs[0] < graph.size(); ++fs[0]) {
 					for (fs[1] = 0; fs[1] < graph.size(); ++fs[1]) {
@@ -147,8 +176,9 @@ namespace Editor
 				}
 
 				model.optimize();
-				assert(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
+				assert(options.time_limit > 0 || model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 				update_graph();
+				return model.get(GRB_IntAttr_Status) == GRB_OPTIMAL;
 			}
 
 			void add_constraint(const subgraph_t& fs, bool lazy) {
@@ -286,14 +316,28 @@ namespace Editor
 			}
 
 
+			/**
+			 * Updates the graph after the solver finished.
+			 *
+			 * If there is a solution from the solver, it
+			 * is used.  If not, but a heuristic solution
+			 * was specified, that solution is used.
+			 * Otherwise, the graph is emptied.
+			 */
 			void update_graph() {
-				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
-					if (var.get(GRB_DoubleAttr_X) > 0.5) {
-						graph.set_edge(u, v);
-					} else {
-						graph.clear_edge(u, v);
-					}
-				});
+				if (model.get(GRB_IntAttr_SolCount) > 0) {
+					variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+						if (var.get(GRB_DoubleAttr_X) > 0.5) {
+							graph.set_edge(u, v);
+						} else {
+							graph.clear_edge(u, v);
+						}
+					});
+				} else if (options.use_heuristic_solution) {
+					graph = heuristic_solution;
+				} else {
+					graph.clear();
+				}
 			}
 
 			void update_graph_in_callback() {
@@ -356,7 +400,7 @@ namespace Editor
 		};
 
 	public:
-		Gurobi(Finder &finder, Graph &graph) : finder(finder), graph(graph), solved_optimally(false)
+		Gurobi(Finder &finder, Graph &graph) : finder(finder), graph(graph), solved_optimally(false), bound(std::numeric_limits<size_t>::max())
 		{
 		}
 
@@ -365,9 +409,11 @@ namespace Editor
 		void solve(const Graph& heuristic_solution, GurobiOptions& options) {		//TODO consolidate Gurobi and MyCallback
 			MyCallback cb(finder, graph, heuristic_solution, options);
 			cb.initialize();
-			cb.solve();
-			solved_optimally = true;
+			solved_optimally = cb.solve();
+			bound = cb.get_bound();
 		}
+
+		size_t get_bound() const { return bound; }
 	};
 }
 

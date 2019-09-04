@@ -21,19 +21,18 @@ namespace Options {
 
 		cp.add_param_string("graph", options.graph, "The graph to solve in METIS format.");
 		cp.add_string('h', "heuristic-solution", "solved_graph", options.heuristic_solution, "A heuristic solution to give to Gurobi");
-		cp.add_int('t', "threads", "num_threads", options.n_threads, "Number of threads to use.");
+		cp.add_int('j', "threads", "num_threads", options.n_threads, "Number of threads to use.");
 		cp.add_string('v', "variant", "variant", options.variant, "The variant to use, one of: basic, basic-sparse, basic-single, iteratively, full.");
 
 		cp.add_flag('e', "extended-constraints", options.use_extended_constraints, "Generate more constraints initially.");
 		cp.add_flag('r', "relaxation-constraints", options.add_constraints_in_relaxation, "Add additional constraints for relaxation solutions.");
 		cp.add_flag('s', "init-sparse", options.init_sparse, "Initialize with sparse constraints (only useful for -sparse and -single variants).");
 		cp.add_size_t('l', "lazy", "lazy_level", options.all_lazy, "Add all constraints as lazy constraints with level 1, 2, or 3");
+		cp.add_size_t('t', "time-limit", "limit", options.time_limit, "Time limit in seconds, 0 for unlimited");
 
 		if (!cp.process(argc, argv)) {
 			throw std::runtime_error("Invalid options specified.");
 		}
-
-		cp.print_result();
 
 		if (options.heuristic_solution != "Do not use")
 			options.use_heuristic_solution = true;
@@ -47,6 +46,8 @@ namespace Options {
 			cp.print_usage();
 			throw std::runtime_error("Invalid variant " + options.variant);
 		}
+
+		cp.print_result();
 
 		options.print();
 		return options;
@@ -96,6 +97,9 @@ int main(int argc, char * argv[])
 	}
 
 	std::cout << "Needed " << num_edits << " edits" << std::endl;
+	if (!editor.is_optimal()) {
+		std::cout << "Did not find an optimal solution. Best bound " << editor.get_bound() << std::endl;
+	}
 
 	return 0;
 }
