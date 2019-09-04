@@ -53,6 +53,39 @@ namespace Editor
 				<< "\nNode id permutation: " << permutation
 				<< std::endl;
 		}
+
+		std::string get_name() {
+			std::stringstream name;
+
+			if (n_threads > 1) {
+				name << "MT-";
+			} else {
+				name << "ST-";
+			}
+
+			name << variant;
+			if (init_sparse) {
+				name << "-init-sparse";
+			}
+
+			if (use_extended_constraints) {
+				name << "-extended-constraints";
+			}
+
+			if (add_constraints_in_relaxation) {
+				name << "-constraints-in-relaxation";
+			}
+
+			if (all_lazy > 0) {
+				name << "-lazy-" << all_lazy;
+			}
+
+			if (use_heuristic_solution) {
+				name << "-heuristic-init";
+			}
+
+			return name.str();
+		}
 	};
 
 	template<typename Finder, typename Graph>

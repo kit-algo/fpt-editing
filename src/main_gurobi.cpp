@@ -101,11 +101,29 @@ int main(int argc, char * argv[])
 		}
 	}
 
-	std::cout << "Needed " << num_edits << " edits" << std::endl;
-	std::cout << "Solved in " << editor.get_elapsed_seconds() << " seconds" << std::endl;
-	if (!editor.is_optimal()) {
-		std::cout << "Did not find an optimal solution. Best bound " << editor.get_bound() << std::endl;
-	}
+	std::string name = std::string(F::name) + "-" + options.get_name();
+
+	std::cout << "{\"type\":\"exact\",\"graph\":\"" << options.graph << "\",\"permutation\":" << options.permutation << ",";
+	std::cout << "\"n\":" << static_cast<size_t>(input_graph.size()) << ",\"m\":" << input_graph.count_edges() << ",";
+	std::cout << "\"algo\":\"" << name << "\",\"threads\":" << +options.n_threads << ",\"k\":" << + editor.get_bound() << ",";
+	std::cout << "\"results\":{\"solved\":\"" << (editor.is_optimal() ? "true" : "false") << "\",\"time\":" << editor.get_elapsed_seconds();
+	std::cout << ",\"time_initialization\":" << 0;
+	std::cout << ",\"total_time\":" << editor.get_elapsed_seconds();
+	std::cout << ",\"solutions\":" << (editor.is_optimal() ? 1 : 0);
+	std::cout << ",\"counters\":{";
+	std::cout << '}';
+	std::cout << "}}," << std::endl;
+
+	std::cout << "{\"type\":\"heuristic\",\"graph\":\"" << options.graph << "\",\"permutation\":" << options.permutation << ",";
+	std::cout << "\"n\":" << static_cast<size_t>(input_graph.size()) << ",\"m\":" << input_graph.count_edges() << ",";
+	std::cout << "\"algo\":\"" << name << "-heuristic\",\"threads\":" << +options.n_threads << ",\"k\":" << + num_edits << ",";
+	std::cout << "\"results\":{\"solved\":\"" << "true" << "\",\"time\":" << editor.get_elapsed_seconds();
+	std::cout << ",\"time_initialization\":" << 0;
+	std::cout << ",\"total_time\":" << editor.get_elapsed_seconds();
+	std::cout << ",\"solutions\":" << 1;
+	std::cout << ",\"counters\":{";
+	std::cout << '}';
+	std::cout << "}}," << std::endl;
 
 	return 0;
 }
