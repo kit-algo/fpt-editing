@@ -97,6 +97,7 @@ int main(int argc, char * argv[])
 	}
 
 	std::cout << "Needed " << num_edits << " edits" << std::endl;
+	std::cout << "Solved in " << editor.get_elapsed_seconds() << " seconds" << std::endl;
 	if (!editor.is_optimal()) {
 		std::cout << "Did not find an optimal solution. Best bound " << editor.get_bound() << std::endl;
 	}

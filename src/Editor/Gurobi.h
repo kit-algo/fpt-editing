@@ -9,6 +9,7 @@
 #include <typeinfo>
 #include <vector>
 #include <memory>
+#include <chrono>
 #include <gurobi_c++.h>
 
 #include "../config.hpp"
@@ -64,9 +65,12 @@ namespace Editor
 		Graph &graph;
 		bool solved_optimally;
 		size_t bound;
+		double elapsed_seconds;
 
 		class MyCallback : public GRBCallback {
 		private:
+			using TimeT = std::chrono::steady_clock::time_point;
+			TimeT start, end;
 			GurobiOptions& options;
 			Finder &finder;
 			Graph &graph;
@@ -75,8 +79,25 @@ namespace Editor
 			GRBEnv env;
 			GRBModel model;
 			Value_Matrix<GRBVar> variables;
+
+			bool update_timelimit_exceeded() {
+				end = std::chrono::steady_clock::now();
+
+				if (options.time_limit > 0) {
+					double elapsed = get_elapsed_seconds();
+					if (options.time_limit > elapsed) {
+						model.set(GRB_DoubleParam_TimeLimit, options.time_limit - get_elapsed_seconds());
+						return false;
+					} else {
+						return true;
+					}
+				}
+
+				return false;
+			}
+
 		public:
-			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : options(options), finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution), model(env), variables(graph.size()) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution), model(env), variables(graph.size()) {
 			}
 
 			void initialize() {
@@ -107,27 +128,41 @@ namespace Editor
 
 				model.setObjective(objective, GRB_MINIMIZE);
 
-				if (options.time_limit > 0) {
-					model.set(GRB_DoubleParam_TimeLimit, options.time_limit);
-				}
-
+				update_timelimit_exceeded();
 			}
 
 			bool solve() {
+				bool result = false;
+
 				if (options.variant.find("basic") == 0)
-					return solve_basic();
+					result = solve_basic();
 				else if (options.variant == "iteratively")
-					return solve_iteratively();
+					result = solve_iteratively();
 				else if (options.variant == "full")
-					return solve_full();
+					result = solve_full();
 				else
 					throw std::runtime_error("Unknown constraint generation variant " + options.variant);
+
+				end = std::chrono::steady_clock::now();
+
+				return result;
+			}
+
+			double get_elapsed_seconds() const {
+				std::chrono::duration<double> duration(end - start);
+				return duration.count();
 			}
 
 			bool solve_basic() {
 				model.set(GRB_IntParam_LazyConstraints,	1);
 				add_forbidden_subgraphs(false);
 				model.setCallback(this);
+
+				if (update_timelimit_exceeded()) {
+					update_graph();
+					return false;
+				}
+
 				model.optimize();
 				assert(options.time_limit > 0 || model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 				update_graph();
@@ -135,27 +170,43 @@ namespace Editor
 			}
 
 			bool solve_iteratively() {
+				bool is_optimal = false;
+
 				while (add_forbidden_subgraphs(false) > 0) {
 				    model.optimize();
 				    assert(options.time_limit > 0 || model.get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 				    update_graph();
 
-				    if (model.get(GRB_IntAttr_Status) != GRB_OPTIMAL) break;
+				    is_optimal = model.get(GRB_IntAttr_Status) == GRB_OPTIMAL;
 
-				    if (options.time_limit > 0) {
-					    double old_limit = model.get(GRB_DoubleParam_TimeLimit);
-					    double elapsed = model.get(GRB_DoubleAttr_Runtime);
+				    if (!is_optimal) break;
 
-					    if (elapsed >= old_limit) break;
-					    model.set(GRB_DoubleParam_TimeLimit, old_limit - elapsed);
+				    if (update_timelimit_exceeded()) {
+					    break;
 				    }
 				}
 
-				return model.get(GRB_IntAttr_Status) == GRB_OPTIMAL;
+				if (!is_optimal) {
+					Finder_Linear linear_finder;
+					subgraph_t certificate;
+					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
+						if (options.use_heuristic_solution) {
+							graph = heuristic_solution;
+						} else {
+							graph.clear();
+						}
+					}
+				}
+
+				return is_optimal;
 			}
 
 			size_t get_bound() {
-				return model.get(GRB_DoubleAttr_ObjBound);
+				if (model.get(GRB_IntAttr_Status) == GRB_LOADED) {
+					return 0;
+				} else {
+					return std::max<double>(0, model.get(GRB_DoubleAttr_ObjBound));
+				}
 			}
 
 			bool solve_full() {
@@ -171,6 +222,10 @@ namespace Editor
 								// add constraint for subgraph fs[0] - fs[1] - fs[2] - fs[3]
 								add_constraint(fs, false);
 							}
+						}
+						if (update_timelimit_exceeded()) {
+							update_graph();
+							return false;
 						}
 					}
 				}
@@ -400,7 +455,7 @@ namespace Editor
 		};
 
 	public:
-		Gurobi(Finder &finder, Graph &graph) : finder(finder), graph(graph), solved_optimally(false), bound(std::numeric_limits<size_t>::max())
+		Gurobi(Finder &finder, Graph &graph) : finder(finder), graph(graph), solved_optimally(false), bound(std::numeric_limits<size_t>::max()), elapsed_seconds(0)
 		{
 		}
 
@@ -411,9 +466,12 @@ namespace Editor
 			cb.initialize();
 			solved_optimally = cb.solve();
 			bound = cb.get_bound();
+			elapsed_seconds = cb.get_elapsed_seconds();
 		}
 
 		size_t get_bound() const { return bound; }
+
+		double get_elapsed_seconds() const { return elapsed_seconds; }
 	};
 }
 
