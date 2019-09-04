@@ -35,6 +35,7 @@ namespace Editor
 		bool init_sparse = false;
 		size_t time_limit = 0;
 		size_t all_lazy = 0;
+		size_t permutation = 0;
 
 		void print() {
 			std::cout
@@ -49,6 +50,7 @@ namespace Editor
 				<< "\nUse sparse initialization: " << (init_sparse ? 1 : 0)
 				<< "\nAll lazy constraints: " << all_lazy
 				<< "\nTime limit: " << time_limit
+				<< "\nNode id permutation: " << permutation
 				<< std::endl;
 		}
 	};

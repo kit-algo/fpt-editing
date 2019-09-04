@@ -29,6 +29,7 @@ namespace Options {
 		cp.add_flag('s', "init-sparse", options.init_sparse, "Initialize with sparse constraints (only useful for -sparse and -single variants).");
 		cp.add_size_t('l', "lazy", "lazy_level", options.all_lazy, "Add all constraints as lazy constraints with level 1, 2, or 3");
 		cp.add_size_t('t', "time-limit", "limit", options.time_limit, "Time limit in seconds, 0 for unlimited");
+		cp.add_size_t('p', "permutation", "seed", options.permutation, "The seed for the permutation that shall be applied to the input node ids");
 
 		if (!cp.process(argc, argv)) {
 			throw std::runtime_error("Invalid options specified.");
@@ -71,10 +72,14 @@ int main(int argc, char * argv[])
 		return 1;
 	}
 
-	G graph = Graph::readMetis<G>(options.graph);
+	const G input_graph = Graph::readMetis<G>(options.graph);
+
+	const std::vector<VertexID> permutation = Graph::generate_permutation(input_graph, options.permutation);
+	const G graph = Graph::apply_permutation(input_graph, permutation);
+
 	G heuristic_solution(graph.size());
 	if (options.use_heuristic_solution) {
-		heuristic_solution = Graph::readMetis<Graph::Matrix<false>>(options.heuristic_solution);
+		heuristic_solution = Graph::apply_permutation(Graph::readMetis<G>(options.heuristic_solution), permutation);
 	}
 	//E edited(graph.size());
 
