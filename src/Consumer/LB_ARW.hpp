@@ -33,6 +33,7 @@ namespace Consumer
 
 		struct State {
 			Lower_Bound_Storage_type lb;
+			bool remove_last_subgraph = false;
 		};
 	private:
 
@@ -74,8 +75,9 @@ namespace Consumer
 		void before_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			std::vector<subgraph_t>& lb = state.lb.get_bound();
+			assert(!state.remove_last_subgraph);
 
-			for (size_t i = 0; i < lb.size();)
+			for (size_t i = 0; i < lb.size(); ++i)
 			{
 				bool has_uv = ::Finder::for_all_edges_unordered<Mode, Restriction, Conversion, Graph, Graph_Edits>(graph, edited, lb[i].begin(), lb[i].end(), [&](auto x, auto y)
 				{
@@ -84,21 +86,25 @@ namespace Consumer
 
 				if (has_uv)
 				{
-					lb[i] = lb.back();
-					lb.pop_back();
-				}
-				else
-				{
-					++i;
+					assert(i+1 == lb.size() || !state.remove_last_subgraph);
+					state.remove_last_subgraph = true;
+					std::swap(lb[i], lb.back());
 				}
 			}
 		}
 
 		void after_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
+			subgraph_t removed_subgraph;
+
+			if (state.remove_last_subgraph) {
+				removed_subgraph = state.lb.get_bound().back();
+				state.lb.get_bound().pop_back();
+			}
+
 			initialize_bound_uses(state, graph, edited);
 
-			finder.find_near(graph, u, v, [&](const subgraph_t& path)
+			auto add_to_bound_if_possible = [&](const subgraph_t& path)
 			{
 				bool touches_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
 					return bound_uses.has_edge(*uit, *vit);
@@ -115,7 +121,20 @@ namespace Consumer
 				}
 
 				return false;
-			}, bound_uses);
+			};
+
+			finder.find_near(graph, u, v, add_to_bound_if_possible, bound_uses);
+			if (state.remove_last_subgraph) {
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, removed_subgraph.begin(), removed_subgraph.end(), [&](auto uit, auto vit) {
+					if (!bound_uses.has_edge(*uit, *vit)) {
+						finder.find_near(graph, *uit, *vit, add_to_bound_if_possible, bound_uses);
+					}
+
+					return false;
+				});
+
+				state.remove_last_subgraph = false;
+			}
 		}
 
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
