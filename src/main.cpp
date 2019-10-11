@@ -21,7 +21,6 @@ void run(CMDOptions const &options)
 {
 	for(auto const &filename : options.filenames)
 	{
-		size_t graph_size = Graph::get_size(filename, options.edgelist);
 		for(auto const &e: options.combinations_edit) for(auto const &m: e.second) for(auto const &r: m.second) for(auto const &c: r.second) for(auto const &f: c.second) for(auto const &g: f.second) for(auto const &consumers: g.second)
 		{{
 			auto const &editor = e.first;

@@ -6,12 +6,5 @@ else if(editor == "{0}" && mode == "{3}" && restriction == "{4}" && conversion =
 	using M = Options::Modes::{3}; \
 	using R = Options::Restrictions::{4}; \
 	using C = Options::Conversions::{5}; \
-	if(graph_size <= Packed_Bits) \
-	=(= \
-		Run<Editor::{0}, Finder::{1}, Graph::{2}, Graph::Matrix, true, M, R, C, Consumer::{6}, Consumer::{7}{8:.., Consumer::.}>::run(options, filename); \
-	=)= \
-	else \
-	=(= \
-		Run<Editor::{0}, Finder::{1}, Graph::{2}, Graph::Matrix, false, M, R, C, Consumer::{6}, Consumer::{7}{8:.., Consumer::.}>::run(options, filename); \
-	=)= \
+	Run<Editor::{0}, Finder::{1}, Graph::{2}, Graph::Matrix, M, R, C, Consumer::{6}, Consumer::{7}{8:.., Consumer::.}>::run(options, filename); \
 =)= \

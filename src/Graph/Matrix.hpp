@@ -12,7 +12,6 @@
 
 namespace Graph
 {
-	template<bool small>
 	class Matrix
 	{
 	public:
@@ -24,9 +23,8 @@ namespace Graph
 		std::vector<Packed> matrix;
 
 	public:
-		Matrix(VertexID n) : n(n), row_length(small? 1 : (n + Packed_Bits - 1) / Packed_Bits), matrix(n * row_length, 0)
+		Matrix(VertexID n) : n(n), row_length((n + Packed_Bits - 1) / Packed_Bits), matrix(n * row_length, 0)
 		{
-			if(small && n > Packed_Bits) {throw std::range_error("Too many Vertices");}
 		}
 
 		VertexID size() const
@@ -49,8 +47,7 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if constexpr (small) {return matrix.data()[u] & (Packed(1) << v);}
-			else {return (matrix.data() + row_length * u)[v / Packed_Bits] & (Packed(1) << (v % Packed_Bits));}
+			return (matrix.data() + row_length * u)[v / Packed_Bits] & (Packed(1) << (v % Packed_Bits));
 		}
 
 		void set_edge(VertexID u, VertexID v)
@@ -58,16 +55,8 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if constexpr (small)
-			{
-				matrix.data()[u] |= (Packed(1) << v);
-				matrix.data()[v] |= (Packed(1) << u);
-			}
-			else
-			{
-				(matrix.data() + row_length * u)[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
-				(matrix.data() + row_length * v)[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
-			}
+			(matrix.data() + row_length * u)[v / Packed_Bits] |= Packed(1) << (v % Packed_Bits);
+			(matrix.data() + row_length * v)[u / Packed_Bits] |= Packed(1) << (u % Packed_Bits);
 		}
 
 		void clear_edge(VertexID u, VertexID v)
@@ -75,16 +64,8 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if constexpr (small)
-			{
-				matrix.data()[u] &= ~(Packed(1) << v);
-				matrix.data()[v] &= ~(Packed(1) << u);
-			}
-			else
-			{
-				(matrix.data() + row_length * u)[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
-				(matrix.data() + row_length * v)[u / Packed_Bits] &= ~(Packed(1) << (u % Packed_Bits));
-			}
+			(matrix.data() + row_length * u)[v / Packed_Bits] &= ~(Packed(1) << (v % Packed_Bits));
+			(matrix.data() + row_length * v)[u / Packed_Bits] &= ~(Packed(1) << (u % Packed_Bits));
 		}
 
 		void toggle_edge(VertexID u, VertexID v)
@@ -92,16 +73,8 @@ namespace Graph
 			assert(u != v);
 			assert(u < n && v < n);
 
-			if constexpr (small)
-			{
-				matrix.data()[u] ^= (Packed(1) << v);
-				matrix.data()[v] ^= (Packed(1) << u);
-			}
-			else
-			{
-				(matrix.data() + row_length * u)[v / Packed_Bits] ^= Packed(1) << (v % Packed_Bits);
-				(matrix.data() + row_length * v)[u / Packed_Bits] ^= Packed(1) << (u % Packed_Bits);
-			}
+			(matrix.data() + row_length * u)[v / Packed_Bits] ^= Packed(1) << (v % Packed_Bits);
+			(matrix.data() + row_length * v)[u / Packed_Bits] ^= Packed(1) << (u % Packed_Bits);
 		}
 
 		size_t degree(VertexID u) const
@@ -148,14 +121,12 @@ namespace Graph
 
 		static size_t get_row_length(VertexID graph_size)
 		{
-			if(small && graph_size > Packed_Bits) {throw std::range_error("Too many Vertices");}
-			return small? 1 : (graph_size + Packed_Bits - 1) / Packed_Bits;
+			return (graph_size + Packed_Bits - 1) / Packed_Bits;
 		}
 
 		size_t get_row_length() const
 		{
-			if constexpr (small) return 1;
-			else return row_length;
+			return row_length;
 		}
 
 		static std::vector<Packed> alloc_rows(VertexID graph_size, size_t rows)
