@@ -43,6 +43,7 @@ namespace Consumer
 		Value_Matrix<GRBVar> variables;
 		GRBConstr objective_constr;
 		size_t initial_k;
+		size_t objective_offset;
 
 		size_t solve() {
 			model->optimize();
@@ -115,7 +116,7 @@ namespace Consumer
 				model->getEnv().set(GRB_IntParam_OutputFlag, 1);
 				model->getEnv().set(GRB_IntParam_LogToConsole, 0);
 				GRBLinExpr objective = 0;
-				size_t objective_offset = 0;
+				objective_offset = 0;
 
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
 					var = model->addVar(0.0, 1.0, 0.0, GRB_CONTINUOUS);
@@ -142,22 +143,18 @@ namespace Consumer
 		void set_initial_k(size_t k, Graph const &graph, Graph_Edits const&)
 		{
 			if (initial_k > 0) {
-				objective_constr.set(GRB_DoubleAttr_RHS, k);
+				objective_constr.set(GRB_DoubleAttr_RHS, static_cast<double>(k) - static_cast<double>(objective_offset));
 			} else {
 				GRBLinExpr expr = 0;
-				size_t offset = 0;
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
 					if (graph.has_edge(u, v)) {
 						expr -= var;
-						++offset;
 					} else {
 						expr += var;
 					}
 				});
 
-				expr += offset;
-
-				objective_constr = model->addConstr(expr, GRB_LESS_EQUAL, k);
+				objective_constr = model->addConstr(expr, GRB_LESS_EQUAL, static_cast<double>(k) - static_cast<double>(objective_offset));
 			}
 			initial_k = k;
 		}
