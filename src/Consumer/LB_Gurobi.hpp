@@ -41,6 +41,7 @@ namespace Consumer
 		std::unique_ptr<GRBEnv> env;
 		std::unique_ptr<GRBModel> model;
 		Value_Matrix<GRBVar> variables;
+		GRBConstr objective_constr;
 		size_t initial_k;
 
 		size_t solve() {
@@ -48,10 +49,19 @@ namespace Consumer
 			if (model->get(GRB_IntAttr_Status) == GRB_INFEASIBLE) {
 				return std::numeric_limits<size_t>::max();
 			}
+			assert(model->get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 
-			// We cannot prune if the LP is feasible, so just return 0.
-			// Note that the editor does not treat 0 as the graph is solved.
-			return 0;
+			if (initial_k > 0) {
+				return 0;
+			} else {
+				double found_objective = model->get(GRB_DoubleAttr_ObjVal);
+				size_t result = std::ceil(found_objective);
+				if (result - found_objective > 0.99) {
+					std::cout << "found_objective: " << found_objective << " rounded result: " << result << std::endl;
+					result = std::floor(found_objective);
+				}
+				return result;
+			}
 		}
 
 		void add_constraint(const subgraph_t& fs) {
@@ -131,22 +141,26 @@ namespace Consumer
 
 		void set_initial_k(size_t k, Graph const &graph, Graph_Edits const&)
 		{
-			// TODO: store constraint and only adjust the bound if set_initial_k is called repeatedly
-			GRBLinExpr expr = 0;
-			size_t offset = 0;
-			variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
-				var = model->addVar(0.0, 1.0, 0.0, GRB_CONTINUOUS);
-				if (graph.has_edge(u, v)) {
-					expr -= var;
-					++offset;
-				} else {
-					expr += var;
-				}
-			});
+			if (initial_k > 0) {
+				objective_constr.set(GRB_DoubleAttr_RHS, k);
+			} else {
+				GRBLinExpr expr = 0;
+				size_t offset = 0;
+				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+					var = model->addVar(0.0, 1.0, 0.0, GRB_CONTINUOUS);
+					if (graph.has_edge(u, v)) {
+						expr -= var;
+						++offset;
+					} else {
+						expr += var;
+					}
+				});
 
-			expr += offset;
+				expr += offset;
 
-			model->addConstr(expr, GRB_LESS_EQUAL, k);
+				objective_constr = model->addConstr(expr, GRB_LESS_EQUAL, k);
+			}
+			initial_k = k;
 		}
 
 		void before_mark_and_edit(State& , Graph const &, Graph_Edits const &, VertexID, VertexID)
