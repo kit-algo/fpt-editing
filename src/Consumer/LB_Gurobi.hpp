@@ -147,7 +147,6 @@ namespace Consumer
 				GRBLinExpr expr = 0;
 				size_t offset = 0;
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
-					var = model->addVar(0.0, 1.0, 0.0, GRB_CONTINUOUS);
 					if (graph.has_edge(u, v)) {
 						expr -= var;
 						++offset;
