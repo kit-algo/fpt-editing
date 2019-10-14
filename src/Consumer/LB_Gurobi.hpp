@@ -48,14 +48,10 @@ namespace Consumer
 			if (model->get(GRB_IntAttr_Status) == GRB_INFEASIBLE) {
 				return std::numeric_limits<size_t>::max();
 			}
-			assert(model->get(GRB_IntAttr_Status) == GRB_OPTIMAL);
-			double found_objective = model->get(GRB_DoubleAttr_ObjVal);
-			size_t result = std::ceil(found_objective);
-			if (result - found_objective > 0.99) {
-				std::cout << "found_objective: " << found_objective << " rounded result: " << result << std::endl;
-				result = std::floor(found_objective);
-			}
-			return result;
+
+			// We cannot prune if the LP is feasible, so just return 0.
+			// Note that the editor does not treat 0 as the graph is solved.
+			return 0;
 		}
 
 		void add_constraint(const subgraph_t& fs) {
@@ -66,7 +62,7 @@ namespace Consumer
 			expr += variables.at(fs[0], fs[2]);
 			expr += variables.at(fs[1], fs[3]);
 
-			model->addConstr(expr >= 1);
+			model->addConstr(expr, GRB_GREATER_EQUAL, 1);
 		}
 
 		void fix_pair(VertexID u, VertexID v, bool exists) {
@@ -133,6 +129,26 @@ namespace Consumer
 			return State{};
 		}
 
+		void set_initial_k(size_t k, Graph const &graph, Graph_Edits const&)
+		{
+			// TODO: store constraint and only adjust the bound if set_initial_k is called repeatedly
+			GRBLinExpr expr = 0;
+			size_t offset = 0;
+			variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+				var = model->addVar(0.0, 1.0, 0.0, GRB_CONTINUOUS);
+				if (graph.has_edge(u, v)) {
+					expr -= var;
+					++offset;
+				} else {
+					expr += var;
+				}
+			});
+
+			expr += offset;
+
+			model->addConstr(expr, GRB_LESS_EQUAL, k);
+		}
+
 		void before_mark_and_edit(State& , Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		}
@@ -160,25 +176,13 @@ namespace Consumer
 
 		size_t result(State&, const Subgraph_Stats_type&, size_t, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound)
 		{
-			GRBLinExpr objective = 0;
-			size_t objective_offset = 0;
-
-			variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+			variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar&) {
 				if (edited.has_edge(u, v)) {
 					fix_pair(u, v, graph.has_edge(u, v));
 				} else {
 					relax_pair(u, v);
 				}
-				if (graph.has_edge(u, v)) {
-					objective -= var;
-					++objective_offset;
-				} else {
-					objective += var;
-				}
 			});
-
-			objective += objective_offset;
-			model->setObjective(objective, GRB_MINIMIZE);
 
 			return solve();
 		}

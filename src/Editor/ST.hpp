@@ -89,6 +89,9 @@ namespace Editor
 			extra_lbs = decltype(extra_lbs)(num_levels, 0);
 #endif
 			found_solution = false;
+			Util::for_<sizeof...(Consumer)>([&](auto i){
+				return std::get<i.value>(consumer).set_initial_k(k, graph, edited);
+			});
 			edit_rec(k, *initial_state, false);
 			return found_solution;
 		}

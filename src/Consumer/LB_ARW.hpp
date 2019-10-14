@@ -72,6 +72,8 @@ namespace Consumer
 			return state;
 		}
 
+		void set_initial_k(size_t, Graph const&, Graph_Edits const&) {}
+
 		void before_mark_and_edit(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			std::vector<subgraph_t>& lb = state.lb.get_bound();

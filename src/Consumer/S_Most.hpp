@@ -101,6 +101,8 @@ namespace Consumer
 			return state;
 		}
 
+		void set_initial_k(size_t, Graph const&, Graph_Edits const&) {}
+
 		void before_mark_and_edit(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		}
