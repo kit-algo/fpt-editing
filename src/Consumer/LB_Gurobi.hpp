@@ -44,6 +44,7 @@ namespace Consumer
 		GRBConstr objective_constr;
 		size_t initial_k;
 		size_t objective_offset;
+		bool shall_solve;
 
 		size_t solve() {
 			model->optimize();
@@ -65,6 +66,14 @@ namespace Consumer
 			}
 		}
 
+		double get_constraint_value(const subgraph_t& fs) {
+			auto get = [&](size_t i, size_t j) {
+				return variables.at(fs[i], fs[j]).get(GRB_DoubleAttr_X);
+			};
+
+			return 3.0 - get(0, 1) - get(1, 2) - get(2, 3) + get(0, 2) + get(1, 3);
+		}
+
 		void add_constraint(const subgraph_t& fs) {
 			GRBLinExpr expr = 3;
 			expr -= variables.at(fs[0], fs[1]);
@@ -79,9 +88,17 @@ namespace Consumer
 		void fix_pair(VertexID u, VertexID v, bool exists) {
 			GRBVar var(variables.at(u, v));
 			if (exists) {
+				if (!shall_solve) {
+					// round to prevent too frequent solving, not solving is not a problem.
+					shall_solve = var.get(GRB_DoubleAttr_X) < 0.999;
+				}
 			    var.set(GRB_DoubleAttr_UB, 1.0);
 			    var.set(GRB_DoubleAttr_LB, 1.0);
 			} else {
+				if (!shall_solve) {
+					// round to prevent too frequent solving, not solving is not a problem.
+					shall_solve = var.get(GRB_DoubleAttr_X) > 0.001;
+				}
 			    var.set(GRB_DoubleAttr_LB, 0.0);
 			    var.set(GRB_DoubleAttr_UB, 0.0);
 			}
@@ -106,7 +123,7 @@ namespace Consumer
 			return num_found;
 		}
 	public:
-		Gurobi(VertexID graph_size) : finder(graph_size), env(std::make_unique<GRBEnv>()), variables(graph_size), initial_k(0) {}
+		Gurobi(VertexID graph_size) : finder(graph_size), env(std::make_unique<GRBEnv>()), variables(graph_size), initial_k(0), shall_solve(true) {}
 
 		State initialize(size_t, Graph const &graph, Graph_Edits const &)
 		{
@@ -157,6 +174,8 @@ namespace Consumer
 				objective_constr = model->addConstr(expr, GRB_LESS_EQUAL, static_cast<double>(k) - static_cast<double>(objective_offset));
 			}
 			initial_k = k;
+			
+			shall_solve = true;
 		}
 
 		void before_mark_and_edit(State& , Graph const &, Graph_Edits const &, VertexID, VertexID)
@@ -165,11 +184,16 @@ namespace Consumer
 
 		void after_mark_and_edit(State&, Graph const &graph, Graph_Edits const &, VertexID u, VertexID v)
 		{
-			fix_pair(u, v, graph.has_edge(u, v));
+			//fix_pair(u, v, graph.has_edge(u, v));
 
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
 				add_constraint(path);
+
+				if (!shall_solve && get_constraint_value(path) < 0.999) {
+					std::cout << "Solving because constraint has value " << get_constraint_value(path) << std::endl;
+					shall_solve = true;
+				}
 
 				return false;
 			});
@@ -181,10 +205,10 @@ namespace Consumer
 
 		void after_mark(State&, Graph const &graph, Graph_Edits const &, VertexID u, VertexID v)
 		{
-			fix_pair(u, v, graph.has_edge(u, v));
+			//fix_pair(u, v, graph.has_edge(u, v));
 		}
 
-		size_t result(State&, const Subgraph_Stats_type&, size_t, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound)
+		size_t result(State&, const Subgraph_Stats_type&, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound)
 		{
 			variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar&) {
 				if (edited.has_edge(u, v)) {
@@ -194,7 +218,15 @@ namespace Consumer
 				}
 			});
 
-			return solve();
+			size_t result = 0;
+			if (shall_solve) {
+				result = solve();
+				shall_solve = (result > 0);
+			} else {
+				std::cout << "Skipping solve at k = " << k << std::endl;
+			}
+
+			return result;
 		}
 
 	};
