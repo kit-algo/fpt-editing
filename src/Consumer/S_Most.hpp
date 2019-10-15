@@ -133,6 +133,10 @@ namespace Consumer
 			state.num_single_left = length;
 		}
 
+		void after_undo_edit(State&, Graph const&, Graph_Edits const&, VertexID, VertexID)
+		{
+		}
+
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		}
@@ -163,6 +167,10 @@ namespace Consumer
 			});
 
 			--state.num_single_left;
+		}
+
+		void after_unmark(Graph const&, Graph_Edits const&, VertexID, VertexID)
+		{
 		}
 
 		ProblemSet result(State& state, const Subgraph_Stats_type& subgraph_stats, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Selector)

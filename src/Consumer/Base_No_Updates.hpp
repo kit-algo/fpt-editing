@@ -35,6 +35,10 @@ namespace Consumer
 		{
 		};
 
+		void after_undo_edit(State&, Graph const&, Graph_Edits const&, VertexID, VertexID)
+		{
+		}
+
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		};
@@ -42,6 +46,10 @@ namespace Consumer
 		void after_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		};
+
+		void after_unmark(Graph const&, Graph_Edits const&, VertexID, VertexID)
+		{
+		}
 	};
 }
 

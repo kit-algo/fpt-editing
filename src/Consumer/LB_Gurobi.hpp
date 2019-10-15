@@ -66,8 +66,11 @@ namespace Consumer
 			}
 		}
 
-		double get_constraint_value(const subgraph_t& fs) {
+		double get_constraint_value(const subgraph_t& fs, const Graph& graph, const Graph_Edits& edited) {
 			auto get = [&](size_t i, size_t j) {
+				if (edited.has_edge(i, j)) {
+					return graph.has_edge(i, j) ? 1.0 : 0.0;
+				}
 				return variables.at(fs[i], fs[j]).get(GRB_DoubleAttr_X);
 			};
 
@@ -182,16 +185,25 @@ namespace Consumer
 		{
 		}
 
-		void after_mark_and_edit(State&, Graph const &graph, Graph_Edits const &, VertexID u, VertexID v)
+		void after_mark_and_edit(State&, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
-			//fix_pair(u, v, graph.has_edge(u, v));
+			fix_pair(u, v, graph.has_edge(u, v));
+
+			{
+				GRBColumn col = model->getCol(variables.at(u, v));
+				for (size_t i = 0; i < col.size(); ++i) {
+					GRBConstr constr = col.getConstr(i);
+					if (!constr.sameAs(objective_constr)) {
+						model->remove(constr);
+					}
+				}
+			}
 
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
 				add_constraint(path);
-
-				if (!shall_solve && get_constraint_value(path) < 0.999) {
-					std::cout << "Solving because constraint has value " << get_constraint_value(path) << std::endl;
+				if (!shall_solve && get_constraint_value(path, graph, edited) < 0.999) {
+					std::cout << "Solving because constraint has value " << get_constraint_value(path, graph, edited) << std::endl;
 					shall_solve = true;
 				}
 
@@ -199,25 +211,26 @@ namespace Consumer
 			});
 		}
 
+		void after_undo_edit(State& state, Graph const&graph, Graph_Edits const& edited, VertexID u, VertexID v)
+		{
+			after_mark_and_edit(state, graph, edited, u, v);
+		}
+
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		}
 
-		void after_mark(State&, Graph const &graph, Graph_Edits const &, VertexID u, VertexID v)
+		void after_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
-			//fix_pair(u, v, graph.has_edge(u, v));
 		}
 
-		size_t result(State&, const Subgraph_Stats_type&, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound)
+		void after_unmark(Graph const&, Graph_Edits const&, VertexID u, VertexID v)
 		{
-			variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar&) {
-				if (edited.has_edge(u, v)) {
-					fix_pair(u, v, graph.has_edge(u, v));
-				} else {
-					relax_pair(u, v);
-				}
-			});
+			relax_pair(u, v);
+		}
 
+		size_t result(State&, const Subgraph_Stats_type&, size_t k, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
+		{
 			size_t result = 0;
 			if (shall_solve) {
 				result = solve();

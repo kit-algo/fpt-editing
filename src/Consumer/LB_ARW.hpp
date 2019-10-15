@@ -139,6 +139,10 @@ namespace Consumer
 			}
 		}
 
+		void after_undo_edit(State&, Graph const&, Graph_Edits const&, VertexID, VertexID)
+		{
+		}
+
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
 		{
 		}
@@ -146,6 +150,10 @@ namespace Consumer
 		void after_mark(State& state, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			after_mark_and_edit(state, graph, edited, u, v);
+		}
+
+		void after_unmark(Graph const&, Graph_Edits const&, VertexID, VertexID)
+		{
 		}
 
 		size_t result(State& state, const Subgraph_Stats_type& subgraph_stats, size_t k, Graph const &g, Graph_Edits const &e, Options::Tag::Lower_Bound)

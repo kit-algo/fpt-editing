@@ -202,10 +202,19 @@ namespace Editor
 
 				subgraph_stats.after_edit(graph, edited, vertex_pair.first, vertex_pair.second);
 
+				Util::for_<sizeof...(Consumer)>([&](auto i)
+				{
+					std::get<i.value>(consumer).after_undo_edit(std::get<i.value>(state), graph, edited, vertex_pair.first, vertex_pair.second);
+				});
+
 				if constexpr (std::is_same<Restriction, Options::Restrictions::Undo>::value)
 				{
 					edited.clear_edge(vertex_pair.first, vertex_pair.second);
 					subgraph_stats.after_unmark(graph, edited, vertex_pair.first, vertex_pair.second);
+					Util::for_<sizeof...(Consumer)>([&](auto i)
+					{
+						std::get<i.value>(consumer).after_unmark(std::get<i.value>(state), graph, edited, vertex_pair.first, vertex_pair.second);
+					});
 				}
 
 				if (return_value) break;
@@ -240,6 +249,10 @@ namespace Editor
 					{
 						edited.clear_edge(it->first, it->second);
 						subgraph_stats.after_unmark(graph, edited, it->first, it->second);
+						Util::for_<sizeof...(Consumer)>([&](auto i)
+						{
+							std::get<i.value>(consumer).after_unmark(graph, edited, it->first, it->second);
+						});
 					}
 				}
 			}
