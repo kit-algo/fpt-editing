@@ -45,6 +45,7 @@ namespace Consumer
 		size_t initial_k;
 		size_t objective_offset;
 		bool shall_solve;
+		std::vector<std::vector<GRBConstr>> constraint_stack;
 
 		size_t solve() {
 			model->optimize();
@@ -77,7 +78,7 @@ namespace Consumer
 			return 3.0 - get(0, 1) - get(1, 2) - get(2, 3) + get(0, 2) + get(1, 3);
 		}
 
-		void add_constraint(const subgraph_t& fs) {
+		GRBConstr add_constraint(const subgraph_t& fs) {
 			GRBLinExpr expr = 3;
 			expr -= variables.at(fs[0], fs[1]);
 			expr -= variables.at(fs[1], fs[2]);
@@ -85,7 +86,7 @@ namespace Consumer
 			expr += variables.at(fs[0], fs[2]);
 			expr += variables.at(fs[1], fs[3]);
 
-			model->addConstr(expr, GRB_GREATER_EQUAL, 1);
+			return model->addConstr(expr, GRB_GREATER_EQUAL, 1);
 		}
 
 		void fix_pair(VertexID u, VertexID v, bool exists) {
@@ -228,6 +229,8 @@ namespace Consumer
 				}
 			}
 
+			constraint_stack.emplace_back();
+
 			if (shall_solve) {
 				if (solve() > 0) return;
 				shall_solve = false;
@@ -236,7 +239,7 @@ namespace Consumer
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
 				if (get_constraint_value(path, graph, edited) < 0.999) {
-					add_constraint(path);
+					constraint_stack.back().push_back(add_constraint(path));
 					shall_solve = true;
 				}
 
@@ -244,9 +247,15 @@ namespace Consumer
 			});
 		}
 
-		void after_undo_edit(State& state, Graph const&graph, Graph_Edits const& edited, VertexID u, VertexID v)
+		void after_undo_edit(State&, Graph const&graph, Graph_Edits const&, VertexID u, VertexID v)
 		{
-			after_mark_and_edit(state, graph, edited, u, v);
+			fix_pair(u, v, graph.has_edge(u, v));
+
+			for (GRBConstr cstr : constraint_stack.back()) {
+				model->remove(cstr);
+			}
+
+			constraint_stack.pop_back();
 		}
 
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
