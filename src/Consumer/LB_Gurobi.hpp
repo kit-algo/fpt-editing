@@ -128,7 +128,7 @@ namespace Consumer
 	public:
 		Gurobi(VertexID graph_size) : finder(graph_size), env(std::make_unique<GRBEnv>()), variables(graph_size), initial_k(0), shall_solve(true) {}
 
-		State initialize(size_t, Graph const &graph, Graph_Edits const &)
+		State initialize(size_t, Graph &graph, Graph_Edits const &edited)
 		{
 			try {
 				model = std::make_unique<GRBModel>(*env);
@@ -152,6 +152,35 @@ namespace Consumer
 				model->setObjective(objective, GRB_MINIMIZE);
 
 				add_forbidden_subgraphs(graph, finder);
+
+				size_t num_constraints_added = 0;
+
+				do {
+					model->optimize();
+
+					num_constraints_added = 0;
+					variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+						const double val = var.get(GRB_DoubleAttr_X);
+						bool has_edge = graph.has_edge(u, v);
+						if ((has_edge && val < 0.999) || (!has_edge && val > 0.001)) {
+							graph.toggle_edge(u, v);
+
+							finder.find_near(graph, u, v, [&](const subgraph_t& path)
+							{
+								if (get_constraint_value(path, graph, edited) < 0.999) {
+									++num_constraints_added;
+									add_constraint(path);
+									return true;
+								}
+
+								return false;
+							});
+
+							graph.toggle_edge(u, v);
+						}
+					});
+					std::cout << "Added " << num_constraints_added << "  extended constraints" << std::endl;
+				} while (num_constraints_added > 0);
 			} catch (GRBException &e) {
 				std::cout << e.getMessage() << std::endl;
 				throw e;
@@ -189,7 +218,7 @@ namespace Consumer
 		{
 			fix_pair(u, v, graph.has_edge(u, v));
 
-			{
+			if (false) {
 				GRBColumn col = model->getCol(variables.at(u, v));
 				for (size_t i = 0; i < col.size(); ++i) {
 					GRBConstr constr = col.getConstr(i);
@@ -199,11 +228,15 @@ namespace Consumer
 				}
 			}
 
+			if (shall_solve) {
+				if (solve() > 0) return;
+				shall_solve = false;
+			}
+
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
-				add_constraint(path);
-				if (!shall_solve && get_constraint_value(path, graph, edited) < 0.999) {
-					std::cout << "Solving because constraint has value " << get_constraint_value(path, graph, edited) << std::endl;
+				if (get_constraint_value(path, graph, edited) < 0.999) {
+					add_constraint(path);
 					shall_solve = true;
 				}
 
@@ -229,14 +262,12 @@ namespace Consumer
 			relax_pair(u, v);
 		}
 
-		size_t result(State&, const Subgraph_Stats_type&, size_t k, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
+		size_t result(State&, const Subgraph_Stats_type&, size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
 		{
 			size_t result = 0;
 			if (shall_solve) {
 				result = solve();
 				shall_solve = (result > 0);
-			} else {
-				std::cout << "Skipping solve at k = " << k << std::endl;
 			}
 
 			return result;
