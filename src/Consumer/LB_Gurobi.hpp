@@ -215,7 +215,7 @@ namespace Consumer
 		{
 		}
 
-		void after_mark_and_edit(State&, Graph const &graph, Graph_Edits const &edited, VertexID u, VertexID v)
+		void after_mark_and_edit(State&, Graph &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
 			fix_pair(u, v, graph.has_edge(u, v));
 
@@ -238,12 +238,37 @@ namespace Consumer
 
 			finder.find_near(graph, u, v, [&](const subgraph_t& path)
 			{
-				if (get_constraint_value(path, graph, edited) < 0.999) {
-					constraint_stack.back().push_back(add_constraint(path));
+				constraint_stack.back().push_back(add_constraint(path));
+				if (!shall_solve && get_constraint_value(path, graph, edited) < 0.999) {
 					shall_solve = true;
 				}
 
 				return false;
+			});
+
+			if (shall_solve) {
+				if (solve() > 0) return;
+				shall_solve = false;
+			}
+
+			variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+				const double val = var.get(GRB_DoubleAttr_X);
+				bool has_edge = graph.has_edge(u, v);
+				if ((has_edge && val < 0.999) || (!has_edge && val > 0.001)) {
+					graph.toggle_edge(u, v);
+
+					finder.find_near(graph, u, v, [&](const subgraph_t& path)
+					{
+						if (get_constraint_value(path, graph, edited) < 0.999) {
+							constraint_stack.back().push_back(add_constraint(path));
+							shall_solve = true;
+						}
+
+						return false;
+					});
+
+					graph.toggle_edge(u, v);
+				}
 			});
 		}
 
