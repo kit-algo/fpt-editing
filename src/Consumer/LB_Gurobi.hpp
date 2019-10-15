@@ -19,11 +19,12 @@
 #include "../LowerBound/Lower_Bound.hpp"
 #include "../Graph/ValueMatrix.hpp"
 #include "../util.hpp"
+#include "../ProblemSet.hpp"
 
 namespace Consumer
 {
 	template<typename Finder_impl, typename Graph, typename Graph_Edits, typename Mode, typename Restriction, typename Conversion, size_t length>
-	class Gurobi : Options::Tag::Lower_Bound
+	class Gurobi : Options::Tag::Lower_Bound, Options::Tag::Selector
 	{
 	public:
 		static constexpr char const *name = "Gurobi";
@@ -207,8 +208,8 @@ namespace Consumer
 				objective_constr = model->addConstr(expr, GRB_LESS_EQUAL, static_cast<double>(k) - static_cast<double>(objective_offset));
 			}
 			initial_k = k;
-			
-			shall_solve = true;
+
+			shall_solve = (solve() > 0);
 		}
 
 		void before_mark_and_edit(State& , Graph const &, Graph_Edits const &, VertexID, VertexID)
@@ -306,7 +307,107 @@ namespace Consumer
 
 			return result;
 		}
+	private:
+		struct forbidden_count
+		{
+			std::pair<VertexID, VertexID> node_pair;
+			double integrality_gap;
+			double graph_diff;
+			size_t num_forbidden;
 
+			forbidden_count(std::pair<VertexID, VertexID> pair, double integrality_gap, double graph_diff, size_t num_forbidden) : node_pair(pair), integrality_gap(integrality_gap), graph_diff(graph_diff),  num_forbidden(num_forbidden) {}
+
+			bool operator<(const forbidden_count& other) const
+			{
+				return std::tie(this->integrality_gap, this->graph_diff, this->num_forbidden) > std::tie(other.integrality_gap, other.graph_diff, other.num_forbidden);
+			}
+
+			operator std::pair<VertexID, VertexID> () const
+			{
+				return node_pair;
+			}
+		};
+
+	public:
+		ProblemSet result(State&, const Subgraph_Stats_type& subgraph_stats, size_t k, Graph const &graph, Graph_Edits const &edited, Options::Tag::Selector)
+		{
+			ProblemSet problem;
+			problem.found_solution = (subgraph_stats.num_subgraphs == 0);
+			problem.needs_no_edit_branch = false;
+			if (!problem.found_solution && k > 0 && !shall_solve) {
+				assert(model->get(GRB_IntAttr_Status) == GRB_OPTIMAL);
+
+				double max_integrality_gap = -1;
+				VertexID uu = 0, vv = 0;
+				size_t max_subgraphs = 0;
+				double max_diff = -1;
+				variables.forAllNodePairs([&](VertexID u, VertexID v, const GRBVar& var) {
+					double integrality_gap = 0.5 - std::abs(0.5 - var.get(GRB_DoubleAttr_X));
+					const double diff = std::abs((graph.has_edge(u, v) ? 1.0 : 0.0) - var.get(GRB_DoubleAttr_X));
+					const size_t subgraphs = subgraph_stats.num_subgraphs_per_edge.at(u, v);
+					if (subgraphs == 0) return false;
+					if (integrality_gap < 0.0001) integrality_gap = 0.0;
+					if (std::tie(integrality_gap, diff, subgraphs) > std::tie(max_integrality_gap, max_diff, max_subgraphs)) {
+						uu = u;
+						vv = v;
+						max_integrality_gap = integrality_gap;
+						max_subgraphs = subgraphs;
+						max_diff = diff;
+					}
+					return false;
+				});
+
+				std::vector<forbidden_count> best_pairs, current_pairs;
+				finder.find_near(graph, uu, vv, [&](const subgraph_t& fs) {
+					current_pairs.clear();
+
+					Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, fs.begin(), fs.end(), [&](auto uit, auto vit) {
+						VertexID u = *uit;
+						VertexID v = *vit;
+
+						double val = variables.at(u, v).get(GRB_DoubleAttr_X);
+						if (val < 0.0001) val = 0;
+						else if (val > 0.9999) val = 1.0;
+						else if (std::abs(val - 0.5) < 0.0001) val = 0.5;
+						current_pairs.emplace_back(std::make_pair(u, v), 0.5 - std::abs(0.5 - val), std::abs((graph.has_edge(u, v) ? 1.0 : 0.0) - val), subgraph_stats.num_subgraphs_per_edge.at(u, v));
+						return false;
+					});
+
+					assert(current_pairs.size() > 0);
+
+					std::sort(current_pairs.begin(), current_pairs.end());
+
+					if (best_pairs.empty()) {
+						best_pairs = current_pairs;
+					} else {
+						size_t bi = 0, ci = 0;
+
+						while (bi < best_pairs.size() && ci < current_pairs.size() && (!(best_pairs[bi] < current_pairs[ci]) && !(current_pairs[ci] < best_pairs[bi])))
+						{
+							++bi;
+							++ci;
+						}
+
+						if (ci == current_pairs.size() || (bi != best_pairs.size() && current_pairs[ci] < best_pairs[ci]))
+						{
+							best_pairs = current_pairs;
+						}
+					}
+
+					return false;
+				});
+
+				assert(best_pairs.size() > 0);
+
+				for (size_t i = 0; i < best_pairs.size(); ++i)
+				{
+					const forbidden_count& pair_count = best_pairs[i];
+					problem.vertex_pairs.emplace_back(pair_count.node_pair, (i > 0 && i + 1 < best_pairs.size() && best_pairs[i-1].num_forbidden > 1));
+				}
+			}
+
+			return problem;
+		}
 	};
 }
 
