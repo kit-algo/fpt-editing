@@ -3,7 +3,7 @@ RELEASEFLAGS := -O3 -DNDEBUG
 PROFILEFLAGS := -ggdb $(RELEASEFLAGS)
 COMMON := -std=c++17 -pedantic -W -Wall -Wextra -march=native
 CXXFLAGS := -I/opt/gurobi/linux64/include/
-LDFLAGS := -lpthread -L/opt/gurobi/linux64/lib/ -lgurobi_c++ -lgurobi80
+LDFLAGS := -lpthread -L/opt/gurobi/linux64/lib/ -lgurobi_c++ -lgurobi81
 
 ############################################################
 
