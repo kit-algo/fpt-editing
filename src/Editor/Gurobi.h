@@ -496,18 +496,21 @@ namespace Editor
 				constexpr double constraint_value_bound = 0.999;
 				double least_constraint_value = constraint_value_bound;
 				subgraph_t best_constraint;
+				VertexID best_u = 0, best_v = 0;
 
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
 					double val = getNodeRel(var);
-					bool edge_changed = (input_graph.has_edge(u, v) && val < 0.99) || (!input_graph.has_edge(u, v) && val > 0.01);
+					bool edge_changed = (graph.has_edge(u, v) && val < 0.99) || (!graph.has_edge(u, v) && val > 0.01);
 					if (edge_changed) {
 						graph.toggle_edge(u, v);
 
 						finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
-							double v = get_relaxed_constraint_value(fs);
-							if (v < least_constraint_value && can_add(fs)) {
+							double constraint_value = get_relaxed_constraint_value(fs);
+							if (constraint_value < least_constraint_value && can_add(fs)) {
 								best_constraint = fs;
-								least_constraint_value = v;
+								least_constraint_value = constraint_value;
+								best_u = u;
+								best_v = v;
 							}
 
 							return false;
@@ -517,12 +520,11 @@ namespace Editor
 				});
 
 				if (least_constraint_value < constraint_value_bound) {
+					graph.toggle_edge(best_u, best_v);
 					bool added = add_constraint(best_constraint, true);
-					if (added) {
+					graph.toggle_edge(best_u, best_v);
+					assert(added);
 					std::cout << "Added close constraint of value " << least_constraint_value << std::endl;
-					} else {
-						std::cout << "Did not add duplicate constrint" << std::endl;
-					}
 					return 1;
 				}
 				return 0;
