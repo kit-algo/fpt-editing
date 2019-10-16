@@ -17,8 +17,8 @@ int main(int argc, char * argv[])
 		return 1;
 	}
 
-	using G = Graph::Matrix<false>;
-	using E = Graph::Matrix<false>;
+	using G = Graph::Matrix;
+	using E = Graph::Matrix;
 	using M = Options::Modes::Edit;
 	using R = Options::Restrictions::Redundant;
 	using C = Options::Conversions::Normal;
