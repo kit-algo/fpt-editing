@@ -27,6 +27,7 @@ namespace Options {
 		cp.add_flag('e', "extended-constraints", options.use_extended_constraints, "Generate more constraints initially.");
 		cp.add_flag('r', "relaxation-constraints", options.add_constraints_in_relaxation, "Add additional constraints for relaxation solutions.");
 		cp.add_flag('s', "init-sparse", options.init_sparse, "Initialize with sparse constraints (only useful for -sparse and -single variants).");
+		cp.add_flag('c', "single-c4", options.single_c4_constraints, "Add only one constraint per C4");
 		cp.add_size_t('l', "lazy", "lazy_level", options.all_lazy, "Add all constraints as lazy constraints with level 1, 2, or 3");
 		cp.add_size_t('t', "time-limit", "limit", options.time_limit, "Time limit in seconds, 0 for unlimited");
 		cp.add_size_t('p', "permutation", "seed", options.permutation, "The seed for the permutation that shall be applied to the input node ids");

@@ -32,6 +32,7 @@ namespace Editor
 		bool use_sparse_constraints = false;
 		bool use_extended_constraints = false;
 		bool add_constraints_in_relaxation = false;
+		bool single_c4_constraints = false;
 		bool init_sparse = false;
 		size_t time_limit = 0;
 		size_t all_lazy = 0;
@@ -47,6 +48,7 @@ namespace Editor
 				<< "\nSparse constraints: " << (use_sparse_constraints ? 1 : 0)
 				<< "\nExtended constraints: " << (use_extended_constraints ? 1 : 0)
 				<< "\nAdd constraints in relaxation: " << (add_constraints_in_relaxation ? 1 : 0)
+				<< "\nAdd a single constraint per C4: " << (single_c4_constraints ? 1 : 0)
 				<< "\nUse sparse initialization: " << (init_sparse ? 1 : 0)
 				<< "\nAll lazy constraints: " << all_lazy
 				<< "\nTime limit: " << time_limit
@@ -84,6 +86,10 @@ namespace Editor
 				name << "-heuristic-init";
 			}
 
+			if (single_c4_constraints) {
+				name << "-single-c4";
+			}
+
 			return name.str();
 		}
 	};
@@ -115,6 +121,20 @@ namespace Editor
 			GRBModel model;
 			Value_Matrix<GRBVar> variables;
 
+			struct subgraph_hash {
+				size_t graph_size;
+				subgraph_hash(size_t graph_size) : graph_size(graph_size) {}
+				size_t operator()(const subgraph_t& sg) const {
+					size_t result =	0;
+					for (VertexID v : sg) {
+						result = result * graph_size + v;
+					}
+					return result;
+				};
+			};
+			std::unordered_set<subgraph_t, subgraph_hash> added_constraints;
+			std::unordered_set<subgraph_t, subgraph_hash> added_c4_constraints;
+
 			bool update_timelimit_exceeded() {
 				end = std::chrono::steady_clock::now();
 
@@ -132,7 +152,7 @@ namespace Editor
 			}
 
 		public:
-			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution), model(env), variables(graph.size()) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution), model(env), variables(graph.size()), added_constraints(graph.size(), subgraph_hash(graph.size())), added_c4_constraints(graph.size(), subgraph_hash(graph.size())) {
 				env.start();
 			}
 
@@ -274,26 +294,75 @@ namespace Editor
 				return model.get(GRB_IntAttr_Status) == GRB_OPTIMAL;
 			}
 
-			void add_constraint(const subgraph_t& fs, bool lazy) {
-				GRBLinExpr expr = 3;
-				forNodePairs(fs, [&](VertexID u, VertexID v, bool edge) {
-					if (edge) {
-						expr -= variables.at(u, v);
-					} else {
-						expr += variables.at(u, v);
-					}
-					return false;
-				});
+			bool can_add(const subgraph_t& fs) {
+				subgraph_t canonical_fs = fs;
+				if (canonical_fs.front() > canonical_fs.back()) {
+					std::reverse(canonical_fs.begin(), canonical_fs.end());
+				}
+				if (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())) {
+					VertexID min_id = *std::min_element(fs.begin(), fs.end());
+					if (canonical_fs.front() != min_id) return false;
+					if (canonical_fs.back() > canonical_fs[1]) return false;
+
+					return added_c4_constraints.find(canonical_fs) == added_c4_constraints.end();
+				} else {
+					return added_constraints.find(canonical_fs) == added_constraints.end();
+				}
+			}
+
+			bool add_constraint(const subgraph_t& fs, bool lazy) {
+				size_t constraint_value = 1;
+				GRBLinExpr expr;
+				subgraph_t canonical_fs = fs;
+				if (canonical_fs.front() > canonical_fs.back()) {
+					std::reverse(canonical_fs.begin(), canonical_fs.end());
+				}
+				if (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())) {
+					VertexID min_id = *std::min_element(fs.begin(), fs.end());
+					if (canonical_fs.front() != min_id) return false;
+					if (canonical_fs.back() > canonical_fs[1]) return false;
+					bool constraint_new = false;
+					std::tie(std::ignore, constraint_new) = added_c4_constraints.insert(canonical_fs);
+					if (!constraint_new) return false;
+
+					expr = 4;
+					forNodePairs(fs, [&](VertexID u, VertexID v, bool edge) {
+						if (edge) {
+							expr -= variables.at(u, v);
+						} else {
+							expr += variables.at(u, v) * 2;
+						}
+						return false;
+					});
+					expr -= variables.at(fs.front(), fs.back());
+					constraint_value = 2;
+				} else {
+					bool constraint_new = false;
+					std::tie(std::ignore, constraint_new) = added_constraints.insert(canonical_fs);
+					if (!constraint_new) return false;
+
+					expr = 3;
+					forNodePairs(fs, [&](VertexID u, VertexID v, bool edge) {
+						if (edge) {
+							expr -= variables.at(u, v);
+						} else {
+							expr += variables.at(u, v);
+						}
+						return false;
+					});
+				}
 
 				if (lazy) {
-					addLazy(expr >= 1);
+					addLazy(expr >= constraint_value);
 				} else {
-					GRBConstr constr = model.addConstr(expr >= 1);
+					GRBConstr constr = model.addConstr(expr >= constraint_value);
 
 					if (options.all_lazy > 0) {
 						constr.set(GRB_IntAttr_Lazy, options.all_lazy);
 					}
 				}
+
+				return true;
 			}
 
 			template <typename F>
@@ -311,6 +380,9 @@ namespace Editor
 					return getNodeRel(variables.at(fs[i], fs[j]));
 				};
 
+				if (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())) {
+					return (4.0 - get(0, 1) - get(1, 2) - get(2, 3) - get(0, 3) + 2.0 * get(0, 2) + 2.0 * get(1, 3))/2.0;
+				}
 				return 3 - get(0, 1) - get(1, 2) - get(2, 3) + get(0, 2) + get(1, 3);
 			}
 
@@ -320,13 +392,12 @@ namespace Editor
 					Finder_Linear linear_finder;
 					subgraph_t certificate;
 					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
-						++num_found;
 						assert(graph.has_edge(certificate[0], certificate[1]));
 						assert(graph.has_edge(certificate[1], certificate[2]));
 						assert(graph.has_edge(certificate[2], certificate[3]));
 						assert(!graph.has_edge(certificate[0], certificate[2]));
 						assert(!graph.has_edge(certificate[1], certificate[3]));
-						add_constraint(certificate, lazy);
+						num_found += add_constraint(certificate, lazy);
 					}
 				} else if ((lazy || options.init_sparse) && options.use_sparse_constraints) {
 					Graph used_pairs(graph.size());
@@ -341,8 +412,7 @@ namespace Editor
 								used_pairs.set_edge(u, v);
 								return false;
 							});
-							++num_found;
-							add_constraint(fs, lazy);
+							num_found += add_constraint(fs, lazy);
 						}
 						return false;
 					});
@@ -363,8 +433,7 @@ namespace Editor
 							graph.toggle_edge(u, v);
 
 							finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
-								++num_found;
-								add_constraint(fs, lazy);
+								num_found += add_constraint(fs, lazy);
 								return false;
 							});
 
@@ -373,8 +442,7 @@ namespace Editor
 					});
 				} else {
 					finder.find(graph, [&](const subgraph_t& fs) {
-						++num_found;
-						add_constraint(fs, lazy);
+						num_found += add_constraint(fs, lazy);
 						return false;
 					});
 				}
@@ -387,27 +455,78 @@ namespace Editor
 
 			size_t add_forbidden_subgraphs_in_relaxation() {
 				size_t num_found = 0;
-				double least_constraint_value = 0.99999;
-				subgraph_t best_fs;
+				constexpr double least_constraint_value = 0.999;
 
 				finder.find(graph, [&](const subgraph_t& fs) {
 					double v = get_relaxed_constraint_value(fs);
 					if (v < least_constraint_value) {
-						least_constraint_value = v;
-						++num_found;
-						best_fs = fs;
+						num_found += add_constraint(fs, true);
 					}
 					return false;
 				});
 
 				if (num_found > 0) {
-					add_constraint(best_fs, true);
-					std::cout << "Found " << num_found << " lazy constraints in relaxation, added best with constraint value " << least_constraint_value << std::endl;
+					std::cout << "Found and added " << num_found << " lazy constraints in relaxation" << std::endl;
 				}
 
 				return num_found;
 			}
 
+			size_t add_forbidden_subgraphs_in_relaxation_near(VertexID u, VertexID v) {
+				size_t num_found = 0;
+				constexpr double least_constraint_value = 0.999;
+
+				finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
+					double v = get_relaxed_constraint_value(fs);
+					if (v < least_constraint_value) {
+						num_found += add_constraint(fs, true);
+					}
+					return false;
+				});
+
+				if (num_found > 0) {
+					std::cout << "Found and added " << num_found << " lazy constraints in relaxation near " << (size_t)u << ", " << (size_t)v << std::endl;
+				}
+
+				return num_found;
+			}
+
+			size_t add_forbidden_subgraphs_close_to_input() {
+				graph = input_graph;
+				constexpr double constraint_value_bound = 0.999;
+				double least_constraint_value = constraint_value_bound;
+				subgraph_t best_constraint;
+
+				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
+					double val = getNodeRel(var);
+					bool edge_changed = (input_graph.has_edge(u, v) && val < 0.99) || (!input_graph.has_edge(u, v) && val > 0.01);
+					if (edge_changed) {
+						graph.toggle_edge(u, v);
+
+						finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
+							double v = get_relaxed_constraint_value(fs);
+							if (v < least_constraint_value && can_add(fs)) {
+								best_constraint = fs;
+								least_constraint_value = v;
+							}
+
+							return false;
+						});
+						graph.toggle_edge(u, v);
+					}
+				});
+
+				if (least_constraint_value < constraint_value_bound) {
+					bool added = add_constraint(best_constraint, true);
+					if (added) {
+					std::cout << "Added close constraint of value " << least_constraint_value << std::endl;
+					} else {
+						std::cout << "Did not add duplicate constrint" << std::endl;
+					}
+					return 1;
+				}
+				return 0;
+			}
 
 			/**
 			 * Updates the graph after the solver finished.
@@ -483,10 +602,14 @@ namespace Editor
 							graph = input_graph;
 							if (add_forbidden_subgraphs_in_relaxation() > 0) return;
 						}
+						add_forbidden_subgraphs_close_to_input();
+						/*
+						if (found_constraint) return;
 						update_graph_from_relaxation();
 						if (add_forbidden_subgraphs_in_relaxation() > 0) return;
 						update_graph_from_relaxation_inverse_to_input();
 						if (add_forbidden_subgraphs_in_relaxation() > 0) return;
+						*/
 					}
 				}
 			}
