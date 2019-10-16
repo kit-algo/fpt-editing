@@ -57,8 +57,7 @@ else (GUROBI_INCLUDE_DIR)
 
     find_library( GUROBI_CXX_LIBRARY
             NAMES
-            gurobi_g++5.2
-            #gurobi_c++
+            gurobi_c++
             PATHS "$ENV{GUROBI_HOME}/lib"
             )
 
