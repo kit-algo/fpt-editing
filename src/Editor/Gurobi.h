@@ -116,6 +116,7 @@ namespace Editor
 			Finder &finder;
 			Graph &graph;
 			Graph input_graph;
+			Graph best_solution;
 			const Graph& heuristic_solution;
 			GRBEnv env;
 			GRBModel model;
@@ -152,7 +153,7 @@ namespace Editor
 			}
 
 		public:
-			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), heuristic_solution(heuristic_solution), model(env), variables(graph.size()), added_constraints(graph.size(), subgraph_hash(graph.size())), added_c4_constraints(graph.size(), subgraph_hash(graph.size())) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), best_solution(graph.size()), heuristic_solution(heuristic_solution), model(env), variables(graph.size()), added_constraints(graph.size(), subgraph_hash(graph.size())), added_c4_constraints(graph.size(), subgraph_hash(graph.size())) {
 				env.start();
 			}
 
@@ -491,8 +492,7 @@ namespace Editor
 				return num_found;
 			}
 
-			size_t add_forbidden_subgraphs_close_to_input() {
-				graph = input_graph;
+			size_t add_close_forbidden_subgraphs() {
 				constexpr double constraint_value_bound = 0.999;
 				double least_constraint_value = constraint_value_bound;
 				subgraph_t best_constraint;
@@ -597,14 +597,24 @@ namespace Editor
 			void callback() {
 				if (where == GRB_CB_MIPSOL) {
 					update_graph_in_callback();
-					add_forbidden_subgraphs(true);
+					if (add_forbidden_subgraphs(true) == 0) {
+						best_solution = graph;
+					}
 				} else if (where == GRB_CB_MIPNODE && options.add_constraints_in_relaxation) {
 					if (getIntInfo(GRB_CB_MIPNODE_STATUS) == GRB_OPTIMAL) {
 						if (options.init_sparse) {
 							graph = input_graph;
 							if (add_forbidden_subgraphs_in_relaxation() > 0) return;
 						}
-						add_forbidden_subgraphs_close_to_input();
+						graph = input_graph;
+						if (add_close_forbidden_subgraphs()) {
+							std::cout << "from input" << std::endl;
+							return;
+						}
+						graph = best_solution;
+						if (add_close_forbidden_subgraphs()) {
+							std::cout << "from solution" << std::endl;
+						}
 						/*
 						if (found_constraint) return;
 						update_graph_from_relaxation();
