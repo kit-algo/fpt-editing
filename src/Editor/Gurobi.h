@@ -114,27 +114,14 @@ namespace Editor
 			TimeT start, end;
 			GurobiOptions& options;
 			Finder &finder;
+			Finder_Linear linear_finder;
 			Graph &graph;
-			Graph input_graph;
+			const Graph input_graph;
 			Graph best_solution;
 			const Graph& heuristic_solution;
 			GRBEnv env;
 			GRBModel model;
 			Value_Matrix<GRBVar> variables;
-
-			struct subgraph_hash {
-				size_t graph_size;
-				subgraph_hash(size_t graph_size) : graph_size(graph_size) {}
-				size_t operator()(const subgraph_t& sg) const {
-					size_t result =	0;
-					for (VertexID v : sg) {
-						result = result * graph_size + v;
-					}
-					return result;
-				};
-			};
-			std::unordered_set<subgraph_t, subgraph_hash> added_constraints;
-			std::unordered_set<subgraph_t, subgraph_hash> added_c4_constraints;
 
 			bool update_timelimit_exceeded() {
 				end = std::chrono::steady_clock::now();
@@ -153,7 +140,7 @@ namespace Editor
 			}
 
 		public:
-			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), best_solution(graph.size()), heuristic_solution(heuristic_solution), model(env), variables(graph.size()), added_constraints(graph.size(), subgraph_hash(graph.size())), added_c4_constraints(graph.size(), subgraph_hash(graph.size())) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), best_solution(graph.size()), heuristic_solution(heuristic_solution), model(env), variables(graph.size()) {
 				env.start();
 			}
 
@@ -246,7 +233,6 @@ namespace Editor
 				}
 
 				if (!is_optimal) {
-					Finder_Linear linear_finder;
 					subgraph_t certificate;
 					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
 						if (options.use_heuristic_solution) {
@@ -296,35 +282,32 @@ namespace Editor
 			}
 
 			bool can_add(const subgraph_t& fs) {
-				subgraph_t canonical_fs = fs;
-				if (canonical_fs.front() > canonical_fs.back()) {
-					std::reverse(canonical_fs.begin(), canonical_fs.end());
-				}
 				if (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())) {
+					subgraph_t canonical_fs = fs;
+					if (canonical_fs.front() > canonical_fs.back()) {
+						std::reverse(canonical_fs.begin(), canonical_fs.end());
+					}
 					VertexID min_id = *std::min_element(fs.begin(), fs.end());
 					if (canonical_fs.front() != min_id) return false;
 					if (canonical_fs.back() > canonical_fs[1]) return false;
-
-					return added_c4_constraints.find(canonical_fs) == added_c4_constraints.end();
-				} else {
-					return added_constraints.find(canonical_fs) == added_constraints.end();
 				}
+
+				return true;
 			}
 
 			bool add_constraint(const subgraph_t& fs, bool lazy) {
 				size_t constraint_value = 1;
 				GRBLinExpr expr;
-				subgraph_t canonical_fs = fs;
-				if (canonical_fs.front() > canonical_fs.back()) {
-					std::reverse(canonical_fs.begin(), canonical_fs.end());
-				}
 				if (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())) {
-					VertexID min_id = *std::min_element(fs.begin(), fs.end());
-					if (canonical_fs.front() != min_id) return false;
-					if (canonical_fs.back() > canonical_fs[1]) return false;
-					bool constraint_new = false;
-					std::tie(std::ignore, constraint_new) = added_c4_constraints.insert(canonical_fs);
-					if (!constraint_new) return false;
+					if (!lazy) {
+						subgraph_t canonical_fs = fs;
+						if (canonical_fs.front() > canonical_fs.back()) {
+							std::reverse(canonical_fs.begin(), canonical_fs.end());
+						}
+						VertexID min_id = *std::min_element(fs.begin(), fs.end());
+						if (canonical_fs.front() != min_id) return false;
+						if (canonical_fs.back() > canonical_fs[1]) return false;
+					}
 
 					expr = 4;
 					forNodePairs(fs, [&](VertexID u, VertexID v, bool edge) {
@@ -338,10 +321,6 @@ namespace Editor
 					expr -= variables.at(fs.front(), fs.back());
 					constraint_value = 2;
 				} else {
-					bool constraint_new = false;
-					std::tie(std::ignore, constraint_new) = added_constraints.insert(canonical_fs);
-					if (!constraint_new) return false;
-
 					expr = 3;
 					forNodePairs(fs, [&](VertexID u, VertexID v, bool edge) {
 						if (edge) {
@@ -354,6 +333,7 @@ namespace Editor
 				}
 
 				if (lazy) {
+					std::cout << "(" << fs[0] << ", " << fs[1] << ", " << fs[2] << ", " << fs[3] << ")" << std::endl;
 					addLazy(expr >= constraint_value);
 				} else {
 					GRBConstr constr = model.addConstr(expr >= constraint_value);
@@ -390,7 +370,6 @@ namespace Editor
 			size_t add_forbidden_subgraphs(bool lazy = false) {
 				size_t num_found = 0;
 				if ((lazy || options.init_sparse) && options.add_single_constraints) {
-					Finder_Linear linear_finder;
 					subgraph_t certificate;
 					if (!linear_finder.is_quasi_threshold(graph, certificate)) {
 						assert(graph.has_edge(certificate[0], certificate[1]));
@@ -399,6 +378,7 @@ namespace Editor
 						assert(!graph.has_edge(certificate[0], certificate[2]));
 						assert(!graph.has_edge(certificate[1], certificate[3]));
 						num_found += add_constraint(certificate, lazy);
+						assert(num_found == 1);
 					}
 				} else if ((lazy || options.init_sparse) && options.use_sparse_constraints) {
 					Graph used_pairs(graph.size());
@@ -494,9 +474,7 @@ namespace Editor
 
 			size_t add_close_forbidden_subgraphs() {
 				constexpr double constraint_value_bound = 0.999;
-				double least_constraint_value = constraint_value_bound;
-				subgraph_t best_constraint;
-				VertexID best_u = 0, best_v = 0;
+				size_t num_added = 0;
 
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
 					double val = getNodeRel(var);
@@ -504,30 +482,33 @@ namespace Editor
 					if (edge_changed) {
 						graph.toggle_edge(u, v);
 
-						finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
+						double least_constraint_value = constraint_value_bound;
+                                                subgraph_t best_constraint;
+
+                                                finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
 							double constraint_value = get_relaxed_constraint_value(fs);
-							if (constraint_value < least_constraint_value && can_add(fs)) {
+							if (constraint_value < least_constraint_value) {
 								best_constraint = fs;
 								least_constraint_value = constraint_value;
-								best_u = u;
-								best_v = v;
 							}
 
 							return false;
 						});
+
+						if (least_constraint_value < constraint_value_bound) {
+							std::cout << u << ", " << v << std::endl;
+							num_added += add_constraint(best_constraint, true);
+						}
+
 						graph.toggle_edge(u, v);
 					}
 				});
 
-				if (least_constraint_value < constraint_value_bound) {
-					graph.toggle_edge(best_u, best_v);
-					bool added = add_constraint(best_constraint, true);
-					graph.toggle_edge(best_u, best_v);
-					assert(added);
-					std::cout << "Added close constraint of value " << least_constraint_value << std::endl;
-					return 1;
+				if (num_added > 0) {
+					std::cout << "Added " << num_added << " close constraints" << std::endl;
 				}
-				return 0;
+
+				return num_added;
 			}
 
 			/**
@@ -598,7 +579,12 @@ namespace Editor
 				if (where == GRB_CB_MIPSOL) {
 					update_graph_in_callback();
 					if (add_forbidden_subgraphs(true) == 0) {
+						std::cout << "Storing the found solution" << std::endl;
 						best_solution = graph;
+						#ifndef NDEBUG
+						subgraph_t certificate;
+						assert(linear_finder.is_quasi_threshold(graph, certificate));
+						#endif
 					}
 				} else if (where == GRB_CB_MIPNODE && options.add_constraints_in_relaxation) {
 					if (getIntInfo(GRB_CB_MIPNODE_STATUS) == GRB_OPTIMAL) {
@@ -612,6 +598,10 @@ namespace Editor
 							return;
 						}
 						graph = best_solution;
+						#ifndef NDEBUG
+						subgraph_t certificate;
+						assert(linear_finder.is_quasi_threshold(graph, certificate));
+						#endif
 						if (add_close_forbidden_subgraphs()) {
 							std::cout << "from solution" << std::endl;
 						}
