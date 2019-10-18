@@ -10,6 +10,7 @@
 #include <vector>
 #include <memory>
 #include <chrono>
+#include <random>
 #include <gurobi_c++.h>
 
 #include "../config.hpp"
@@ -122,6 +123,39 @@ namespace Editor
 			GRBEnv env;
 			GRBModel model;
 			Value_Matrix<GRBVar> variables;
+			std::mt19937_64 gen;
+
+			struct subgraph_hash {
+				size_t graph_size;
+				subgraph_hash(size_t graph_size) : graph_size(graph_size) {}
+				size_t operator()(const subgraph_t& sg) const {
+					size_t result =	0;
+					for (VertexID v : sg) {
+						result = result * graph_size + v;
+					}
+					return result;
+				};
+			};
+
+			struct subgraph_set {
+				std::unordered_set<subgraph_t, subgraph_hash> subgraphs;
+
+				subgraph_set(size_t graph_size) : subgraphs(0, subgraph_hash(graph_size)) {}
+
+				void insert(subgraph_t sg) {
+					if (sg.front() > sg.back()) {
+						std::reverse(sg.begin(), sg.end());
+					}
+					subgraphs.insert(sg);
+				};
+
+				bool contains(subgraph_t sg) {
+					if (sg.front() > sg.back()) {
+						std::reverse(sg.begin(), sg.end());
+					}
+					return subgraphs.find(sg) != subgraphs.end();
+				};
+			};
 
 			bool update_timelimit_exceeded() {
 				end = std::chrono::steady_clock::now();
@@ -140,7 +174,7 @@ namespace Editor
 			}
 
 		public:
-			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), best_solution(graph.size()), heuristic_solution(heuristic_solution), model(env), variables(graph.size()) {
+			MyCallback(Finder &finder, Graph &graph, const Graph& heuristic_solution, GurobiOptions& options) : start(std::chrono::steady_clock::now()), options(options), finder(finder), graph(graph), input_graph(graph), best_solution(graph.size()), heuristic_solution(heuristic_solution), model(env), variables(graph.size()), gen(graph.size()) {
 				env.start();
 			}
 
@@ -434,47 +468,52 @@ namespace Editor
 				return num_found;
 			}
 
-			size_t add_forbidden_subgraphs_in_relaxation() {
+			size_t add_forbidden_subgraphs_in_relaxation(subgraph_set& already_added) {
 				size_t num_found = 0;
-				constexpr double least_constraint_value = 0.999;
+				constexpr double constraint_value_bound = 0.999;
+				double least_constraint_value = constraint_value_bound;
+				subgraph_t best_subgraph;
+				std::uniform_real_distribution<double> prob(0, 1);
+
+				size_t num_equal = 0;
 
 				finder.find(graph, [&](const subgraph_t& fs) {
+					if (already_added.contains(fs)) return false;
+
 					double v = get_relaxed_constraint_value(fs);
+
 					if (v < least_constraint_value) {
-						num_found += add_constraint(fs, true);
+						least_constraint_value = v;
+						best_subgraph = fs;
+						num_equal = 1;
+						//std::cout << "New least constraint value: " << least_constraint_value << std::endl;
+					} else if (std::abs(v - least_constraint_value) < 0.0001) {
+						++num_equal;
+						if (prob(gen) <= 1.0 / num_equal) {
+							//std::cout << "Updating best constraint " << num_equal << std::endl;
+							best_subgraph = fs;
+						} else {
+							//std::cout << "Not updating constraint " << num_equal << std::endl;
+						}
 					}
+
 					return false;
 				});
 
-				if (num_found > 0) {
-					std::cout << "Found and added " << num_found << " lazy constraints in relaxation" << std::endl;
+				if (least_constraint_value < constraint_value_bound) {
+					already_added.insert(best_subgraph);
+					num_found += add_constraint(best_subgraph, true);
+					//std::cout << "Found and added " << num_found << " lazy constraints in relaxation" << std::endl;
 				}
 
 				return num_found;
 			}
 
-			size_t add_forbidden_subgraphs_in_relaxation_near(VertexID u, VertexID v) {
-				size_t num_found = 0;
-				constexpr double least_constraint_value = 0.999;
-
-				finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
-					double v = get_relaxed_constraint_value(fs);
-					if (v < least_constraint_value) {
-						num_found += add_constraint(fs, true);
-					}
-					return false;
-				});
-
-				if (num_found > 0) {
-					std::cout << "Found and added " << num_found << " lazy constraints in relaxation near " << (size_t)u << ", " << (size_t)v << std::endl;
-				}
-
-				return num_found;
-			}
-
-			size_t add_close_forbidden_subgraphs() {
+			size_t add_close_forbidden_subgraphs(subgraph_set& already_added) {
 				constexpr double constraint_value_bound = 0.999;
 				size_t num_added = 0;
+
+				std::uniform_real_distribution<double> prob(0, 1);
 
 				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
 					double val = getNodeRel(var);
@@ -484,19 +523,35 @@ namespace Editor
 
 						double least_constraint_value = constraint_value_bound;
                                                 subgraph_t best_constraint;
+						size_t num_equal = 0;
+						best_constraint.fill(0);
 
                                                 finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
+							if (already_added.contains(fs)) return false;
+
 							double constraint_value = get_relaxed_constraint_value(fs);
+
 							if (constraint_value < least_constraint_value) {
-								best_constraint = fs;
 								least_constraint_value = constraint_value;
+								best_constraint = fs;
+								num_equal = 1;
+								//std::cout << "New least constraint value: " << least_constraint_value << std::endl;
+							} else if (std::abs(constraint_value - least_constraint_value) < 0.0001) {
+								++num_equal;
+								if (prob(gen) <= 1.0 / num_equal) {
+									//std::cout << "Updating best constraint " << num_equal << std::endl;
+									best_constraint = fs;
+								} else {
+									//std::cout << "Not updating constraint " << num_equal << std::endl;
+								}
 							}
 
 							return false;
 						});
 
-						if (least_constraint_value < constraint_value_bound) {
-							std::cout << u << ", " << v << std::endl;
+						if (best_constraint.front() != best_constraint.back()) {
+							//std::cout << u << ", " << v << ", constraint value: " << least_constraint_value << std::endl;
+							already_added.insert(best_constraint);
 							num_added += add_constraint(best_constraint, true);
 						}
 
@@ -588,27 +643,29 @@ namespace Editor
 					}
 				} else if (where == GRB_CB_MIPNODE && options.add_constraints_in_relaxation) {
 					if (getIntInfo(GRB_CB_MIPNODE_STATUS) == GRB_OPTIMAL) {
+						subgraph_set already_added(graph.size());
+
 						if (options.init_sparse) {
 							graph = input_graph;
-							if (add_forbidden_subgraphs_in_relaxation() > 0) return;
+							if (add_forbidden_subgraphs_in_relaxation(already_added) > 0) return;
 						}
+
 						graph = input_graph;
-						if (add_close_forbidden_subgraphs()) {
-							std::cout << "from input" << std::endl;
-							return;
+						if (add_close_forbidden_subgraphs(already_added)) {
+							//std::cout << "from input" << std::endl;
 						}
 						graph = best_solution;
 						#ifndef NDEBUG
 						subgraph_t certificate;
 						assert(linear_finder.is_quasi_threshold(graph, certificate));
 						#endif
-						if (add_close_forbidden_subgraphs()) {
-							std::cout << "from solution" << std::endl;
+						if (add_close_forbidden_subgraphs(already_added)) {
+							//std::cout << "from solution" << std::endl;
 						}
-						/*
-						if (found_constraint) return;
+						//if (found_constraint) return;
 						update_graph_from_relaxation();
-						if (add_forbidden_subgraphs_in_relaxation() > 0) return;
+						add_forbidden_subgraphs_in_relaxation(already_added);
+						/*
 						update_graph_from_relaxation_inverse_to_input();
 						if (add_forbidden_subgraphs_in_relaxation() > 0) return;
 						*/
