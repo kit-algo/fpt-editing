@@ -524,7 +524,6 @@ namespace Editor
 						double least_constraint_value = constraint_value_bound;
                                                 subgraph_t best_constraint;
 						size_t num_equal = 0;
-						best_constraint.fill(0);
 
                                                 finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
 							if (already_added.contains(fs)) return false;
@@ -549,7 +548,7 @@ namespace Editor
 							return false;
 						});
 
-						if (best_constraint.front() != best_constraint.back()) {
+						if (least_constraint_value < constraint_value_bound) {
 							//std::cout << u << ", " << v << ", constraint value: " << least_constraint_value << std::endl;
 							already_added.insert(best_constraint);
 							num_added += add_constraint(best_constraint, true);
