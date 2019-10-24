@@ -213,7 +213,7 @@ namespace Editor
 					subgraph_stats.after_unmark(graph, edited, vertex_pair.first, vertex_pair.second);
 					Util::for_<sizeof...(Consumer)>([&](auto i)
 					{
-						std::get<i.value>(consumer).after_unmark(std::get<i.value>(state), graph, edited, vertex_pair.first, vertex_pair.second);
+						std::get<i.value>(consumer).after_unmark(graph, edited, vertex_pair.first, vertex_pair.second);
 					});
 				}
 
