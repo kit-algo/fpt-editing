@@ -482,12 +482,7 @@ namespace Editor
 
 					double v = get_relaxed_constraint_value(fs);
 
-					if (v < least_constraint_value) {
-						least_constraint_value = v;
-						best_subgraph = fs;
-						num_equal = 1;
-						//std::cout << "New least constraint value: " << least_constraint_value << std::endl;
-					} else if (std::abs(v - least_constraint_value) < 0.0001) {
+					if (std::abs(v - least_constraint_value) < 0.0001) {
 						++num_equal;
 						if (prob(gen) <= 1.0 / num_equal) {
 							//std::cout << "Updating best constraint " << num_equal << std::endl;
@@ -495,6 +490,11 @@ namespace Editor
 						} else {
 							//std::cout << "Not updating constraint " << num_equal << std::endl;
 						}
+					} else if (v < least_constraint_value) {
+						least_constraint_value = v;
+						best_subgraph = fs;
+						num_equal = 1;
+						//std::cout << "New least constraint value: " << least_constraint_value << std::endl;
 					}
 
 					return false;
@@ -530,12 +530,7 @@ namespace Editor
 
 							double constraint_value = get_relaxed_constraint_value(fs);
 
-							if (constraint_value < least_constraint_value) {
-								least_constraint_value = constraint_value;
-								best_constraint = fs;
-								num_equal = 1;
-								//std::cout << "New least constraint value: " << least_constraint_value << std::endl;
-							} else if (std::abs(constraint_value - least_constraint_value) < 0.0001) {
+							if (std::abs(constraint_value - least_constraint_value) < 0.0001) {
 								++num_equal;
 								if (prob(gen) <= 1.0 / num_equal) {
 									//std::cout << "Updating best constraint " << num_equal << std::endl;
@@ -543,6 +538,11 @@ namespace Editor
 								} else {
 									//std::cout << "Not updating constraint " << num_equal << std::endl;
 								}
+							} else if (constraint_value < least_constraint_value) {
+								least_constraint_value = constraint_value;
+								best_constraint = fs;
+								num_equal = 1;
+								//std::cout << "New least constraint value: " << least_constraint_value << std::endl;
 							}
 
 							return false;
