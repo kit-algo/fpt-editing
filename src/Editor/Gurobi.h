@@ -138,24 +138,42 @@ namespace Editor
 			};
 
 			struct subgraph_set {
-				std::unordered_set<subgraph_t, subgraph_hash> subgraphs;
+				std::unordered_set<subgraph_t, subgraph_hash> p_subgraphs;
+				std::unordered_set<subgraph_t, subgraph_hash> c_subgraphs;
 
-				subgraph_set(size_t graph_size) : subgraphs(0, subgraph_hash(graph_size)) {}
+				subgraph_set(size_t graph_size) : p_subgraphs(0, subgraph_hash(graph_size)), c_subgraphs(0, subgraph_hash(graph_size)) {}
 
-				void insert(subgraph_t sg) {
-					if (sg.front() > sg.back()) {
-						std::reverse(sg.begin(), sg.end());
+				void insert(subgraph_t sg, bool is_c4) {
+					make_canonical(sg, is_c4);
+					if (is_c4) {
+						c_subgraphs.insert(sg);
+					} else {
+						p_subgraphs.insert(sg);
 					}
-					subgraphs.insert(sg);
 				};
 
-				bool contains(subgraph_t sg) {
-					if (sg.front() > sg.back()) {
-						std::reverse(sg.begin(), sg.end());
+				bool contains(subgraph_t sg, bool is_c4) {
+					make_canonical(sg, is_c4);
+					if (is_c4) {
+						return c_subgraphs.find(sg) != c_subgraphs.end();
+					} else {
+						return p_subgraphs.find(sg) != p_subgraphs.end();
 					}
-					return subgraphs.find(sg) != subgraphs.end();
 				};
-			};
+
+			private:
+				void make_canonical(subgraph_t& sg, bool is_c4) {
+					if (is_c4) {
+						auto min_it = std::min_element(sg.begin(), sg.end());
+						std::rotate(sg.begin(), min_it, sg.end());
+						if (sg[1] > sg.back()) {
+							std::reverse(sg.begin() + 1, sg.end());
+						}
+					} else if (sg.front() > sg.back()) {
+						std::reverse(sg.begin(), sg.end());
+                                        }
+                                };
+                        };
 
 			bool update_timelimit_exceeded() {
 				end = std::chrono::steady_clock::now();
@@ -333,7 +351,7 @@ namespace Editor
 				size_t constraint_value = 1;
 				GRBLinExpr expr;
 				if (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())) {
-					if (!lazy) {
+					if (!lazy || !(options.use_sparse_constraints || options.add_single_constraints)) {
 						subgraph_t canonical_fs = fs;
 						if (canonical_fs.front() > canonical_fs.back()) {
 							std::reverse(canonical_fs.begin(), canonical_fs.end());
@@ -478,7 +496,7 @@ namespace Editor
 				size_t num_equal = 0;
 
 				finder.find(graph, [&](const subgraph_t& fs) {
-					if (already_added.contains(fs)) return false;
+					if (already_added.contains(fs, (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())))) return false;
 
 					double v = get_relaxed_constraint_value(fs);
 
@@ -501,7 +519,7 @@ namespace Editor
 				});
 
 				if (least_constraint_value < constraint_value_bound) {
-					already_added.insert(best_subgraph);
+					already_added.insert(best_subgraph, (options.single_c4_constraints && graph.has_edge(best_subgraph.front(), best_subgraph.back())));
 					num_found += add_constraint(best_subgraph, true);
 					//std::cout << "Found and added " << num_found << " lazy constraints in relaxation" << std::endl;
 				}
@@ -526,7 +544,7 @@ namespace Editor
 						size_t num_equal = 0;
 
                                                 finder.find_near(graph, u, v, [&](const subgraph_t& fs) {
-							if (already_added.contains(fs)) return false;
+							if (already_added.contains(fs, (options.single_c4_constraints && graph.has_edge(fs.front(), fs.back())))) return false;
 
 							double constraint_value = get_relaxed_constraint_value(fs);
 
@@ -550,7 +568,7 @@ namespace Editor
 
 						if (least_constraint_value < constraint_value_bound) {
 							//std::cout << u << ", " << v << ", constraint value: " << least_constraint_value << std::endl;
-							already_added.insert(best_constraint);
+							already_added.insert(best_constraint, (options.single_c4_constraints && graph.has_edge(best_constraint.front(), best_constraint.back())));
 							num_added += add_constraint(best_constraint, true);
 						}
 
