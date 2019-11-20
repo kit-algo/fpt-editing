@@ -34,7 +34,7 @@ namespace Consumer
 	public:
 		Updated(VertexID graph_size) : bound_uses(graph_size), finder(graph_size) {}
 
-		State initialize(size_t k, Graph const &graph, Graph_Edits const &edited)
+		State initialize(size_t, Graph const &graph, Graph_Edits const &edited)
 		{
 			State state;
 
@@ -56,8 +56,7 @@ namespace Consumer
 					});
 				}
 
-				// Assumption: if the bound is too high, initialize will be called again anyway.
-				return state.lb.size() > k;
+				return false;
 			});
 
 			return state;
