@@ -127,6 +127,8 @@ namespace Consumer
 
 				state.remove_last_subgraph = false;
 			}
+
+			state.lb.assert_maximal(graph, edited, finder);
 		}
 
 		void after_undo_edit(State&, Graph const&, Graph_Edits const&, VertexID, VertexID)
@@ -146,8 +148,9 @@ namespace Consumer
 		{
 		}
 
-		size_t result(State& state, const Subgraph_Stats_type&, size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
+		size_t result(State& state, const Subgraph_Stats_type&, size_t, Graph const &graph, Graph_Edits const &edited, Options::Tag::Lower_Bound)
 		{
+			state.lb.assert_maximal(graph, edited, finder);
 			return state.lb.size();
 		}
 	private:

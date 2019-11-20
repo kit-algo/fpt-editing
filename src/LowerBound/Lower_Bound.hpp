@@ -130,6 +130,52 @@ namespace Lower_Bound
 			#endif
 		}
 
+		template <typename finder_t>
+		void assert_maximal(const Graph&
+#ifndef NDEBUG
+				  graph
+#endif
+				  , const Graph_Edits&
+#ifndef NDEBUG
+				  edited
+#endif
+				  ,
+				    finder_t &
+				    #ifndef NDEBUG
+				    finder
+				    #endif
+				  ) const
+		{
+			#ifndef NDEBUG
+			Graph_Edits in_bound(graph.size());
+
+			for (const auto& fs : bound)
+			{
+				Finder::for_all_edges_unordered<Mode, Restriction, Conversion, Graph, Graph_Edits>(graph, edited, fs.begin(), fs.end(), [&in_bound](auto uit, auto vit)
+				{
+					assert(!in_bound.has_edge(*uit, *vit));
+					in_bound.set_edge(*uit, *vit);
+					return false;
+				});
+			}
+
+			finder.find(graph, [&](const subgraph_t& fs) {
+				// Fully edited subgraphs are not marked in any way!
+				bool has_any_non_edited_edge = false;
+				bool is_in_bound = Finder::for_all_edges_unordered<Mode, Restriction, Conversion, Graph, Graph_Edits>(graph, edited, fs.begin(), fs.end(), [&in_bound, &has_any_non_edited_edge](auto uit, auto vit)
+				{
+					has_any_non_edited_edge =  true;
+					return in_bound.has_edge(*uit, *vit);
+				});
+
+				assert(!has_any_non_edited_edge || is_in_bound);
+
+				return false;
+			});
+
+			#endif
+		}
+
 		std::string to_string() const
 		{
 			std::stringstream ss;

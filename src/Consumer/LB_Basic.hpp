@@ -35,6 +35,10 @@ namespace Consumer
 
 			size_t found = 0;
 
+#ifndef NDEBUG
+			Lower_Bound_Storage_type lower_bound;
+#endif
+
 			finder.find(graph, [&](const subgraph_t& path)
 			{
 				bool skip = Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
@@ -45,6 +49,10 @@ namespace Consumer
 				{
 					return false;
 				}
+
+#ifndef NDEBUG
+				lower_bound.add(path);
+#endif
 
 				Finder::for_all_edges_unordered<Mode, Restriction, Conversion>(graph, edited, path.begin(), path.end(), [&](auto uit, auto vit) {
 					used.set_edge(*uit, *vit);
@@ -57,7 +65,13 @@ namespace Consumer
 				return found > k;
 			}, used);
 
-			return found;
+#ifndef NDEBUG
+			if (found <= k) {
+				lower_bound.assert_maximal(graph, edited, finder);
+			}
+#endif
+
+                        return found;
 		}
 	};
 }
