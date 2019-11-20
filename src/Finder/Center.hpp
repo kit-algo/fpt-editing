@@ -256,7 +256,7 @@ namespace Finder
 
 				// TODO: this is only necessary because we list all Cs length times.
 				// Eliminate the extra listings from the regular listing!
-				if constexpr (with_cycles)
+				if constexpr (with_cycles && !std::is_same<Conversion, Options::Conversions::Skip>::value)
 				{
 					if (!shall_return)
 					{
@@ -279,6 +279,8 @@ namespace Finder
 					if (shall_return) return;
 
 					constexpr size_t distance = i.value + 2;
+
+					if constexpr (distance == length - 1 && std::is_same<Conversion, Options::Conversions::Skip>::value) return;
 
 					constexpr size_t lf = 0;
 					constexpr size_t lb = lf + distance;

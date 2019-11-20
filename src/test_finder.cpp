@@ -65,7 +65,7 @@ int main(int argc, char * argv[])
 
 			auto cb = [&](const subgraph_t& sg)
 			{
-				Finder::for_all_edges_unordered<M, R, Options::Conversions::Normal>(graph, edited, sg.begin(), sg.end(), [&](auto u, auto v)
+				Finder::for_all_edges_unordered<M, R, typename decltype(finder)::Conversion>(graph, edited, sg.begin(), sg.end(), [&](auto u, auto v)
 				{
 					subgraphs_per_pair.at(*u, *v).push_back(sg);
 					return false;
