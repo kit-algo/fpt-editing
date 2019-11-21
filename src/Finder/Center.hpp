@@ -418,7 +418,6 @@ namespace Finder
 				return false;
 			}
 
-		std::array<std::vector<VertexID>, 2> candidates;
 
 			/*
 			 * Expand the inner part between path[lf]..path[lb] into all possible full forbidden subgraphs path[0]..path[length-1].
@@ -446,64 +445,6 @@ namespace Finder
 					return callback(path);
 				}
 
-				if constexpr (with_cycles && std::is_same<Conversion, Options::Conversions::Skip>::value) {
-					if (lf == 1 && lb == (length - 2)) {
-						Packed *f = forbidden.data() + depth * graph.get_row_length();
-						std::array<VertexID, 2> base_nodes {path[lf], path[lb]};
-
-						for (size_t ui = 0; ui < 2; ++ui) {
-							candidates[ui].clear();
-
-							const VertexID base_node = base_nodes[ui];
-							const VertexID opposed_node = base_nodes[1 - ui];
-
-							for(size_t i = 0; i < graph.get_row_length(); i++)
-							{
-								// ensure there is no edge vf, opposed_node by excluding neighbors of opposed_node
-								Packed curf = get_neighbors(base_node, i) & ~f[i] & get_non_neighbors(opposed_node, i);
-
-								while(curf)
-								{
-									const VertexID lzcurf = PACKED_CTZ(curf);
-									// Unset bit of vf in curf to advance loop
-									curf &= ~(Packed(1) << lzcurf);
-									const VertexID vf = lzcurf + i * Packed_Bits;
-
-									// Due to the exclusion of f, and f containing all already selected nodes, the two nodes cannot be the same
-									assert(vf != opposed_node);
-									// Further, we have ensured that there is no edge between uf and opposed_node if lf > 1.
-									assert(!graph.has_edge(vf, opposed_node));
-
-									candidates[ui].push_back(vf);
-								}
-							}
-
-							if (candidates[ui].empty()) {
-								return false;
-							}
-						}
-
-						for (VertexID v0 : candidates[0]) {
-							for (VertexID v1 : candidates[1]) {
-								path[0] = v0;
-								path[length - 1] = v1;
-
-								for (VertexID u = 0; u < length - 1; ++u)
-								{
-									assert(graph.has_edge(path[u], path[u+1]));
-									for (VertexID v = u + 2; v < length; ++v)
-									{
-										assert((u == 0 && v == length -1 && with_cycles) || !graph.has_edge(path[u], path[v]));
-									}
-								}
-
-								if (callback(path)) return true;
-							}
-						}
-
-						return false;
-					}
-				}
 
 				size_t next_lf, next_lb, base_index, opposed_index, next_index;
 				if (length - lb - 1 <= lf) {
