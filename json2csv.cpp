@@ -412,7 +412,9 @@ public:
 	const ExperimentKey key = experiment.get_key();
 	auto it = experiments.find(key);
 	if (it != experiments.end()) {
-	  throw std::runtime_error("Error, duplicate experiment");
+	  experiments.erase(it);
+	  std::cout << "Warning: duplicate experiment deleted graph: " << experiment.graph << " algorithm: " << experiment.algorithm << " threads: " << experiment.threads << " k: " << experiment.k << " permutation: " << experiment.permutation << std::endl;
+	  //throw std::runtime_error("Error, duplicate experiment");
 	}
 
 	experiments.emplace(std::move(key), std::move(experiment));
