@@ -130,12 +130,13 @@ struct ExperimentKey {
   std::string algorithm;
   size_t permutation;
   bool mt;
+  bool all_solutions;
   size_t threads;
   size_t l;
   size_t k;
 
   bool operator==(const ExperimentKey&other) const {
-    return (graph == other.graph && algorithm == other.algorithm && permutation == other.permutation && mt == other.mt && threads == other.threads && l == other.l && k == other.k);
+    return (graph == other.graph && algorithm == other.algorithm && permutation == other.permutation && mt == other.mt && all_solutions == other.all_solutions && threads == other.threads && l == other.l && k == other.k);
   }
 
 };
@@ -146,6 +147,7 @@ struct Experiment {
   std::string graph;
   std::string algorithm;
   size_t n, m, k, l, permutation;
+  bool all_solutions;
   bool solved;
   bool mt;
   double time, time_initialization, total_time;
@@ -157,10 +159,10 @@ struct Experiment {
   double speedup, efficiency;
 
   ExperimentKey get_key() const {
-    return ExperimentKey {graph, algorithm, permutation, mt, threads, l, k};
+    return ExperimentKey {graph, algorithm, permutation, mt, all_solutions, threads, l, k};
   }
 
-  Experiment() : n(0), m(0), k(0), l(0), permutation(0), solved(false), mt(false), time(0), time_initialization(0), total_time(0), threads(0), calls(0), extra_lbs(0), fallbacks(0), prunes(0), single(0), stolen(0), skipped(0), solutions(0), scaling_factor_time(std::numeric_limits<double>::quiet_NaN()), scaling_factor_calls(std::numeric_limits<double>::quiet_NaN()), speedup(std::numeric_limits<double>::quiet_NaN()), efficiency(std::numeric_limits<double>::quiet_NaN()) {}
+  Experiment() : n(0), m(0), k(0), l(0), permutation(0), all_solutions(false), solved(false), mt(false), time(0), time_initialization(0), total_time(0), threads(0), calls(0), extra_lbs(0), fallbacks(0), prunes(0), single(0), stolen(0), skipped(0), solutions(0), scaling_factor_time(std::numeric_limits<double>::quiet_NaN()), scaling_factor_calls(std::numeric_limits<double>::quiet_NaN()), speedup(std::numeric_limits<double>::quiet_NaN()), efficiency(std::numeric_limits<double>::quiet_NaN()) {}
 };
 
 
@@ -173,9 +175,10 @@ namespace std {
       result ^= hash<string>()(e.algorithm) << 1;
       result ^= e.permutation << 2;
       result ^= static_cast<size_t>(e.mt) << 3;
-      result ^= e.threads << 4;
-      result ^= e.l << 5;
-      result ^= e.k << 6;
+      result ^= static_cast<size_t>(e.all_solutions) << 4;
+      result ^= e.threads << 5;
+      result ^= e.l << 6;
+      result ^= e.k << 7;
       return result;
     }
   };
@@ -387,6 +390,8 @@ public:
 	throw std::runtime_error("unexpected error " + val);
       }
       found_error = true;
+    } else if (last_key == "all_solutions") {
+      experiment.all_solutions = (val == "true");
     } else {
       throw std::runtime_error("unexpcted string value " + val + " for key " + last_key);
     }
@@ -481,9 +486,9 @@ int main(int argc, char *argv[]) {
 
   std::ofstream of(output_filename);
 
-  of << "Graph,Algorithm,n,m,k,l,Permutation,Solved,MT,Time [s],Total Time [s],Time Initialization [s],Threads,Calls,Extra_lbs,Fallbacks,Prunes,Single,Skipped,Stolen,Solutions,Scaling Factor Time,Scaling Factor Calls,Speedup,Efficiency" << std::endl;
+  of << "Graph,Algorithm,n,m,k,l,Permutation,Solved,MT,All Solutions,Time [s],Total Time [s],Time Initialization [s],Threads,Calls,Extra_lbs,Fallbacks,Prunes,Single,Skipped,Stolen,Solutions,Scaling Factor Time,Scaling Factor Calls,Speedup,Efficiency" << std::endl;
   for (auto &it : experiments) {
-    of << it.second.graph << "," << it.second.algorithm << "," << it.second.n << "," << it.second.m << "," << it.second.k << "," << it.second.l << "," << it.second.permutation << "," << (it.second.solved ? "True" : "False") << "," << (it.second.mt ? "True" : "False") << "," << it.second.time << "," << it.second.total_time << "," << it.second.time_initialization << "," << it.second.threads << "," << it.second.calls << "," << it.second.extra_lbs << "," << it.second.fallbacks << "," << it.second.prunes << "," << it.second.single << "," << it.second.skipped << "," << it.second.stolen << "," << it.second.solutions << "," << it.second.scaling_factor_time << "," << it.second.scaling_factor_calls << "," << it.second.speedup << "," << it.second.efficiency << std::endl;
+    of << it.second.graph << "," << it.second.algorithm << "," << it.second.n << "," << it.second.m << "," << it.second.k << "," << it.second.l << "," << it.second.permutation << "," << (it.second.solved ? "True" : "False") << "," << (it.second.mt ? "True" : "False") << "," << (it.second.all_solutions ? "True" : "False") << "," << it.second.time << "," << it.second.total_time << "," << it.second.time_initialization << "," << it.second.threads << "," << it.second.calls << "," << it.second.extra_lbs << "," << it.second.fallbacks << "," << it.second.prunes << "," << it.second.single << "," << it.second.skipped << "," << it.second.stolen << "," << it.second.solutions << "," << it.second.scaling_factor_time << "," << it.second.scaling_factor_calls << "," << it.second.speedup << "," << it.second.efficiency << std::endl;
   }
 
   return 0;
