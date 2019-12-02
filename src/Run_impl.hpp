@@ -151,7 +151,9 @@ public:
 				kill(pid, SIGKILL);
 				if(options.stats_json)
 				{
-					std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"results\":{\"error\":\"Timeout\"}},\n";
+					std::cout << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"algo\":\"" << name() << "\",\"threads\":" << options.threads
+						  << ",\"all_solutions\":\"" << (options.all_solutions ? "true" : "false") << "\""
+						  << ",\"results\":{\"error\":\"Timeout\"}},\n";
 				}
 				else
 				{
@@ -274,6 +276,7 @@ public:
 					json << "{\"type\":\"exact\",\"graph\":\"" << filename << "\",\"permutation\":" << options.permutation << ",";
 					json << "\"n\":" << static_cast<size_t>(input_graph.size()) << ",\"m\":" << input_graph.count_edges() << ",";
 					json << "\"algo\":\"" << name() << "\",\"threads\":" << +options.threads << ",\"k\":" << +k << ",";
+					json << "\"all_solutions\":\"" << (options.all_solutions ? "true" : "false") << "\",";
 					json << "\"results\":{\"solved\":\"" << (solved? "true" : "false") << "\",\"time\":" << time_passed_print;
 					json << ",\"time_initialization\":" << time_initialization;
 					json << ",\"total_time\":" << total_time;
