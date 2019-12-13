@@ -414,6 +414,8 @@ namespace Editor
 		private:
 			bool edit_rec(size_t k, State_Tuple_type initial_state, bool initial_bound = true)
 			{
+				if (editor.done) return true;
+
 				generate_work_packages();
 #ifdef STATS
 				const size_t stat_level = stats_simple ? 0 : k;
