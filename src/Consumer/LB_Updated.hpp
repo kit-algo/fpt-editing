@@ -57,7 +57,7 @@ namespace Consumer
 				}
 
 				return false;
-			});
+			}, bound_uses);
 
 			return state;
 		}
