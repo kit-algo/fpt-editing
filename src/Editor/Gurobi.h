@@ -385,7 +385,7 @@ namespace Editor
 				}
 
 				if (lazy) {
-					std::cout << "(" << fs[0] << ", " << fs[1] << ", " << fs[2] << ", " << fs[3] << ")" << std::endl;
+					//std::cout << "(" << fs[0] << ", " << fs[1] << ", " << fs[2] << ", " << fs[3] << ")" << std::endl;
 					addLazy(expr >= constraint_value);
 				} else {
 					GRBConstr constr = model.addConstr(expr >= constraint_value);
