@@ -42,7 +42,6 @@ namespace Consumer
 		std::unique_ptr<GRBEnv> env;
 		std::unique_ptr<GRBModel> model;
 		Value_Matrix<GRBVar> variables;
-		GRBConstr objective_constr;
 		size_t initial_k;
 		size_t objective_offset;
 		bool shall_solve;
@@ -53,19 +52,20 @@ namespace Consumer
 			if (model->get(GRB_IntAttr_Status) == GRB_INFEASIBLE) {
 				return std::numeric_limits<size_t>::max();
 			}
-			assert(model->get(GRB_IntAttr_Status) == GRB_OPTIMAL);
 
-			if (initial_k > 0) {
-				return 0;
-			} else {
-				double found_objective = model->get(GRB_DoubleAttr_ObjVal);
-				size_t result = std::ceil(found_objective);
-				if (result - found_objective > 0.99) {
-					std::cout << "found_objective: " << found_objective << " rounded result: " << result << std::endl;
-					result = std::floor(found_objective);
-				}
-				return result;
+			if (model->get(GRB_IntAttr_Status) != GRB_OPTIMAL) {
+				std::cerr << model->get(GRB_IntAttr_Status) << std::endl;
+				throw std::runtime_error("model not optimal after optimization");
 			}
+
+			double found_objective = model->get(GRB_DoubleAttr_ObjVal);
+			size_t result = std::ceil(found_objective);
+			if (result - found_objective > 0.99) {
+				//std::cerr << "found_objective: " << found_objective << " rounded result: " << result << std::endl;
+				result = std::floor(found_objective);
+			}
+
+			return result;
 		}
 
 		double get_constraint_value(const subgraph_t& fs, const Graph& graph, const Graph_Edits& edited) {
@@ -110,7 +110,7 @@ namespace Consumer
 		}
 
 		void relax_pair(VertexID u, VertexID v) {
-			// No need to set shall_solve here as either the model is infeasible, then shall_solve is set anyway, or we cannot prune
+			// No need to set shall_solve here as either we pruned, then shall_solve is set anyway, or we cannot prune
 			GRBVar var(variables.at(u, v));
 			var.set(GRB_DoubleAttr_LB, 0.0);
 			var.set(GRB_DoubleAttr_UB, 1.0);
@@ -125,7 +125,7 @@ namespace Consumer
 				return false;
 			});
 
-			std::cout << "added " << num_found << " constraints" << std::endl;
+			std::cerr << "added " << num_found << " constraints" << std::endl;
 			return num_found;
 		}
 	public:
@@ -185,36 +185,21 @@ namespace Consumer
 							graph.toggle_edge(u, v);
 						}
 					});
-					std::cout << "Added " << num_constraints_added << "  extended constraints" << std::endl;
+					std::cerr << "Added " << num_constraints_added << "  extended constraints" << std::endl;
 				} while (num_constraints_added > 0);
 */
 			} catch (GRBException &e) {
-				std::cout << e.getMessage() << std::endl;
+				std::cerr << e.getMessage() << std::endl;
 				throw e;
 			}
 
 			return State{};
 		}
 
-		void set_initial_k(size_t k, Graph const &graph, Graph_Edits const&)
+		void set_initial_k(size_t k, Graph const &, Graph_Edits const&)
 		{
-			if (initial_k > 0) {
-				objective_constr.set(GRB_DoubleAttr_RHS, static_cast<double>(k) - static_cast<double>(objective_offset));
-			} else {
-				GRBLinExpr expr = 0;
-				variables.forAllNodePairs([&](VertexID u, VertexID v, GRBVar& var) {
-					if (graph.has_edge(u, v)) {
-						expr -= var;
-					} else {
-						expr += var;
-					}
-				});
-
-				objective_constr = model->addConstr(expr, GRB_LESS_EQUAL, static_cast<double>(k) - static_cast<double>(objective_offset));
-			}
 			initial_k = k;
-
-			shall_solve = (solve() > 0);
+			shall_solve = true;
 		}
 
 		void before_mark_and_edit(State& , Graph const &, Graph_Edits const &, VertexID, VertexID)
@@ -223,38 +208,42 @@ namespace Consumer
 
 		void after_mark_and_edit(State&, Graph &graph, Graph_Edits const &edited, VertexID u, VertexID v)
 		{
-			fix_pair(u, v, graph.has_edge(u, v));
+			try {
+				fix_pair(u, v, graph.has_edge(u, v));
 
-			if (false) {
-				GRBColumn col = model->getCol(variables.at(u, v));
-				for (size_t i = 0; i < col.size(); ++i) {
-					GRBConstr constr = col.getConstr(i);
-					if (!constr.sameAs(objective_constr)) {
+				if (false) {
+					GRBColumn col = model->getCol(variables.at(u, v));
+					for (size_t i = 0; i < col.size(); ++i) {
+						GRBConstr constr = col.getConstr(i);
 						model->remove(constr);
 					}
 				}
-			}
 
-			constraint_stack.emplace_back();
+				constraint_stack.emplace_back();
 
-			if (shall_solve) {
-				if (solve() > 0) return;
-				shall_solve = false;
-			}
-
-			finder.find_near(graph, u, v, [&](const subgraph_t& path)
-			{
-				constraint_stack.back().push_back(add_constraint(path));
-				if (!shall_solve && get_constraint_value(path, graph, edited) < 0.999) {
-					shall_solve = true;
+				if (shall_solve) {
+					assert(initial_k > 0);
+					if (solve() > initial_k) return;
+					shall_solve = false;
 				}
 
-				return false;
-			});
+				finder.find_near(graph, u, v, [&](const subgraph_t& path)
+				{
+					constraint_stack.back().push_back(add_constraint(path));
+					if (!shall_solve && get_constraint_value(path, graph, edited) < 0.999) {
+						shall_solve = true;
+					}
+
+					return false;
+				});
+			} catch (GRBException &e) {
+				std::cerr << e.getMessage() << std::endl;
+				throw e;
+			}
 
 /*
 			if (shall_solve) {
-				if (solve() > 0) return;
+				if (solve() > initial_k) return;
 				shall_solve = false;
 			}
 
@@ -282,13 +271,18 @@ namespace Consumer
 
 		void after_undo_edit(State&, Graph const&graph, Graph_Edits const&, VertexID u, VertexID v)
 		{
-			fix_pair(u, v, graph.has_edge(u, v));
+			try {
+				fix_pair(u, v, graph.has_edge(u, v));
 
-			for (GRBConstr cstr : constraint_stack.back()) {
-				model->remove(cstr);
+				for (GRBConstr cstr : constraint_stack.back()) {
+					model->remove(cstr);
+				}
+
+				constraint_stack.pop_back();
+			} catch (GRBException &e) {
+				std::cerr << e.getMessage() << std::endl;
+				throw e;
 			}
-
-			constraint_stack.pop_back();
 		}
 
 		void before_mark(State&, Graph const &, Graph_Edits const &, VertexID, VertexID)
@@ -301,18 +295,30 @@ namespace Consumer
 
 		void after_unmark(Graph const&, Graph_Edits const&, VertexID u, VertexID v)
 		{
-			relax_pair(u, v);
+			try {
+				relax_pair(u, v);
+			} catch (GRBException &e) {
+				std::cerr << e.getMessage() << std::endl;
+				throw e;
+			}
 		}
 
 		size_t result(State&, const Subgraph_Stats_type&, size_t, Graph const &, Graph_Edits const &, Options::Tag::Lower_Bound)
 		{
-			size_t result = 0;
-			if (shall_solve) {
-				result = solve();
-				shall_solve = (result > 0);
+			try {
+				if (shall_solve) {
+					size_t result = solve();
+					if (result > initial_k) {
+						return result;
+					}
+					shall_solve = false;
+				}
+			} catch (GRBException &e) {
+				std::cerr << e.getMessage() << std::endl;
+				throw e;
 			}
 
-			return result;
+			return 0;
 		}
 	private:
 		struct forbidden_count
