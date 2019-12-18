@@ -110,6 +110,7 @@ namespace Consumer
 		}
 
 		void relax_pair(VertexID u, VertexID v) {
+			// No need to set shall_solve here as either the model is infeasible, then shall_solve is set anyway, or we cannot prune
 			GRBVar var(variables.at(u, v));
 			var.set(GRB_DoubleAttr_LB, 0.0);
 			var.set(GRB_DoubleAttr_UB, 1.0);
@@ -130,7 +131,7 @@ namespace Consumer
 	public:
 		Gurobi(VertexID graph_size) : finder(graph_size), env(std::make_unique<GRBEnv>()), variables(graph_size), initial_k(0), shall_solve(true) {}
 
-		State initialize(size_t, Graph &graph, Graph_Edits const &edited)
+		State initialize(size_t, Graph &graph, Graph_Edits const &/*edited*/)
 		{
 			try {
 				model = std::make_unique<GRBModel>(*env);
@@ -155,6 +156,9 @@ namespace Consumer
 
 				add_forbidden_subgraphs(graph, finder);
 
+				shall_solve = true;
+
+/*
 				size_t num_constraints_added = 0;
 
 				do {
@@ -183,6 +187,7 @@ namespace Consumer
 					});
 					std::cout << "Added " << num_constraints_added << "  extended constraints" << std::endl;
 				} while (num_constraints_added > 0);
+*/
 			} catch (GRBException &e) {
 				std::cout << e.getMessage() << std::endl;
 				throw e;
@@ -247,6 +252,7 @@ namespace Consumer
 				return false;
 			});
 
+/*
 			if (shall_solve) {
 				if (solve() > 0) return;
 				shall_solve = false;
@@ -271,6 +277,7 @@ namespace Consumer
 					graph.toggle_edge(u, v);
 				}
 			});
+*/
 		}
 
 		void after_undo_edit(State&, Graph const&graph, Graph_Edits const&, VertexID u, VertexID v)
