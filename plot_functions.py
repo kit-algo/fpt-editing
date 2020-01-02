@@ -9,16 +9,16 @@ sns.set(style="whitegrid")
 #algo_order = ["No Optimization", "No Undo", "No Redundancy", "Skip Conversion", "GreedyLB-First", "GreedyLB-Most", "GreedyLB-Most Pruned", "UpdatedLB-First", "UpdatedLB-Most", "UpdatedLB-Most Pruned", "LocalSearchLB-First", "LocalSearchLB-Most", "LocalSearchLB-Most Pruned"]
 #algo_order = ["GreedyLB-First", "GreedyLB-Most", "GreedyLB-Most Pruned", "UpdatedLB-First", "UpdatedLB-Most", "UpdatedLB-Most Pruned", "LocalSearchLB-First", "LocalSearchLB-Most", "LocalSearchLB-Most Pruned"]
 algo_order = [
-    "GreedyLB-First-All", "GreedyLB-Most Pruned-All",
-    "UpdatedLB-Most Pruned-All", "LocalSearchLB-First-All",
-    "LocalSearchLB-Most-All", "LocalSearchLB-Most Pruned",
-    "LocalSearchLB-Most Pruned-All", "LocalSearchLB-Most Pruned-MT",
-    "LocalSearchLB-Most Pruned-All-MT",
-    "GurobiLB-Most Pruned-All",
-    "Gurobi", "Gurobi-Single",
-    "Gurobi-Single-Relaxation", "Gurobi-Single-Relaxation-C4",
-    "Gurobi-Single-Relaxation-C4-Heuristic-Init",
-    "Gurobi-Single-Relaxation-C4-Heuristic-Init-MT"
+    "FPT-G-F-All", "FPT-G-MP-All",
+    "FPT-U-MP-All", "FPT-LS-F-All",
+    "FPT-LS-M-All", "FPT-LS-MP",
+    "FPT-LS-MP-All", "FPT-LS-MP-MT",
+    "FPT-LS-MP-All-MT",
+    "FPT-LP-MP-All",
+    "ILP", "ILP-S",
+    "ILP-S-R", "ILP-S-R-C4",
+    "ILP-S-R-C4-H",
+    "ILP-S-R-C4-H-MT"
 ]
 
 algo_colors = [cm.nipy_spectral(i/len(algo_order)) for i, v in enumerate(algo_order)]

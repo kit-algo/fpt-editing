@@ -47,10 +47,10 @@ if __name__ == "__main__":
     fig.savefig('{}/bio_times_st_min_k_{}.pdf'.format(args.output_dir, args.min_k))
 
     fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(10, 4))
-    plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "LocalSearchLB-Most"], ax1)
-    ax1.set_title('LocalSearchLB-Most')
-    plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "LocalSearchLB-Most Pruned"], ax2)
-    ax2.set_title('LocalSearchLB-Most Pruned')
+    plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "FPT-LS-M"], ax1)
+    ax1.set_title('FPT-LS-M-All')
+    plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "FPT-LS-MP"], ax2)
+    ax2.set_title('FPT-LS-MP-All')
     ax1.legend(title='Threads')
     ax1.set_ylabel('Speedup')
     fig.tight_layout()
@@ -71,11 +71,11 @@ if __name__ == "__main__":
         (gurobi_fpt_df['Total Time [s]'] <= args.time_limit)
     ]
 
-    additional_comparison_df = filtered_df[(filtered_df.Threads == 16) & (filtered_df.Algorithm == "LocalSearchLB-Most Pruned") & (filtered_df.Permutation < 4)]
+    additional_comparison_df = filtered_df[(filtered_df.Threads == 16) & (filtered_df.Algorithm == "FPT-LS-MP") & (filtered_df.Permutation < 4)]
 
     final_comparison_df = pd.concat([
         filtered_gurobi_fpt_df,
-        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "Gurobi-Single-Relaxation-C4-Heuristic-Init")],
+        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "ILP-S-R-C4-H")],
         additional_comparison_df
     ])
 
