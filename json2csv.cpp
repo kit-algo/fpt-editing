@@ -449,22 +449,24 @@ public:
 };
 
 int main(int argc, char *argv[]) {
-  std::string input_filename, output_filename;
+  std::string output_filename;
+  std::vector<std::string> input_filenames;
 
   tlx::CmdlineParser cp;
   cp.set_description("Convert the given json file into a CSV file");
-  cp.add_param_string("json_file", input_filename, "The input json filename");
   cp.add_param_string("csv_file", output_filename, "The output csv filename");
+  cp.add_param_stringlist("json_file", input_filenames, "The input json filenames");
   if (!cp.process(argc, argv)) {
     return 1;
   }
 
-  std::ifstream input(input_filename);
-
   std::unordered_map<ExperimentKey, Experiment> experiments;
   JSONCallback my_callback(experiments);
 
-  nlohmann::json::sax_parse(input, &my_callback);
+  for (const std::string &input_filename : input_filenames) {
+    std::ifstream input(input_filename);
+    nlohmann::json::sax_parse(input, &my_callback);
+  }
 
   for (auto &it : experiments) {
     if (it.second.k > 0) {
