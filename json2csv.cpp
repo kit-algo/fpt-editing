@@ -20,6 +20,7 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 		   {"ST-Edit-Redundant-Skip-Center_4-Most-Updated-Matrix", {"UpdatedLB-Most", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"GreedyLB-Most Pruned", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Updated-Matrix", {"UpdatedLB-Most Pruned", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Gurobi-Matrix", {"GurobiLB-Most Pruned", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"GreedyLB-Single", false, 4}},
 		   {"MT-Edit-None-Normal-Center_4-First-No-Matrix", {"No Optimization", true, 4}},
 		   {"MT-Edit-Undo-Normal-Center_4-First-No-Matrix", {"No Undo", true, 4}},
@@ -54,6 +55,7 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 
 		   {"Center_4-ST-basic-single-constraints-in-relaxation-single-c4", {"Gurobi-Single-Relaxation-C4", false, 4}},
 		   {"Center_4-ST-basic-single-constraints-in-relaxation-heuristic-init-single-c4", {"Gurobi-Single-Relaxation-C4-Heuristic-Init", false, 4}},
+		   {"Center_4-MT-basic-single-constraints-in-relaxation-heuristic-init-single-c4", {"Gurobi-Single-Relaxation-C4-Heuristic-Init", true, 4}},
 		   {"Center_4-ST-basic-sparse-constraints-in-relaxation-single-c4", {"Gurobi-Sparse-Relaxation-C4", false, 4}},
 		   {"Center_4-ST-basic-single-single-c4", {"Gurobi-Single-C4", false, 4}},
 		   {"Center_4-ST-basic-sparse-single-c4", {"Gurobi-Sparse-C4", false, 4}},
@@ -81,6 +83,7 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 
 		   {"Center_4-ST-basic-single-constraints-in-relaxation-single-c4-heuristic", {"Heuristic-Gurobi-Single-Relaxation-C4", false, 4}},
 		   {"Center_4-ST-basic-single-constraints-in-relaxation-heuristic-init-single-c4-heuristic", {"Heuristic-Single-Relaxation-C4-Heuristic-Init", false, 4}},
+		   {"Center_4-MT-basic-single-constraints-in-relaxation-heuristic-init-single-c4-heuristic", {"Heuristic-Single-Relaxation-C4-Heuristic-Init", true, 4}},
 		   {"Center_4-ST-basic-sparse-constraints-in-relaxation-single-c4-heuristic", {"Heuristic-Gurobi-Sparse-Relaxation-C4", false, 4}},
 		   {"Center_4-ST-basic-single-single-c4-heuristic", {"Heuristic-Gurobi-Single-C4", false, 4}},
 		   {"Center_4-ST-basic-sparse-single-c4-heuristic", {"Heuristic-Gurobi-Sparse-C4", false, 4}},
