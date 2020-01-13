@@ -18,8 +18,7 @@ algo_order = [
     "FPT-LP-MP-All",
     "ILP", "ILP-S",
     "ILP-S-R", "ILP-S-R-C4",
-    "ILP-S-R-C4-H",
-    "ILP-S-R-C4-H-MT"
+    "ILP-S-R-C4-MT"
 ]
 
 algo_colors = [cm.nipy_spectral(i/len(algo_order)) for i, v in enumerate(algo_order)]

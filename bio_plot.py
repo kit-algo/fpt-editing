@@ -46,18 +46,6 @@ if __name__ == "__main__":
     fig.tight_layout()
     fig.savefig('{}/bio_times_st_min_k_{}.pdf'.format(args.output_dir, args.min_k))
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(10, 4))
-    plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "FPT-LS-M"], ax1)
-    ax1.set_title('FPT-LS-M-All')
-    plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "FPT-LS-MP"], ax2)
-    ax2.set_title('FPT-LS-MP-All')
-    ax1.legend(title='Threads')
-    ax1.set_ylabel('Speedup')
-    fig.tight_layout()
-    fig.savefig('{}/bio_speedup_min_k_{}.png'.format(args.output_dir,
-                                                     args.min_k),
-                                                     dpi=300)
-
     fig = plot_solutions(df)
     fig.tight_layout()
     fig.savefig('{}/bio_solutions.pdf'.format(args.output_dir))
@@ -75,22 +63,33 @@ if __name__ == "__main__":
 
     final_comparison_df = pd.concat([
         filtered_gurobi_fpt_df,
-        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "ILP-S-R-C4-H")],
+        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "ILP-S-R-C4")],
         additional_comparison_df
     ])
 
     fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(10, 4))
-    solved_instances_over_measure_plot(gurobi_df[gurobi_df.MT == False], 'Total Time [s]', ax1, args.time_limit)
-    solved_instances_over_measure_plot(final_comparison_df, 'Total Time [s]', ax2, args.time_limit)
-    ax1.legend()
+    ax.legend()
+    solved_instances_over_measure_plot(final_comparison_df, 'Total Time [s]', ax1, args.time_limit)
+    solved_instances_over_measure_plot(final_comparison_df, 'Calls', ax2, args.time_limit)
+    ax1.set_ylabel('Solved (Graphs $\\times$ Node Id Permutations)')
     ax2.legend()
     fig.tight_layout()
-    fig.savefig('{}/bio_times_gurobi_fpt_min_k_{}.pdf'.format(args.output_dir, args.min_k))
+    fig.savefig('{}/bio_times_calls_gurobi_fpt_min_k_{}.pdf'.format(args.output_dir, args.min_k))
 
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
-    solved_instances_over_measure_plot(final_comparison_df, 'Calls', ax, args.time_limit)
+    fig, ax = plt.subplots(1, 1, figsize=(5, 4))
+    #plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "FPT-LS-M"], ax1)
+    #ax1.set_title('FPT-LS-M-All')
+    plot_speedup_per_instance_for_one_algorithm(filtered_df[filtered_df.Algorithm == "FPT-LS-MP"], ax)
+    ax.set_title('FPT-LS-MP-All')
+    ax.legend(title='Threads')
+    ax.set_ylabel('Speedup')
+    fig.tight_layout()
+    fig.savefig('{}/bio_speedup_min_k_{}.png'.format(args.output_dir, args.min_k), dpi=300)
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 4))
+    solved_instances_over_measure_plot(gurobi_df[gurobi_df.MT == False], 'Total Time [s]', ax, args.time_limit)
     ax.set_ylabel('Solved (Graphs $\\times$ Node Id Permutations)')
     ax.legend()
     fig.tight_layout()
-    fig.savefig('{}/bio_calls_gurobi_fpt_min_k{}.pdf'.format(args.output_dir, args.min_k))
+    fig.savefig('{}/bio_gurobi_times_min_k_{}.pdf'.format(args.output_dir, args.min_k), dpi=300)
