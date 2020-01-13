@@ -3,6 +3,7 @@
 import argparse
 import pandas as pd
 from plot_functions import plot_max_k_for_all_algorithms
+import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create plots out of the result data.")
@@ -44,6 +45,6 @@ if __name__ == "__main__":
     print("Of them, QTM solved {} exactly, {} with offset 1, {} with offset 2, {} with offset 3 and {} with offset larger than three".format(sum(small_qtm_offset == 0), sum(small_qtm_offset == 1), sum(small_qtm_offset == 2), sum(small_qtm_offset == 3), sum(small_qtm_offset > 3)))
     print(small_qtm_offset.unique())
 
-    fig = plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_large)
-    fig.tight_layout()
-    fig.savefig('{}/bio_max_k.pdf'.format(args.output_dir))
+    for name, fig in plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_large).items():
+        fig.savefig('{}/bio_heur_{}.pdf'.format(args.output_dir, name))
+        plt.close(fig)

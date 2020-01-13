@@ -4,8 +4,23 @@ from matplotlib import cm
 import seaborn as sns
 import pandas as pd
 from collections import defaultdict, OrderedDict
+from matplotlib.colors import LinearSegmentedColormap
 
 sns.set(style="whitegrid")
+
+seaborn_red = sns.color_palette('dark')[3]
+
+cdict = {'red' : [(0.0, seaborn_red[0], seaborn_red[0]),
+                  (1.0, seaborn_red[0], seaborn_red[0])],
+         'green' : [(0.0, seaborn_red[1], seaborn_red[1]),
+                    (1.0, seaborn_red[1], seaborn_red[1])],
+         'blue' : [(0.0, seaborn_red[2], seaborn_red[2]),
+                   (1.0, seaborn_red[2], seaborn_red[2])],
+         'alpha' : [(0.0, 0.0, 0.0),
+                    (1.0, 1.0, 1.0)]}
+
+alpha_red = LinearSegmentedColormap('AlphaRed', cdict)
+plt.register_cmap(cmap=alpha_red)
 
 #algo_order = ["No Optimization", "No Undo", "No Redundancy", "Skip Conversion", "GreedyLB-First", "GreedyLB-Most", "GreedyLB-Most Pruned", "UpdatedLB-First", "UpdatedLB-Most", "UpdatedLB-Most Pruned", "LocalSearchLB-First", "LocalSearchLB-Most", "LocalSearchLB-Most Pruned"]
 #algo_order = ["GreedyLB-First", "GreedyLB-Most", "GreedyLB-Most Pruned", "UpdatedLB-First", "UpdatedLB-Most", "UpdatedLB-Most Pruned", "LocalSearchLB-First", "LocalSearchLB-Most", "LocalSearchLB-Most Pruned"]
@@ -144,9 +159,66 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     qtm_ratio = (df['qtm_k'] / df['best_bound']).sort_values()
     print("Ratio QTM vs. best bound: max: {}, median: {}, last five: {}, max of all but two: {}".format(qtm_ratio.max(), qtm_ratio.median(), qtm_ratio[-5:], qtm_ratio[:-2].max()))
 
+    df['qtm_ratio'] = df['qtm_k'] / df['best_bound']
 
     df_solved = df[df.any_solved]
     df_unsolved = df[~df.any_solved]
+
+    #print(sorted(df_solved.qtm_ratio.unique()))
+
+    result_figs = {}
+
+    g = sns.JointGrid(x='best_bound', y='qtm_ratio', data=df_solved, height=6)
+    g.plot_joint(plt.hexbin, xscale='log', yscale='linear', gridsize=(20, 60), cmap='AlphaRed')
+    g.plot_joint(plt.scatter, s=15, linewidth=1, marker="x")
+    #g.ax_joint.collections[0].set_alpha(0.5)
+    g.ax_marg_x.hist(df_solved.best_bound, bins=np.logspace(np.log10(df_solved.best_bound.min()), np.log10(df_solved.best_bound.max()), 50))
+    #g.ax_marg_y.hist(df_solved.qtm_ratio, bins=np.logspace(np.log10(df_solved.qtm_ratio.min()), np.log10(df_solved.qtm_ratio.max()), 50), orientation='horizontal')
+    g.ax_marg_y.hist(df_solved.qtm_ratio, bins=np.arange(df_solved.qtm_ratio.min(), df_solved.qtm_ratio.max(), 0.01), orientation='horizontal')
+    #g.plot_marginals(sns.distplot, kde=False, bins=np.logspace(np.log10(0.1), np.log10(1.0), 50)
+    g.ax_joint.set_xscale('log')
+    g.ax_joint.set_xlim(9, df_solved.best_bound.max() * 1.1)
+    g.ax_joint.set_yscale('symlog', linthreshy=1.4, linscaley=10)
+    #g.ax_joint.set_yscale('log', basey=2)
+    g.ax_joint.set_yticks([1, 1.1, 1.2, 1.3, 1.4, 2.0, 3.0])
+    g.ax_joint.set_yticklabels(['1', '1.1', '1.2', '1.3', '1.4', '2', '3'])
+    g.set_axis_labels('Actual k', 'QTM k / Actual k')
+    g.fig.subplots_adjust(top=0.95)
+    g.fig.suptitle('Solved Graphs')
+    result_figs['qtm_solved'] = g.fig
+
+    g = sns.JointGrid(x='best_bound', y='qtm_ratio', data=df_unsolved, height=6)
+    g.plot_joint(plt.hexbin, xscale='log', yscale='linear', gridsize=20, cmap='AlphaRed')
+    g.plot_joint(plt.scatter, s=15, linewidth=1, marker="x")
+    #g.ax_joint.collections[0].set_alpha(0.5)
+    g.ax_marg_x.hist(df_unsolved.best_bound, bins=np.logspace(np.log10(df_unsolved.best_bound.min()), np.log10(df_unsolved.best_bound.max()), 50))
+    #g.ax_marg_y.hist(df_unsolved.qtm_ratio, bins=np.logspace(np.log10(df_unsolved.qtm_ratio.min()), np.log10(df_unsolved.qtm_ratio.max()), 50), orientation='horizontal')
+    g.ax_marg_y.hist(df_unsolved.qtm_ratio, bins=np.arange(df_unsolved.qtm_ratio.min(), df_unsolved.qtm_ratio.max(), 0.02), orientation='horizontal')
+    #g.plot_marginals(sns.distplot, kde=False, bins=np.logspace(np.log10(0.1), np.log10(1.0), 50)
+    g.ax_joint.set_xscale('log')
+    g.ax_joint.set_xlim(df_unsolved.best_bound.min() * 0.9, df_unsolved.best_bound.max() * 1.1)
+    #g.ax_joint.set_yscale('symlog', linthreshy=1.6, linscaley=10)
+    #g.ax_joint.set_yscale('log', basey=2)
+    #g.ax_joint.set_yticks([1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6,  2.0])
+    #g.ax_joint.set_yticklabels(['1', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '2'])
+    g.set_axis_labels('Best Lower Bound', 'QTM k / Best Lower Bound')
+    g.fig.subplots_adjust(top=0.95)
+    g.fig.suptitle('Unsolved Graphs')
+    result_figs['qtm_unsolved'] = g.fig
+
+    return result_figs
+
+
+    #fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+    ax.set_xscale('log')
+    ax.set_yscale('symlog', linthreshy=1.4, linscaley=10)
+    ax.set_yticks([1, 1.1, 1.2, 1.3, 1.4, 2.0, 3.0, 4.0])
+
+    sns.kdeplot(df_solved.best_bound, df_solved.qtm_ratio, shade=True, ax=ax)
+    ax.scatter(df_solved.best_bound, df_solved.qtm_ratio)
+    plt.show()
+    plt.close(fig)
+
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True, gridspec_kw={'width_ratios':[3, 1]})
 
