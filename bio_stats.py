@@ -96,7 +96,7 @@ if __name__ == "__main__":
     print_solved_graphs(filtered_df, larger_k_names)
 
     gurobi_df = pd.read_csv(args.gurobi_csv)
-    filtered_gurobi_df = gurobi_df[gurobi_df.Graph.isin(larger_k_names) & ~gurobi_df.Algorithm.str.contains('Heuristic')]
+    filtered_gurobi_df = gurobi_df[gurobi_df.Graph.isin(larger_k_names) & ~gurobi_df.Algorithm.str.contains('Heuristic') & (gurobi_df.Algorithm != 'ILP-S-R-C4-H')]
 
     print("For Gurobi")
     print_solved_graphs(filtered_gurobi_df, larger_k_names)
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     final_comparison_df = pd.concat([
         filtered_gurobi_fpt_df,
-        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "ILP-S-R-C4-H")],
+        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "ILP-S-R-C4")],
         additional_comparison_df
     ])
 
@@ -139,10 +139,10 @@ if __name__ == "__main__":
     assert(example_fpt_df.Solved.any())
     assert(len(example_fpt_df.k.unique()) == len(example_fpt_df))
 
-    example_gurobi_df = filtered_gurobi_df[(filtered_gurobi_df.Graph == example_graph) & filtered_gurobi_df.MT & (filtered_gurobi_df.Permutation == 0)]
+    example_gurobi_df = filtered_gurobi_df[(filtered_gurobi_df.Graph == example_graph) & filtered_gurobi_df.MT & (filtered_gurobi_df.Permutation == 0) & (filtered_gurobi_df.Algorithm == 'ILP-S-R-C4')]
     assert(len(example_gurobi_df) == 1)
 
     example_k = example_fpt_df[example_fpt_df.Solved].k.iloc[0]
     last_calls = example_fpt_df[example_fpt_df.Solved].Calls.iloc[0]
     second_last_calls = example_fpt_df[example_fpt_df.k == (example_k - 1)].Calls.iloc[0]
-    print("Graph {}, k {}, {} needs {} calls total (last two k: {}, {}), {} needs {} calls".format(example_graph, example_k, example_fpt_df.Algorithm.iloc[0], example_fpt_df.Calls.sum(), second_last_calls, last_calls, example_fpt_df.Calls.max(), example_gurobi_df.Algorithm.iloc[0], example_gurobi_df.Calls.sum()))
+    print("Graph {}, k {}, {} needs {} calls total (last two k: {}, {}, max: {}), {} needs {} calls".format(example_graph, example_k, example_fpt_df.Algorithm.iloc[0], example_fpt_df.Calls.sum(), second_last_calls, last_calls, example_fpt_df.Calls.max(), example_gurobi_df.Algorithm.iloc[0], example_gurobi_df.Calls.sum()))
