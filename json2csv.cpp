@@ -54,6 +54,7 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
                    {"Center_4-ST-iteratively-extended-constraints-lazy-3", {"Iteratively-Extended-Lazy", false, 4}},
 
 		   {"Center_4-ST-basic-single-constraints-in-relaxation-single-c4", {"ILP-S-R-C4", false, 4}},
+		   {"Center_4-MT-basic-single-constraints-in-relaxation-single-c4", {"ILP-S-R-C4", true, 4}},
 		   {"Center_4-ST-basic-single-constraints-in-relaxation-heuristic-init-single-c4", {"ILP-S-R-C4-H", false, 4}},
 		   {"Center_4-MT-basic-single-constraints-in-relaxation-heuristic-init-single-c4", {"ILP-S-R-C4-H", true, 4}},
 		   {"Center_4-ST-basic-sparse-constraints-in-relaxation-single-c4", {"ILP-Sparse-R-C4", false, 4}},
@@ -82,8 +83,9 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
                    {"Center_4-ST-iteratively-extended-constraints-lazy-3-heuristic", {"Heuristic-Iteratively-Extended-Lazy", false, 4}},
 
 		   {"Center_4-ST-basic-single-constraints-in-relaxation-single-c4-heuristic", {"Heuristic-ILP-S-R-C4", false, 4}},
-		   {"Center_4-ST-basic-single-constraints-in-relaxation-heuristic-init-single-c4-heuristic", {"Heuristic-S-R-C4-H", false, 4}},
-		   {"Center_4-MT-basic-single-constraints-in-relaxation-heuristic-init-single-c4-heuristic", {"Heuristic-S-R-C4-H", true, 4}},
+		   {"Center_4-MT-basic-single-constraints-in-relaxation-single-c4-heuristic", {"Heuristic-ILP-S-R-C4", true, 4}},
+		   {"Center_4-ST-basic-single-constraints-in-relaxation-heuristic-init-single-c4-heuristic", {"Heuristic-ILP-S-R-C4-H", false, 4}},
+		   {"Center_4-MT-basic-single-constraints-in-relaxation-heuristic-init-single-c4-heuristic", {"Heuristic-ILP-S-R-C4-H", true, 4}},
 		   {"Center_4-ST-basic-sparse-constraints-in-relaxation-single-c4-heuristic", {"Heuristic-ILP-Sparse-R-C4", false, 4}},
 		   {"Center_4-ST-basic-single-single-c4-heuristic", {"Heuristic-ILP-S-C4", false, 4}},
 		   {"Center_4-ST-basic-sparse-single-c4-heuristic", {"Heuristic-ILP-Sparse-C4", false, 4}},
@@ -451,9 +453,11 @@ public:
 int main(int argc, char *argv[]) {
   std::string output_filename;
   std::vector<std::string> input_filenames;
+  size_t time_limit = 1000;
 
   tlx::CmdlineParser cp;
   cp.set_description("Convert the given json file into a CSV file");
+  cp.add_size_t('t', "time-limit", time_limit, "The time limit, results whose (rounded down) running time exceeds that time limit are discarded");
   cp.add_param_string("csv_file", output_filename, "The output csv filename");
   cp.add_param_stringlist("json_file", input_filenames, "The input json filenames");
   if (!cp.process(argc, argv)) {
@@ -466,6 +470,15 @@ int main(int argc, char *argv[]) {
   for (const std::string &input_filename : input_filenames) {
     std::ifstream input(input_filename);
     nlohmann::json::sax_parse(input, &my_callback);
+  }
+
+  for (auto it = experiments.begin(); it != experiments.end(); ++it) {
+    if (static_cast<size_t>(it->second.total_time) > time_limit) {
+      std::cout << "Note: deleting (" << (it->second.solved ? "" : "un") << "solved) experiment that exceeded running time: " << it->second.graph << " algorithm: " << it->second.algorithm << " threads: " << it->second.threads << " k: " << it->second.k << " permutation: " << it->second.permutation << " total time: " << it->second.total_time << std::endl;
+      it = experiments.erase(it);
+    } else {
+      ++it;
+    }
   }
 
   for (auto &it : experiments) {
