@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import cm
 import seaborn as sns
-from collections import defaultdict
+import pandas as pd
+from collections import defaultdict, OrderedDict
 
 sns.set(style="whitegrid")
 
@@ -97,44 +98,102 @@ def plot_speedup_per_instance_for_one_algorithm(data, ax):
 
     # TODO: add Gurobi data, plot both, mark where they differ the better (i.e., higher) algorithm with a symbol (i.e., symbol x for FPT is better, symbol + for Gurobi is better)
     # NOTE: Gurobi might not have data for all graphs as some terminated in external timeout or out of memory -> use a special (low) value like 1.
-def plot_max_k_for_all_algorithms(data, qtm_data):
-    data_for_max_k = data.groupby(['Graph']).max()
+def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
+    fpt_k = fpt_df.groupby('Graph').k.max()
+    fpt_solved = fpt_df.groupby('Graph').Solved.any()
 
-    qtm_indexed = qtm_data.set_index('Graph')
+    m = fpt_df.groupby('Graph').m.max()
 
-    data_for_max_k['QTM'] = qtm_indexed
+    ilp_k = ilp_df.groupby('Graph').k.max()
+    ilp_solved = ilp_df.groupby('Graph').Solved.any()
 
-    k1_data = data_for_max_k[data_for_max_k.k == 1]
-    print("hiding {} graphs with for k == 1".format(len(k1_data)))
-    k1_qtm_larger = k1_data[k1_data.QTM > 1]
-    for graph, qtm_k in zip(k1_qtm_larger.index, k1_qtm_larger.QTM):
-        print("Found a graph with exact k = 1 and QTM k = {}".format(qtm_k))
+    ilp_heur_k = ilp_heur_df.groupby('Graph').k.min()
+    qtm_k = qtm_df.set_index('Graph')
 
-    data_solved = data_for_max_k[data_for_max_k.Solved & (data_for_max_k.k > 1)]
+    df = pd.DataFrame(OrderedDict([
+        ('m', m),
+        ('fpt_k', fpt_k),
+        ('fpt_solved', fpt_solved),
+        ('ilp_k', ilp_k),
+        ('ilp_solved', ilp_solved),
+        ('ilp_heur_k', ilp_heur_k),
+        ('qtm_k', qtm_k.k)]))
 
-    qtm_exact_graphs = data_solved[data_solved.k == data_solved.QTM]
-    print("Out of {} solved graphs, QTM has {} graphs correct".format(len(data_solved), len(qtm_exact_graphs)))
+    df['ilp_solved'].fillna(False, inplace=True)
+    df['ilp_k'].fillna(0, inplace=True)
+    df['ilp_k'] = df['ilp_k'].astype('int64')
+    df['ilp_heur_k'].fillna(df.m, inplace=True)
 
-    data_unsolved = data_for_max_k[data_for_max_k.Solved == False]
+    df['any_solved'] = df['fpt_solved'] | df['ilp_solved']
+    df['fpt_bound'] = df['fpt_solved'] * df['fpt_k'] + ~df['fpt_solved'] * (df['fpt_k'] + 1)
+
+    assert((df['fpt_bound'] >= df['fpt_k']).all())
+    assert((df['fpt_bound'] <= df['fpt_k']+1).all())
+
+    df['best_bound'] = df[['fpt_bound', 'ilp_k']].max(axis=1)
+
+    df['qtm_exact'] = (df['best_bound'] == df['qtm_k'])
+    df['ilp_heur_exact'] = (df['best_bound'] == df['ilp_heur_k'])
+
+    print("Out of {} unsolved graphs, QTM has {} graphs correct".format(sum(~df['any_solved']), sum(df['qtm_exact'] & ~df['any_solved'])))
+    print("Out of {} solved graphs, QTM has {} graphs correct".format(sum(df['any_solved']), sum(df['qtm_exact'] & df['any_solved'])))
+    print("Out of {} unsolved graphs, the ILP heur has {} graphs correct".format(sum(~df['any_solved']), sum(df['ilp_heur_exact'] & ~df['any_solved'])))
+    print("There are {} graphs that are only solved by FPT and {} graphs that are only solved by ILP".format(sum(df['fpt_solved'] & ~df['ilp_solved']), sum(df['ilp_solved'] & ~df['fpt_solved'])))
+    print("Out of {} graphs solved only by the FPT, the ILP heur has {} graphs correct".format(sum(df['fpt_solved'] & ~df['ilp_solved']), sum(df['ilp_heur_exact'] & df['fpt_solved'] & ~df['ilp_solved'])))
+    print("Out of {} graphs solved only by the FPT, QTM has {} graphs correct".format(sum(df['fpt_solved'] & ~df['ilp_solved']), sum(df['qtm_exact'] & df['fpt_solved'] & ~df['ilp_solved'])))
+
+    qtm_ratio = (df['qtm_k'] / df['best_bound']).sort_values()
+    print("Ratio QTM vs. best bound: max: {}, median: {}, last five: {}, max of all but two: {}".format(qtm_ratio.max(), qtm_ratio.median(), qtm_ratio[-5:], qtm_ratio[:-2].max()))
+
+
+    df_solved = df[df.any_solved]
+    df_unsolved = df[~df.any_solved]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), sharey=True, gridspec_kw={'width_ratios':[3, 1]})
 
-    for title, plot_data, ax, label in [('Solved', data_solved, ax1, 'Exact'), ('Unsolved', data_unsolved, ax2, 'Lower Bound')]:
-        ax.set_yscale('log', basey=2)
+    colors = sns.color_palette('deep', 7)
+
+    for title, plot_data, ax, label in [('Solved', df_solved, ax1, 'Exact'), ('Unsolved', df_unsolved, ax2, 'Lower Bound')]:
+        ax.set_yscale('symlog', basey=10, linthreshy=10, linscaley=0.2)
         ax.set_title(title)
-        sorted_plot_data = plot_data.sort_values(by=['k', 'QTM'])
 
-        if title == 'Solved':
-            qtm_precise = [cm.Set1(1) if (qtm_k == k) else cm.Set1(0) for k, qtm_k in zip(sorted_plot_data.k, sorted_plot_data.QTM)]
-        else:
-            qtm_precise = [cm.Set1(1) if (qtm_k == k + 1) else cm.Set1(0) for k, qtm_k in zip(sorted_plot_data.k, sorted_plot_data.QTM)]
+        plot_data.sort_values(by=['best_bound', 'qtm_k', 'ilp_heur_k'], inplace=True)
+        plot_data['x'] = range(len(plot_data))
 
-        ax.scatter(range(len(sorted_plot_data.index)), sorted_plot_data.k, label=label, s=2, color=cm.Set1(2))
-        ax.scatter(range(len(sorted_plot_data.index)), sorted_plot_data.QTM, label='QTM', s=2, color=qtm_precise)
+        ax.scatter(plot_data.x, plot_data.m, marker="s", facecolors='none', s=6, color=colors[6], label='m')
+
+        ilp_better_df = plot_data[plot_data.fpt_bound < plot_data.best_bound]
+        ax.scatter(ilp_better_df.x, ilp_better_df.ilp_k, color=colors[4], marker='x', label='ILP')
+        ilp_plot_df = plot_data[plot_data.fpt_bound == plot_data.best_bound]
+        ax.scatter(ilp_plot_df.x, ilp_plot_df.ilp_k, s=4, color=colors[4])
+
+        fpt_better_df = plot_data[plot_data.ilp_k < plot_data.best_bound]
+        ax.scatter(fpt_better_df.x, fpt_better_df.fpt_bound, color=colors[5], marker='+', s=50, Label='FPT')
+        fpt_plot_df = plot_data[plot_data.ilp_k == plot_data.best_bound]
+        ax.scatter(fpt_plot_df.x, fpt_plot_df.fpt_bound, s=4, color=colors[5])
+
+        ilp_heur_exact_df = plot_data[plot_data.ilp_heur_exact]
+        ax.scatter(ilp_heur_exact_df.x, ilp_heur_exact_df.ilp_heur_k, s=3, color=colors[3], label='ILP Heuristic (exact)')
+        ilp_heur_inexact_df = plot_data[~plot_data.ilp_heur_exact]
+        ax.scatter(ilp_heur_inexact_df.x, ilp_heur_inexact_df.ilp_heur_k, s=3, color=colors[2], label='ILP Heuristic (upper bound)')
+
+
+        qtm_exact_df = plot_data[plot_data.qtm_exact]
+        ax.scatter(qtm_exact_df.x, qtm_exact_df.qtm_k, s=3, color=colors[0], label='QTM (exact)')
+        qtm_inexact_df = plot_data[~plot_data.qtm_exact]
+        ax.scatter(qtm_inexact_df.x, qtm_inexact_df.qtm_k, s=3, color=colors[1], label='QTM (upper bound)')
+
+        #ax.scatter(range(len(sorted_plot_data.index)), sorted_plot_data.k, label=label, s=2, color=cm.Set1(2))
+        #ax.scatter(range(len(sorted_plot_data.index)), sorted_plot_data.QTM, label='QTM', s=2, color=qtm_precise)
         ax.set_xlabel('Graphs')
 
+        ax.set_xlim(left=-5, right=len(plot_data) + 5)
+
+    ax1.set_ylim(bottom=-2, top=df.m.max() * 1.1)
     ax1.legend()
     ax1.set_ylabel('k')
+
+    #plt.show()
 
     return fig
 
