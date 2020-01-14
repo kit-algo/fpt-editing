@@ -37,12 +37,11 @@ namespace Consumer
 	private:
 		std::vector<subgraph_t> forbidden_subgraphs;
 		Value_Matrix<std::vector<size_t>> subgraphs_per_edge;
-		size_t sum_subgraphs_per_edge;
 
 		Graph_Edits bound_uses;
 		Finder_impl finder;
 	public:
-		Min_Deg(VertexID graph_size) : subgraphs_per_edge(graph_size), sum_subgraphs_per_edge(0), bound_uses(graph_size), finder(graph_size) {;}
+		Min_Deg(VertexID graph_size) : subgraphs_per_edge(graph_size), bound_uses(graph_size), finder(graph_size) {;}
 
 		State initialize(size_t, Graph const &, Graph_Edits const &)
 		{
@@ -169,7 +168,7 @@ namespace Consumer
 			forbidden_subgraphs.clear();
 			subgraphs_per_edge.forAllNodePairs([&](VertexID, VertexID, std::vector<size_t>& v) { v.clear(); });
 			bound_uses.clear();
-			sum_subgraphs_per_edge = 0;
+			size_t sum_subgraphs_per_edge = 0;
 
 			finder.find(graph, [&](const subgraph_t& path)
 			{
