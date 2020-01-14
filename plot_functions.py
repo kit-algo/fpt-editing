@@ -145,8 +145,10 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     print("Ratio QTM vs. best bound: max: {}, median: {}, last five: {}, max of all but two: {}".format(qtm_ratio.max(), qtm_ratio.median(), qtm_ratio[-5:], qtm_ratio[:-2].max()))
 
     df['qtm_ratio'] = df['qtm_k'] / df['best_bound']
+    excluded_df = df[df.qtm_ratio >= 3]
+    print('Excluding data point at k={}, qtm ratio = {}'.format(excluded_df.best_bound, excluded_df.qtm_ratio))
 
-    df_solved = df[df.any_solved]
+    df_solved = df[df.any_solved & (df.qtm_ratio < 3)]
     df_unsolved = df[~df.any_solved]
 
     #print(sorted(df_solved.qtm_ratio.unique()))
@@ -161,11 +163,11 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     g.ax_marg_y.hist(df_solved.qtm_ratio, bins=np.arange(df_solved.qtm_ratio.min(), df_solved.qtm_ratio.max(), 0.01), orientation='horizontal')
     #g.plot_marginals(sns.distplot, kde=False, bins=np.logspace(np.log10(0.1), np.log10(1.0), 50)
     g.ax_joint.set_xscale('log')
-    g.ax_joint.set_xlim(9, df_solved.best_bound.max() * 1.1)
-    g.ax_joint.set_yscale('symlog', linthreshy=1.4, linscaley=10)
+    g.ax_joint.set_xlim(df_solved.best_bound.min() * 0.9, df_solved.best_bound.max() * 1.1)
+    #g.ax_joint.set_yscale('symlog', linthreshy=1.4, linscaley=10)
     #g.ax_joint.set_yscale('log', basey=2)
-    g.ax_joint.set_yticks([1, 1.1, 1.2, 1.3, 1.4, 2.0, 3.0])
-    g.ax_joint.set_yticklabels(['1', '1.1', '1.2', '1.3', '1.4', '2', '3'])
+    #g.ax_joint.set_yticks([1, 1.1, 1.2, 1.3, 1.4, 2.0, 3.0])
+    #g.ax_joint.set_yticklabels(['1', '1.1', '1.2', '1.3', '1.4', '2', '3'])
     g.set_axis_labels('Actual k', 'QTM k / Actual k')
     g.fig.subplots_adjust(top=0.95)
     g.fig.suptitle('Solved Graphs')
