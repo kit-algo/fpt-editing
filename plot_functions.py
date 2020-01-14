@@ -4,23 +4,8 @@ from matplotlib import cm
 import seaborn as sns
 import pandas as pd
 from collections import defaultdict, OrderedDict
-from matplotlib.colors import LinearSegmentedColormap
 
 sns.set(style="whitegrid")
-
-seaborn_red = sns.color_palette('dark')[3]
-
-cdict = {'red' : [(0.0, seaborn_red[0], seaborn_red[0]),
-                  (1.0, seaborn_red[0], seaborn_red[0])],
-         'green' : [(0.0, seaborn_red[1], seaborn_red[1]),
-                    (1.0, seaborn_red[1], seaborn_red[1])],
-         'blue' : [(0.0, seaborn_red[2], seaborn_red[2]),
-                   (1.0, seaborn_red[2], seaborn_red[2])],
-         'alpha' : [(0.0, 0.0, 0.0),
-                    (1.0, 1.0, 1.0)]}
-
-alpha_red = LinearSegmentedColormap('AlphaRed', cdict)
-plt.register_cmap(cmap=alpha_red)
 
 #algo_order = ["No Optimization", "No Undo", "No Redundancy", "Skip Conversion", "GreedyLB-First", "GreedyLB-Most", "GreedyLB-Most Pruned", "UpdatedLB-First", "UpdatedLB-Most", "UpdatedLB-Most Pruned", "LocalSearchLB-First", "LocalSearchLB-Most", "LocalSearchLB-Most Pruned"]
 #algo_order = ["GreedyLB-First", "GreedyLB-Most", "GreedyLB-Most Pruned", "UpdatedLB-First", "UpdatedLB-Most", "UpdatedLB-Most Pruned", "LocalSearchLB-First", "LocalSearchLB-Most", "LocalSearchLB-Most Pruned"]
@@ -169,7 +154,6 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     result_figs = {}
 
     g = sns.JointGrid(x='best_bound', y='qtm_ratio', data=df_solved, height=6)
-    g.plot_joint(plt.hexbin, xscale='log', yscale='linear', gridsize=(20, 60), cmap='AlphaRed')
     g.plot_joint(plt.scatter, s=15, linewidth=1, marker="x")
     #g.ax_joint.collections[0].set_alpha(0.5)
     g.ax_marg_x.hist(df_solved.best_bound, bins=np.logspace(np.log10(df_solved.best_bound.min()), np.log10(df_solved.best_bound.max()), 50))
@@ -188,7 +172,6 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     result_figs['qtm_solved'] = g.fig
 
     g = sns.JointGrid(x='best_bound', y='qtm_ratio', data=df_unsolved, height=6)
-    g.plot_joint(plt.hexbin, xscale='log', yscale='linear', gridsize=20, cmap='AlphaRed')
     g.plot_joint(plt.scatter, s=15, linewidth=1, marker="x")
     #g.ax_joint.collections[0].set_alpha(0.5)
     g.ax_marg_x.hist(df_unsolved.best_bound, bins=np.logspace(np.log10(df_unsolved.best_bound.min()), np.log10(df_unsolved.best_bound.max()), 50))
