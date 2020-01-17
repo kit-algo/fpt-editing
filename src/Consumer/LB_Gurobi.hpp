@@ -70,8 +70,8 @@ namespace Consumer
 
 		double get_constraint_value(const subgraph_t& fs, const Graph& graph, const Graph_Edits& edited) {
 			auto get = [&](size_t i, size_t j) {
-				if (edited.has_edge(i, j)) {
-					return graph.has_edge(i, j) ? 1.0 : 0.0;
+				if (edited.has_edge(fs[i], fs[j])) {
+					return graph.has_edge(fs[i], fs[j]) ? 1.0 : 0.0;
 				}
 				return variables.at(fs[i], fs[j]).get(GRB_DoubleAttr_X);
 			};
