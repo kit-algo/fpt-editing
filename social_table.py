@@ -10,7 +10,7 @@ def get_max_k_time(df):
     graph_groups = df.groupby('Graph')
     df['max_k'] = graph_groups.k.transform(np.max)
     max_k_df = df[df.k == df.max_k]
-    return max_k_df.groupby('Graph')[['k', 'Total Time [s]']].min()
+    return max_k_df.groupby('Graph')[['k', 'Total Time [s]', 'Solved']].min()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -60,9 +60,10 @@ if __name__ == "__main__":
         (('FPT', '1 core', 'Time [s]'), fpt_st_data['Total Time [s]']),
         (('FPT', '16 cores', 'k'), fpt_mt_data.k),
         (('FPT', '16 cores', 'Time [s]'), fpt_mt_data['Total Time [s]']),
-        (('ILP', '1 core', 'k'), ilp_st_data.k),
+        # subtract one for unsolved graphs
+        (('ILP', '1 core', 'k'), ilp_st_data.k - (~ilp_st_data.Solved)),
         (('ILP', '1 core', 'Time [s]'), ilp_st_data['Total Time [s]']),
-        (('ILP', '16 cores', 'k'), ilp_mt_data.k),
+        (('ILP', '16 cores', 'k'), ilp_mt_data.k - (~ilp_mt_data.Solved)),
         (('ILP', '16 cores', 'Time [s]'), ilp_mt_data['Total Time [s]']),
         ]))
 

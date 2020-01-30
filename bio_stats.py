@@ -2,6 +2,8 @@
 
 import argparse
 import pandas as pd
+import numpy as np
+from plot_functions import algo_order
 
 def print_solved_graphs(df, all_graphs):
     solved_df = df[df.Solved]
@@ -11,12 +13,9 @@ def print_solved_graphs(df, all_graphs):
     algo_solved = list()
     for (algo, mt, all_solutions), graphs in unique_graphs.iteritems():
         algoname = algo
-        if mt:
-            algoname += "-MT"
-        if all_solutions:
-            algoname += "-All"
 
-        algo_solved.append((algoname, graphs))
+        if algoname in algo_order:
+            algo_solved.append((algoname, graphs))
 
     algo_solved.sort(key=lambda x : len(x[1]))
 
@@ -51,6 +50,33 @@ def print_solved_graphs(df, all_graphs):
     num_unsolved = len([g for g in all_graphs if g not in any_solved_graphs])
     print("In total, {} graphs were not solved by any algorithm".format(num_unsolved))
 
+def print_percentile_improvement(df, base_algo, comparison_algo, min_time):
+    solved_time_calls_base_min = df[df['Total Time [s]', base_algo] >= min_time]
+    print("Of {} instances where {} needed at least {} seconds, {} was faster".format(len(solved_time_calls_base_min), base_algo, min_time, comparison_algo))
+    for measure in ['Calls', 'Total Time [s]']:
+        print(measure)
+        solved_measure_base_min = solved_time_calls_base_min[measure].copy()
+        assert(len(solved_measure_base_min) == len(solved_time_calls_base_min))
+
+        # Restrict to graphs solved by both algorithms
+        if measure == 'Calls' and solved_measure_base_min[comparison_algo].hasnans:
+            solved_measure_base_min = solved_measure_base_min[solved_measure_base_min[comparison_algo].notna()]
+            print("Restricting to {} instances solved by both algorithms".format(len(solved_measure_base_min)))
+        else:
+            solved_measure_base_min[comparison_algo].fillna(args.time_limit * 100, inplace=True)
+
+        speedup = (solved_measure_base_min[base_algo] / solved_measure_base_min[comparison_algo]).to_numpy()
+        percentiles = [0, 0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9, 100]
+        speedup_percentiles = np.percentile(speedup, percentiles)
+        for p, s in zip(percentiles, speedup_percentiles):
+            print("  on {:.1f}% of the instances {:.2f} faster".format(100-p, s))
+
+        #for speedup in [1, 1.1, 1.5, 2, 5, 8, 10, 20, 50, 80, 100, 200, 500, 800, 1000]:
+        #    num_faster = sum(solved_measure_base_min[comparison_algo] * speedup <= solved_measure_base_min[base_algo])
+        #    fraction_faster = num_faster / len(solved_measure_base_min)
+        #    print(" {} times on {} ({:.2%}) instances ".format(speedup, num_faster, fraction_faster))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Calculate various statistics of the bio dataset")
@@ -78,25 +104,30 @@ if __name__ == "__main__":
     num_trivial = num_graphs - len(larger_k_names)
     print("{} graphs, {} need less than {} edits, remaining: {} graphs".format(num_graphs, num_trivial, args.min_k, num_graphs - num_trivial))
 
-    trivial_df = df[~df.Graph.isin(larger_k_names)]
+    trivial_df = df[~df.Graph.isin(larger_k_names) & ~df.MT]
     max_trivial_time = trivial_df['Total Time [s]'].max()
     print("Those graph requiring less than {} edits need at maximum {} seconds for any of the algorithms {}".format(
         args.min_k,
         max_trivial_time,
         ", ".join(trivial_df.Algorithm.unique())
     ))
+    print("Algorithm FPT-LS-MP needs at maximum {} seconds".format(trivial_df[trivial_df.Algorithm == 'FPT-LS-MP']['Total Time [s]'].max()))
     already_solved_graphs = trivial_df[trivial_df.Solved & (trivial_df.k == 0)].Graph.unique()
     print("{} of them require no edits at all".format(len(already_solved_graphs)))
 
     df_filter = df.Graph.isin(larger_k_names) & (df['Total Time [s]'] <=
                                                  args.time_limit)
-    filtered_df = df[df_filter]
+    filtered_df = df[df_filter].copy()
+    filtered_df.loc[filtered_df['All Solutions'], 'Algorithm'] += "-All"
+    filtered_df.loc[filtered_df.MT, 'Algorithm'] += "-MT"
 
     print("For the FPT algorithms")
     print_solved_graphs(filtered_df, larger_k_names)
 
     gurobi_df = pd.read_csv(args.gurobi_csv)
-    filtered_gurobi_df = gurobi_df[gurobi_df.Graph.isin(larger_k_names) & ~gurobi_df.Algorithm.str.contains('Heuristic') & (gurobi_df.Algorithm != 'ILP-S-R-C4-H')]
+    filtered_gurobi_df = gurobi_df[gurobi_df.Graph.isin(larger_k_names) & ~gurobi_df.Algorithm.str.contains('Heuristic') & (gurobi_df.Algorithm != 'ILP-S-R-C4-H')].copy()
+
+    filtered_gurobi_df.loc[filtered_gurobi_df.MT, 'Algorithm'] += "-MT"
 
     print("For Gurobi")
     print_solved_graphs(filtered_gurobi_df, larger_k_names)
@@ -111,17 +142,21 @@ if __name__ == "__main__":
     gurobi_fpt_df = pd.read_csv(args.gurobi_fpt_comparison_csv)
     filtered_gurobi_fpt_df = gurobi_fpt_df[
         gurobi_fpt_df.Graph.isin(larger_k_names)
-        & (gurobi_fpt_df['Total Time [s]'] <= args.time_limit)]
+        & (gurobi_fpt_df['Total Time [s]'] <= args.time_limit)].copy()
+
+    filtered_gurobi_fpt_df.loc[filtered_gurobi_fpt_df['All Solutions'], 'Algorithm'] += '-All'
+    filtered_gurobi_fpt_df.loc[filtered_gurobi_fpt_df.MT, 'Algorithm'] += '-MT'
 
     print("Gurobi FPT comparison")
     print_solved_graphs(filtered_gurobi_fpt_df, larger_k_names)
 
     additional_comparison_df = filtered_df[(filtered_df.Threads == 16) & (
-        filtered_df.Algorithm == "FPT-LS-MP") & (filtered_df.Permutation < 4)]
+        filtered_df.Algorithm == "FPT-LS-MP-All-MT") & (filtered_df.Permutation < 4)]
+    assert(len(additional_comparison_df) > 0)
 
     final_comparison_df = pd.concat([
         filtered_gurobi_fpt_df,
-        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "ILP-S-R-C4")],
+        filtered_gurobi_df[(filtered_gurobi_df.Algorithm == "ILP-S-R-C4") | (filtered_gurobi_df.Algorithm == "ILP-S-R-C4-MT")],
         additional_comparison_df
     ])
 
@@ -133,13 +168,97 @@ if __name__ == "__main__":
     print_solved_graphs(final_comparison_df_first_only, larger_k_names)
 
 
+    gurobi_indexed = filtered_gurobi_df[filtered_gurobi_df.Solved].set_index(['Graph', 'Permutation', 'Algorithm'])
+    assert(not gurobi_indexed.index.duplicated().any())
+    gurobi_indexed_unstacked = gurobi_indexed.unstack()
+    for base_algo, comparison_algo in [
+            ('ILP-B', 'ILP-S'),
+            ('ILP-S', 'ILP-S-R'),
+            ('ILP-S-R', 'ILP-S-R-C4')
+            ]:
+        print_percentile_improvement(gurobi_indexed_unstacked, base_algo, comparison_algo, 0)
+
+    final_comparison_indexed = final_comparison_df[final_comparison_df.Solved].set_index(['Graph', 'Permutation', 'Algorithm'])
+    assert(not final_comparison_indexed.index.duplicated().any())
+    final_comparison_unstacked = final_comparison_indexed.unstack()
+    for base_algo, comparison_algo, min_time in [
+            ('ILP-S-R-C4', 'FPT-LS-MP', 0),
+            ('ILP-S-R-C4', 'FPT-LS-MP-All', 0),
+            ('ILP-S-R-C4', 'ILP-S-R-C4-MT', 0),
+            ('FPT-LS-MP-All', 'FPT-LS-MP', 0),
+            ('FPT-LS-MP', 'FPT-LS-MP-MT', 0),
+            ('FPT-LS-MP-All', 'FPT-LS-MP-All-MT', 0),
+            ('FPT-LS-MP-All-MT', 'FPT-LS-MP-MT', 0),
+            ('ILP-S-R-C4', 'FPT-LS-MP-MT', 0),
+            ('ILP-S-R-C4', 'FPT-LS-MP-All-MT', 0),
+            ]:
+        print_percentile_improvement(final_comparison_unstacked, base_algo, comparison_algo, min_time)
+
+    solved_indexed = filtered_df[filtered_df.Solved & ~filtered_df.MT].set_index(['Graph', 'Permutation', 'Algorithm'])
+    assert(not solved_indexed.index.duplicated().any())
+
+    solved_calls_time = solved_indexed[['Calls', 'Total Time [s]']].unstack()
+    print(solved_calls_time)
+    # Now, every algorithm is a column with the time of that algorithm
+    solved_time = solved_calls_time['Total Time [s]']
+
+    algo_indices = {}
+
+    for algo in solved_time.columns:
+        algo_indices[algo] = set(solved_time[algo].sort_values()[:10000].index)
+
+    for algo1, algo2 in [
+            ('FPT-G-F-All', 'FPT-LS-F-All'),
+            ('FPT-MD-F-All', 'FPT-LS-F-All'),
+            ('FPT-G-MP-All', 'FPT-LS-MP-All'),
+            ('FPT-MD-MP-All', 'FPT-LS-MP-All'),
+            ('FPT-LS-F-All', 'FPT-LS-MP-All'),
+            ('FPT-G-F-All', 'FPT-G-MP-All'),
+            ('FPT-MD-F-All', 'FPT-MD-MP-All'),
+            ('FPT-G-F-All', 'FPT-LS-MP-All'),
+            ('FPT-MD-F-All', 'FPT-LS-MP-All')
+            ]:
+        intersection = len(algo_indices[algo1].intersection(algo_indices[algo2]))
+        algo1_len = len(algo_indices[algo1])
+        algo2_len = len(algo_indices[algo2])
+        print("Fastest 10000 graphs of {} and {} overlap in {} out of {} instances".format(algo1, algo2, intersection, algo1_len + algo2_len - intersection))
+
+    for base_algo, comparison_algo, min_time in [
+            ('FPT-LS-M-All', 'FPT-LS-MP-All', 0),
+            ('FPT-LS-M-All', 'FPT-LS-MP-All', 10),
+            ('FPT-LS-F-All', 'FPT-LS-MP-All', 0),
+            ('FPT-LS-F-All', 'FPT-LS-MP-All', 10),
+            ('FPT-U-MP-All', 'FPT-G-MP-All', 0),
+            ('FPT-G-MP-All', 'FPT-MD-MP-All', 0),
+            ('FPT-MD-MP-All', 'FPT-LS-MP-All', 0),
+            ('FPT-LS-MP-All', 'FPT-LP-MP-All', 0),
+            ('FPT-LP-MP-All', 'FPT-LS-MP-All', 0),
+            ('FPT-LS-MP-All', 'FPT-U-MP-All', 0),
+            ('FPT-U-MP-All', 'FPT-LS-MP-All', 0),
+            ('FPT-U-MP-All', 'FPT-LS-MP-All', 1),
+            ('FPT-MD-MP-All', 'FPT-LP-MP-All', 0)
+            ]:
+
+        solved_base = solved_time[~solved_time[base_algo].isna()]
+        solved_comparison_solved = sum(~(solved_base[comparison_algo].isna()))
+        output = "Of {} instances solved by {}, {} solved {} instances. ".format(len(solved_base), base_algo, comparison_algo, solved_comparison_solved)
+        for a in [base_algo, comparison_algo]:
+            output += "{} solved ".format(a)
+            for time_limit in [1, 2, 5, 10, 20, 50, 100, 500, 1000]:
+                a_solved = sum(solved_base[a] <= time_limit)
+                output += "{} instances ({:.2%}) in {}, ".format(a_solved, a_solved/len(solved_base), time_limit)
+            output += "seconds. "
+        print(output)
+
+        print_percentile_improvement(solved_calls_time, base_algo, comparison_algo, min_time)
+
     example_graph = 'cost_matrix_component_nr_575_size_91_cutoff_10.0'
     example_fpt_df = filtered_gurobi_fpt_df[(filtered_gurobi_fpt_df.Graph == example_graph) & filtered_gurobi_fpt_df.MT & (filtered_gurobi_fpt_df.Permutation == 0)]
     assert(len(example_fpt_df.Algorithm.unique()) == 1)
     assert(example_fpt_df.Solved.any())
     assert(len(example_fpt_df.k.unique()) == len(example_fpt_df))
 
-    example_gurobi_df = filtered_gurobi_df[(filtered_gurobi_df.Graph == example_graph) & filtered_gurobi_df.MT & (filtered_gurobi_df.Permutation == 0) & (filtered_gurobi_df.Algorithm == 'ILP-S-R-C4')]
+    example_gurobi_df = filtered_gurobi_df[(filtered_gurobi_df.Graph == example_graph) & filtered_gurobi_df.MT & (filtered_gurobi_df.Permutation == 0) & (filtered_gurobi_df.Algorithm == 'ILP-S-R-C4-MT')]
     assert(len(example_gurobi_df) == 1)
 
     example_k = example_fpt_df[example_fpt_df.Solved].k.iloc[0]
