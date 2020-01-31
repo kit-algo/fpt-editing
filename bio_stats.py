@@ -51,23 +51,28 @@ def print_solved_graphs(df, all_graphs):
     print("In total, {} graphs were not solved by any algorithm".format(num_unsolved))
 
 def print_percentile_improvement(df, base_algo, comparison_algo, min_time):
-    solved_time_calls_base_min = df[df['Total Time [s]', base_algo] >= min_time]
+    solved_time_calls_base_min = df[(df['Total Time [s]', base_algo] >= min_time) & df['Total Time [s]', comparison_algo].notna()]
     print("Of {} instances where {} needed at least {} seconds, {} was faster".format(len(solved_time_calls_base_min), base_algo, min_time, comparison_algo))
     for measure in ['Calls', 'Total Time [s]']:
         print(measure)
         solved_measure_base_min = solved_time_calls_base_min[measure].copy()
         assert(len(solved_measure_base_min) == len(solved_time_calls_base_min))
 
+        assert(not solved_measure_base_min[base_algo].hasnans)
+        assert(not solved_measure_base_min[comparison_algo].hasnans)
         # Restrict to graphs solved by both algorithms
-        if measure == 'Calls' and solved_measure_base_min[comparison_algo].hasnans:
-            solved_measure_base_min = solved_measure_base_min[solved_measure_base_min[comparison_algo].notna()]
-            print("Restricting to {} instances solved by both algorithms".format(len(solved_measure_base_min)))
-        else:
-            solved_measure_base_min[comparison_algo].fillna(args.time_limit * 100, inplace=True)
+        #if measure == 'Calls' and solved_measure_base_min[comparison_algo].hasnans:
+        #    solved_measure_base_min = solved_measure_base_min[solved_measure_base_min[comparison_algo].notna() & solved_measure_base_min[base_algo].notna()]
+        #    print("Restricting to {} instances solved by both algorithms".format(len(solved_measure_base_min)))
+        #else:
+        #    solved_measure_base_min[comparison_algo].fillna(np.inf, inplace=True)
+        #    solved_measure_base_min[base_algo].fillna(np.inf, inplace=True)
 
         speedup = (solved_measure_base_min[base_algo] / solved_measure_base_min[comparison_algo]).to_numpy()
-        percentiles = [0, 0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9, 100]
+        assert(not np.isnan(speedup).any())
+        percentiles = np.array([0, 0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9, 100])
         speedup_percentiles = np.percentile(speedup, percentiles)
+        assert(not np.isnan(speedup_percentiles).any())
         for p, s in zip(percentiles, speedup_percentiles):
             print("  on {:.1f}% of the instances {:.2f} faster".format(100-p, s))
 
@@ -186,11 +191,13 @@ if __name__ == "__main__":
             ('ILP-S-R-C4', 'FPT-LS-MP-All', 0),
             ('ILP-S-R-C4', 'ILP-S-R-C4-MT', 0),
             ('FPT-LS-MP-All', 'FPT-LS-MP', 0),
+            ('FPT-LS-MP-All', 'FPT-LS-MP', 0.1),
             ('FPT-LS-MP', 'FPT-LS-MP-MT', 0),
             ('FPT-LS-MP-All', 'FPT-LS-MP-All-MT', 0),
             ('FPT-LS-MP-All-MT', 'FPT-LS-MP-MT', 0),
-            ('ILP-S-R-C4', 'FPT-LS-MP-MT', 0),
-            ('ILP-S-R-C4', 'FPT-LS-MP-All-MT', 0),
+            ('ILP-S-R-C4-MT', 'FPT-LS-MP-MT', 0),
+            ('ILP-S-R-C4-MT', 'FPT-LS-MP-All-MT', 0),
+            ('FPT-LS-MP-MT', 'ILP-S-R-C4-MT', 0),
             ]:
         print_percentile_improvement(final_comparison_unstacked, base_algo, comparison_algo, min_time)
 
@@ -225,18 +232,22 @@ if __name__ == "__main__":
 
     for base_algo, comparison_algo, min_time in [
             ('FPT-LS-M-All', 'FPT-LS-MP-All', 0),
-            ('FPT-LS-M-All', 'FPT-LS-MP-All', 10),
             ('FPT-LS-F-All', 'FPT-LS-MP-All', 0),
-            ('FPT-LS-F-All', 'FPT-LS-MP-All', 10),
             ('FPT-U-MP-All', 'FPT-G-MP-All', 0),
             ('FPT-G-MP-All', 'FPT-MD-MP-All', 0),
             ('FPT-MD-MP-All', 'FPT-LS-MP-All', 0),
+            ('FPT-G-MP-All', 'FPT-LP-MP-All', 0),
+            ('FPT-U-MP-All', 'FPT-LP-MP-All', 0),
+            ('FPT-LS-MP-All', 'FPT-MD-MP-All', 0),
             ('FPT-LS-MP-All', 'FPT-LP-MP-All', 0),
             ('FPT-LP-MP-All', 'FPT-LS-MP-All', 0),
             ('FPT-LS-MP-All', 'FPT-U-MP-All', 0),
             ('FPT-U-MP-All', 'FPT-LS-MP-All', 0),
             ('FPT-U-MP-All', 'FPT-LS-MP-All', 1),
-            ('FPT-MD-MP-All', 'FPT-LP-MP-All', 0)
+            ('FPT-MD-MP-All', 'FPT-LP-MP-All', 0),
+            ('FPT-LP-MP-All', 'FPT-MD-MP-All', 0),
+            ('FPT-MD-F-All', 'FPT-LS-F-All', 0),
+            ('FPT-MD-F-All', 'FPT-LS-MP-All', 0)
             ]:
 
         solved_base = solved_time[~solved_time[base_algo].isna()]

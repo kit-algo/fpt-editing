@@ -177,6 +177,9 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     excluded_df = df[df.qtmRatio >= 3]
     print('Excluding data point at k={}, qtm ratio = {}'.format(excluded_df.bestBound, excluded_df.qtmRatio))
 
+    qtmRatio95 = np.percentile(df.qtmRatio.to_numpy(), 95)
+    print("On 95% of the graphs, QTM is at most a factor of {} worse".format(qtmRatio95))
+
     df_solved = df[df.any_solved & (df.qtmRatio < 3)]
     df_unsolved = df[~df.any_solved]
 
@@ -184,7 +187,7 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
 
     result_figs = {}
 
-    g = sns.JointGrid(x='bestBound', y='qtmRatio', data=df_solved, height=4.5)
+    g = sns.JointGrid(x='bestBound', y='qtmRatio', data=df_solved, height=4)
     g.plot_joint(plt.scatter, s=15, linewidth=1, marker="x")
     #g.ax_joint.collections[0].set_alpha(0.5)
     g.ax_marg_x.hist(df_solved.bestBound, bins=np.logspace(np.log10(df_solved.bestBound.min()), np.log10(df_solved.bestBound.max()), 50))
@@ -198,11 +201,11 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     #g.ax_joint.set_yticks([1, 1.1, 1.2, 1.3, 1.4, 2.0, 3.0])
     #g.ax_joint.set_yticklabels(['1', '1.1', '1.2', '1.3', '1.4', '2', '3'])
     g.set_axis_labels('Actual k', 'QTM k / Actual k')
-    g.fig.subplots_adjust(top=0.95)
+    g.fig.subplots_adjust(top=0.93)
     g.fig.suptitle('Solved Graphs')
     result_figs['qtm_solved'] = g.fig
 
-    g = sns.JointGrid(x='bestBound', y='qtmRatio', data=df_unsolved, height=4.5)
+    g = sns.JointGrid(x='bestBound', y='qtmRatio', data=df_unsolved, height=4)
     g.plot_joint(plt.scatter, s=15, linewidth=1, marker="x")
     #g.ax_joint.collections[0].set_alpha(0.5)
     g.ax_marg_x.hist(df_unsolved.bestBound, bins=np.logspace(np.log10(df_unsolved.bestBound.min()), np.log10(df_unsolved.bestBound.max()), 50))
@@ -216,7 +219,7 @@ def plot_max_k_for_all_algorithms(fpt_df, ilp_df, ilp_heur_df, qtm_df):
     #g.ax_joint.set_yticks([1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6,  2.0])
     #g.ax_joint.set_yticklabels(['1', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '2'])
     g.set_axis_labels('Best Lower Bound', 'QTM k / Best Lower Bound')
-    g.fig.subplots_adjust(top=0.95)
+    g.fig.subplots_adjust(top=0.93)
     g.fig.suptitle('Unsolved Graphs')
     result_figs['qtm_unsolved'] = g.fig
 

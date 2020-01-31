@@ -16,11 +16,14 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-ARW-Matrix", {"FPT-LS-Single", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-First-Basic-Matrix", {"FPT-G-F", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-First-Updated-Matrix", {"FPT-U-F", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-First-Min_Deg-Matrix", {"FPT-MD-F", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most-Basic-Matrix", {"FPT-G-M", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most-Updated-Matrix", {"FPT-U-M", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Most-Min_Deg-Matrix", {"FPT-MD-M", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Basic-Matrix", {"FPT-G-MP", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Updated-Matrix", {"FPT-U-MP", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Gurobi-Matrix", {"FPT-LP-MP", false, 4}},
+		   {"ST-Edit-Redundant-Skip-Center_4-Most_Pruned-Min_Deg-Matrix", {"FPT-MD-MP", false, 4}},
 		   {"ST-Edit-Redundant-Skip-Center_4-Single_Most-Basic-Matrix", {"FPT-G-Single", false, 4}},
 		   {"MT-Edit-None-Normal-Center_4-First-No-Matrix", {"FPT-No Optimization", true, 4}},
 		   {"MT-Edit-Undo-Normal-Center_4-First-No-Matrix", {"FPT-No Undo", true, 4}},
@@ -39,7 +42,7 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 		   {"Center_4-ST-basic-sparse-extended-constraints", {"ILP-Sparse-Extended", false, 4}},
 		   {"Center_4-ST-basic-single-extended-constraints", {"ILP-S-Extended", false, 4}},
 
-		   {"Center_4-ST-basic", {"ILP", false, 4}},
+		   {"Center_4-ST-basic", {"ILP-B", false, 4}},
 		   {"Center_4-ST-basic-sparse", {"ILP-Sparse", false, 4}},
 		   {"Center_4-ST-basic-single", {"ILP-S", false, 4}},
 
@@ -68,7 +71,7 @@ std::unordered_map<std::string, std::tuple<std::string, bool, size_t>> known_alg
 		   {"Center_4-ST-basic-sparse-extended-constraints-heuristic", {"Heuristic-ILP-Sparse-Extended", false, 4}},
 		   {"Center_4-ST-basic-single-extended-constraints-heuristic", {"Heuristic-ILP-S-Extended", false, 4}},
 
-		   {"Center_4-ST-basic-heuristic", {"Heuristic-ILP", false, 4}},
+		   {"Center_4-ST-basic-heuristic", {"Heuristic-ILP-B", false, 4}},
 		   {"Center_4-ST-basic-sparse-heuristic", {"Heuristic-ILP-Sparse", false, 4}},
 		   {"Center_4-ST-basic-single-heuristic", {"Heuristic-ILP-S", false, 4}},
 
@@ -472,7 +475,7 @@ int main(int argc, char *argv[]) {
     nlohmann::json::sax_parse(input, &my_callback);
   }
 
-  for (auto it = experiments.begin(); it != experiments.end(); ++it) {
+  for (auto it = experiments.begin(); it != experiments.end(); ) {
     if (static_cast<size_t>(it->second.total_time) > time_limit) {
       std::cout << "Note: deleting (" << (it->second.solved ? "" : "un") << "solved) experiment that exceeded running time: " << it->second.graph << " algorithm: " << it->second.algorithm << " threads: " << it->second.threads << " k: " << it->second.k << " permutation: " << it->second.permutation << " total time: " << it->second.total_time << std::endl;
       it = experiments.erase(it);
