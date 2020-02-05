@@ -38,13 +38,13 @@ constexpr size_t Packed_Bits = sizeof(Packed) * 8;
 #define CHOICES_GRAPH Matrix
 #else
 #define CHOICES_MODE Edit
-#define CHOICES_RESTRICTION None, Undo, Redundant
-#define CHOICES_CONVERSION Normal, Skip
+#define CHOICES_RESTRICTION /*None, Undo,*/ Redundant
+#define CHOICES_CONVERSION /*Normal,*/ Skip
 #define CHOICES_EDITOR ST, MT
 #define CHOICES_HEURISTIC
 #define CHOICES_FINDER /*Center_P3, Center_P4, Center_P5,*/ Center_4/*, Center_5, Center_6*/
-#define CHOICES_CONSUMER_SELECTOR  First, Most, Most_Pruned, Single_Most
-#define CHOICES_CONSUMER_BOUND No, ARW
+#define CHOICES_CONSUMER_SELECTOR  First, Most, Most_Pruned/*, Gurobi, Single_Most*/
+#define CHOICES_CONSUMER_BOUND /*No,*/ ARW, Basic, Updated, Min_Deg, Gurobi
 #define CHOICES_CONSUMER_RESULT
 #define CHOICES_GRAPH Matrix
 #endif
