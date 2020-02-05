@@ -16,12 +16,6 @@ What is considered a forbidden subgraph is defined by the components themselves;
 - Center (Center_4, Center_5)
 	Tries each edge (for P~x~/C~x~, x even) resp. vertex (x odd) as the center of a forbidden subgraph. The center is expanded by simultaneously adding an edge to both sides while maintaining that the subgraph is a path (thus transforming a P~y~ to P~y+2~) until the desired length is reached. In the last expansion it is allowed to transform the path (P~y~) into a cycle (C~y+2~) instead.
 
-- Center_Edits (Center_Edits_4, Center_Edits_5)
-	Same as Center, but whenever given the choice between edited and unedited edges the edited edges are tried first. The goal is to help greedy lower bound algorithms by finding forbidden subgraphs with many uneditable edges first.
-
-- Center_Edits_Sparse (Center_Edits_Sparse_4, Center_Edits_Sparse_5)
-	Same as Center_Edits, but only finds forbidden subgraphs that have no overlap in unedited edges. This allows skipping parts where found forbidden subgraphs will not benefit greedy lower bound algorithms. As consequence, Center_Edits_Sparse will only find some, but not all, forbidden subgraphs
-
 
 ### CONSUMERS
 Components that use the forbidden subgraphs produced by a finder, split into three groups:
@@ -31,15 +25,14 @@ Components that use the forbidden subgraphs produced by a finder, split into thr
 
 An algorithm may be part of multiple groups
 
-- **Selectors**:
+- **Selectors** (branching strategy):
 	- First
 		Chooses the first forbidden subgraph found
 
-	- Least
-		Chooses the forbidden subgraph with the least amount of unedited edges
-
 	- Most
-		Chooses the unedited edge participating in most forbidden subgraphs
+		Chooses the unedited edge participating in most forbidden subgraphs. Includes variants for early pruning (``Most_Pruned``) and only using a single node pair (this does not actually give an advantage over early pruning, though).
+
+	- Earlier version of a Least_Unedited selector that selects the subgraph that contains the least amount of unedited (i.e., unblocked) node pairs. In preliminary experiments, Most turned out to be superior to this.
 
 - **Lower bound calculators**:
 	- No
@@ -48,10 +41,19 @@ An algorithm may be part of multiple groups
 	- Basic
 		Calculates a lower bound by collecting non-overlapping forbidden subgraphs; greedy
 
-- **Selectors & Lower bound calculators**:
-	- Single
-		Lower bound calculation is identical to Basic
-		Tests for each unedited edge participating in the lower bound whether editing or marking it increases the lower bound. Selects the edge with the highest increase. If no such edge exits, falls back to the forbidden subgraph with the least amount of unedited edges
+	- Updated
+	  	Updates the basic greedy bound as the graph is modified
+
+	- Gurobi
+	  	Calculates a lower bound using Gurobi with the LP relaxation. Note that this bound currently does not work with the parallel editor MT.
+
+	- ARW
+	  	Our local search lower bound that is based on the ARW independent set heuristic.
+
+	- Min_Deg
+	  	Calculates a lower bound based on the minimum degree independent set heuristic.
+
+	- Various earlier versions of bounds that call external independent set solvers or store subgraphs explicitly for our local search that were used for preliminary experiments.
 
 - **Other**:
 (currently none)

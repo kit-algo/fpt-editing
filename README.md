@@ -1,14 +1,18 @@
-graphedit -- a framework for evaluating FPT Edge Editing algorithms
+A framework for evaluating exact Edge Editing algorithms
 
-graphedit is a framework for evaluating algorithms and strategies (called components) used for solving the F-free edge editing problem. F is a set of forbidden subgraphs. If a graph doesn't contain any of them the graph is considered to be F-free. graphedit tries to find F-free graphs close to the input graph by editing (inserting and removing) as few edges as possible. Currently all implemented components are for F = {P~x~, C~x~}, i.e. paths and cycles containing x vertices are forbidden.
+This code base contains both the ILP and the FPT-based approach for exact F-free edge editing. F is a set of forbidden subgraphs. If a graph doesn't contain any of them the graph is considered to be F-free. graphedit tries to find F-free graphs close to the input graph by editing (inserting and removing) as few edges as possible. Currently all implemented components are for F = {P~x~, C~x~}, i.e. paths and cycles containing x vertices are forbidden. The ILP is currently only implemented for F = {P~4~, C~4~}. Further, various evaluation scripts for generating statistics and plots are provided.
+
+The ILP algorithm can be compiled using CMake, while the FPT algorithm uses the ``Makefile`` at the top of the repository. Both approaches currently need Gurobi for building, as the FPT algorithm contains a lower bound based on an LP relaxation.
+
+Most of the instructions below mainly concern the FPT implementation. The ILP works similarly and produces similar JSON output, except that it offers much less variants.
 
 [TOC]
 
 ### BUILDING
 
 * edit the top part of ``Makefile`` to adjust compilation flags as needed
-* edit ``src/config.hpp`` to select the algorithms that will be available -- compiling everything will take a while (expect 2 hours on a modern machine)
-* make
+* edit ``src/config.hpp`` to select the algorithms that will be available -- compiling everything will take a while (expect 2 hours on a modern machine). The selected default configuration that includes all variants used in the paper should compile in less than 2 minutes on a current laptop using 4 parallel jobs (``make -j4``).
+* ``make [-jX]``
 
 ### USING
 
@@ -38,6 +42,8 @@ The first and last line mention the graph and algorithms used and the number of 
  * stolen: how often was work shared among threads
 
 If graphedit was compiled without statistics only the last line will be printed.
+Further, there is a simple stats mode that prints only the sum of each row which is active by default.
+This mode can be changed in ``src/Editor/ST.hpp`` and ``src/Editor/MT.hpp`` for single- and multi-threaded operation, respectively.
 
 To facilitate further processing of the results adding ``-J`` or ``--json`` will cause the results to be printed as a JSON fragment instead. (Note the trailing comma.) If compiled without statistics the ``counters`` object will be missing.
 ```
@@ -64,19 +70,25 @@ To facilitate further processing of the results adding ``-J`` or ``--json`` will
 
 If the graph can be solved, the solution will be written in the same directory as the graph. The filename is derived from the original name and indicates the algorithm choices and number of edits. The set of currently edited or marked edges is also written. Both graphs are written in METIS and DOT format. In addition a graph in DOT format is written, highlighting changes made and edges marked. Writing solutions to disk can be disabled with ``-W`` or ``--no-write``.
 
-We recommend redirecting the output to a file when outputting JSON. JSON fragments can be assembled into a valid JSON object by using the helper scrip ``./eval2json input_file(s) > output_file``. The JSON file can then be converted into a sqlite database by ``json2db.py json_file sqlite_file``.
-``plot.r`` provides R functions for loading JSON and database files and creating various plots from their data. We recommend using the database as R has some serious problems loading larger JSON files.
-
+We recommend redirecting the output to a file when outputting JSON. JSON fragments can be assembled into a valid JSON object by using the helper scrip ``./eval2json input_file(s) > output_file``. The JSON file can then be converted to CSV using ``json2csv csv_file json_file(s)``, the ``json2csv`` binary can be compiled using CMake.
+``bio_plot.py`` produces most plots, ``bio_qtm_plot.py`` the comparison plots for the QTM heuristic and ``bio_stats.py`` produces various statistics.
+``social_table.py`` produces the comparison table for the social networks.
+``cluster_analysis.py`` contains the code for comparing the solutions on the social network instances, this script might need to be adjusted for the actual path to the solutions.
+This needs the current version of NetworKit.
+The ``run_qtm.py`` script contains the code for executing the QTM heuristic on all given graphs.
+This script outputs the CSV that is needed for ``bio_qtm_plot.py``.
+QTM is available in the NetworKit fork at https://github.com/michitux/networkit/tree/upstream/qtm/networkit (note that this fork unfortunately does not contain the features required for ``cluster_analysis.py``).
+All scripts but ``cluster_analysis.py`` use an argument parser that will also print a help listing all required and optional parameters when run without arguments.
 
 ### HACKING
 
-In the main source directory ``src/`` contains the files for configuration (``config.hpp``), command line parsing (``main.cpp``), setting up the individual experiments (``Run_impl.hpp``), templates used by the build system (``*.tpp``) and some general utility. Components are in subdirectories named after their type. The interface each component should adhere to can be found in ``src/Interfaces/``.
+In the main source directory ``src/`` contains the files for configuration (``config.hpp``), command line parsing (``main.cpp``), setting up the individual experiments (``Run_impl.hpp``), templates used by the build system (``*.tpp``) and some general utility. Components are in subdirectories named after their type.
 
-The code relies on templates instead of inheritance/polymorphism as we observed a 35% increase in running time using the latter. However, when simply adding components, the interface and the existing components should serve as sufficient example on how the templates are intended to be used. The more messy ones (implementation of ``Finder::Feeder`` and ``Run_impl``) shouldn't need to be touched.
+The code relies on templates instead of inheritance/polymorphism as we observed a 35% increase in running time using the latter. However, when simply adding components, the interface and the existing components should serve as sufficient example on how the templates are intended to be used. The more messy ones (implementation of ``Run_impl``) shouldn't need to be touched.
 Don't forget to add a new component to ``src/choices.hpp`` and ``src/config.hpp``; not adding them will lead to build failures or the build process ignoring the new components.
 
 - Conventions
 	- Every function that is a loop or recursion and the callbacks called by them return a boolean signaling whether it should continue executing. Receiving ``true`` from a callback means the function should stop looping resp. recursing and return ``true`` as well. Currently these functions are:
 		* ``Editor::<any>.edit``
-		* ``Finder::<any>.find`` with callback ``Consumer.next`` and their ``…_near`` variants
+		* ``Finder::<any>.find`` and their ``…_near`` variants with their callback parameter
 		* Helper functions ``Finder::for_all_edges_ordered`` and ``Finder::for_all_edges_unordered`` and their lambda parameter
