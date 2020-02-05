@@ -1,5 +1,3 @@
-[TOC]
-
 ### EDITOR
 Centerpiece tying the other components together and implementing the main structure for FPT Edge Editing algorithms.
 
@@ -11,10 +9,10 @@ Multithreaded variant of Editor. All threads monitor the size of a shared work q
 
 ### FINDER
 Component that finds forbidden subgraphs.
-What is considered a forbidden subgraph is defined by the components themselves; currently either P~4~/C~4~ or P~5~/C~5~ as indicated by the number following the algorithm name.
+What is considered a forbidden subgraph is defined by the components themselves; currently either P<sub>4</sub>/C<sub>4</sub> or P<sub>5</sub>/C<sub>5</sub> as indicated by the number following the algorithm name.
 
 - Center (Center_4, Center_5)
-	Tries each edge (for P~x~/C~x~, x even) resp. vertex (x odd) as the center of a forbidden subgraph. The center is expanded by simultaneously adding an edge to both sides while maintaining that the subgraph is a path (thus transforming a P~y~ to P~y+2~) until the desired length is reached. In the last expansion it is allowed to transform the path (P~y~) into a cycle (C~y+2~) instead.
+	Tries each edge (for P<sub>l</sub>/C<sub>l</sub>, l even) resp. vertex (l odd) as the center of a forbidden subgraph. The center is expanded by simultaneously adding an edge to both sides while maintaining that the subgraph is a path (thus transforming a P<sub>y</sub> to P<sub>y+2</sub>) until the desired length is reached. In the last expansion it is allowed to transform the path (P<sub>y</sub>) into a cycle (C<sub>y+2</sub>) instead.
 
 
 ### CONSUMERS
