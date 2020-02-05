@@ -26,7 +26,7 @@ For the parts using CMake:
 Specify the combination of algorithms that shall be used and the graph files to run them on. Optionally limit the number of edits that should be tried and limit the running time. Except for Consumers, selecting multiple algorithms for the same component will run multiple experiments. You can create groups with the ``-{``, ``-,`` and ``-}`` options, which work similar to ``{``, ``,`` and ``}`` of most shells.
 Try ``graphedit --help``. Graphs files must be in METIS format.
 
-For a description of the individual components and the currently available algorithms for these components see [COMPONENTS](COMPONENTS).
+For a description of the individual components and the currently available algorithms for these components see [COMPONENTS](COMPONENTS.md).
 
 For each experiment the program will print a table of statistics:
 ```
