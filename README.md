@@ -14,6 +14,13 @@ Most of the instructions below mainly concern the FPT implementation. The ILP wo
 * edit ``src/config.hpp`` to select the algorithms that will be available -- compiling everything will take a while (expect 2 hours on a modern machine). The selected default configuration that includes all variants used in the paper should compile in less than 2 minutes on a current laptop using 4 parallel jobs (``make -j4``).
 * ``make [-jX]``
 
+For the parts using CMake:
+
+* Run ``git submodule update --init`` if you haven't initialized the submodule yet, we use  [tlx](https://tlx.github.io/) for various parts which is embedded as a submodule.
+* Run ``mkdir release && cd release`` to create a build directory and change to it.
+* Run ``cmake .. -DCMAKE_BUILD_TYPE=Release`` to initialize the build directory. If Gurobi is not found, you might need to set the environment variable ``GUROBI_HOME`` to the path that contains the Gurobi include and lib directories, e.g. using ``export GUROBI_HOME=/opt/gurobi/linux64/`` and add the version of Gurobi you use to ``cmake/modules/FindGUROBI.cmake``.
+* Build using ``make [-jX]``.
+
 ### USING
 
 Specify the combination of algorithms that shall be used and the graph files to run them on. Optionally limit the number of edits that should be tried and limit the running time. Except for Consumers, selecting multiple algorithms for the same component will run multiple experiments. You can create groups with the ``-{``, ``-,`` and ``-}`` options, which work similar to ``{``, ``,`` and ``}`` of most shells.
