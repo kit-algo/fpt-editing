@@ -131,7 +131,11 @@ namespace Consumer
 	public:
 		Gurobi(VertexID graph_size) : finder(graph_size), env(std::make_unique<GRBEnv>()), variables(graph_size), initial_k(0), shall_solve(true) {}
 
-		State initialize(size_t, Graph &graph, Graph_Edits const &/*edited*/)
+		Gurobi(const Gurobi& o) : finder(o.finder), variables(o.variables) { throw std::runtime_error("Not implemented"); }
+
+		Gurobi(Gurobi&& o) = default;
+
+		State initialize(size_t, const Graph &graph, Graph_Edits const &/*edited*/)
 		{
 			try {
 				model = std::make_unique<GRBModel>(*env);
