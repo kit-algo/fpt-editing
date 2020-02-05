@@ -7,7 +7,47 @@ import collections
 import copy
 import pandas
 
-graph_names = [s[:s.find(".e.")] for s in glob.glob("data/*.graph.n*.e.MT*.w0.gv")]
+class HashablePartition(structures.Partition):
+    @classmethod
+    def fromPartition(cls, p):
+        hp = cls(len(p))
+        hp.setUpperBound(p.upperBound())
+        for u in range(len(p)):
+            hp[u] = p[u]
+        return hp
+    
+    def __hash__(self):
+        """
+        Hash the partition.
+        This hash value does not depend on the actually used
+        partition ids. Instead, it hashes a list of new
+        partition ids that are assigned in a canonical way.
+        Returns
+        -------
+        int
+                A hash value.
+        """
+        canonicIds = list()
+        toCanonicId = dict()
+
+        nextId = 0
+        for i in range(self.numberOfElements()):
+            s = self[i]
+            if not s in toCanonicId:
+                toCanonicId[s] = nextId
+                nextId += 1
+
+            canonicIds.append(toCanonicId[s])
+        return hash(tuple(canonicIds))
+
+class HashableGraphEvent(dynamic.GraphEvent):
+    def __hash__(self):
+        if self.type == dynamic.GraphEvent.TIME_STEP:
+            return hash(self.type)
+        else:
+            return hash((self.type, self.u, self.v, self.w))
+
+graph_names = glob.glob("data/*.graph")
 
 input_data = []
 
@@ -15,13 +55,17 @@ for g_path in graph_names:
     short_name = g_path[g_path.find("/")+1:g_path.find(".")]
     print(short_name)
 
-    orig = readGraph(g_path, Format.METIS)
-
     solution_paths = glob.glob("{}.e.*.w*[0-9]".format(g_path))
+
+    if not len(solution_paths):
+        print("No solutions found")
+        continue
+
+    orig = graphtools.toUnweighted(readGraph(g_path, Format.METIS))
 
     solutions = [readGraph(p, Format.METIS) for p in solution_paths]
 
-    edits = [graph.EdgeEditDifference(orig, s).run().getEdits() for s in solutions]
+    edits = [[HashableGraphEvent(e.type, e.u, e.v, e.w) for e in dynamic.GraphDifference(orig, s).run().getEdits()] for s in solutions]
 
     assert(len(set(map(len, edits))) == 1)
 
@@ -33,7 +77,7 @@ for g_path in graph_names:
     all_insertions = [e for e in all_edits if e.type == dynamic.GraphEvent.EDGE_ADDITION]
     all_deletions = [e for e in all_edits if e.type == dynamic.GraphEvent.EDGE_REMOVAL]
 
-    ccs = [components.ConnectedComponents(g).run().getPartition() for g in solutions]
+    ccs = [HashablePartition.fromPartition(components.ConnectedComponents(g).run().getPartition()) for g in solutions]
 
     ccs_subsets = list(map(Partition.numberOfSubsets, ccs))
 
