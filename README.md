@@ -1,6 +1,6 @@
 A framework for evaluating exact Edge Editing algorithms
 
-This code base contains both the ILP and the FPT-based approach for exact F-free edge editing. F is a set of forbidden subgraphs. If a graph doesn't contain any of them the graph is considered to be F-free. graphedit tries to find F-free graphs close to the input graph by editing (inserting and removing) as few edges as possible. Currently all implemented components are for F = {P<sub>l</sub>, C<sub>l</sub>}, i.e. paths and cycles containing l vertices are forbidden. The ILP is currently only implemented for F = {P<sub>4</sub>, C<sub>4<sub>}. Further, various evaluation scripts for generating statistics and plots are provided.
+This code base contains both the ILP and the FPT-based approach for exact F-free edge editing. F is a set of forbidden subgraphs. If a graph doesn't contain any of them the graph is considered to be F-free. graphedit tries to find F-free graphs close to the input graph by editing (inserting and removing) as few edges as possible. Currently all implemented components are for F = {P<sub>l</sub>, C<sub>l</sub>}, i.e. paths and cycles containing l vertices are forbidden. The ILP is currently only implemented for F = {P<sub>4</sub>, C<sub>4</sub>}. Further, various evaluation scripts for generating statistics and plots are provided.
 
 The ILP algorithm can be compiled using CMake, while the FPT algorithm uses the ``Makefile`` at the top of the repository. Both approaches currently need Gurobi for building, as the FPT algorithm contains a lower bound based on an LP relaxation.
 
